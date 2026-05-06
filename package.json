@@ -1,0 +1,21 @@
+{
+  "name": "almanac",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "A local-first personal almanac. One page a day, written for you.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@xenova/transformers": "^2.17.2",
+    "dexie": "^4.0.10"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
+  }
+}

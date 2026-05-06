@@ -1,0 +1,8 @@
+node_modules
+dist
+.DS_Store
+*.local
+.env
+.env.*
+# Almanac never ships exports — but if you back up locally, don't commit it.
+*.almanac.json
