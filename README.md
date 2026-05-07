@@ -56,6 +56,32 @@ There is no server. There is no cloud. There is no telemetry.
 | Functional ranges | Built-in DB of ~40 common markers (`src/data/markers.ts`) — extend as needed |
 | Aesthetic | Editorial / private-press: Cormorant Garamond + Inter Tight, cream + ink + a single oxblood accent |
 
+## Deploy to Vercel
+
+Almanac is a static SPA — no backend, no environment variables, no secrets to manage on the host. Deployment takes about a minute.
+
+**Option 1 — Vercel CLI (fastest):**
+
+```bash
+cd /Users/mutaafaziz/Desktop/projects/almanac
+npm i -g vercel
+vercel             # follow prompts; creates a preview URL
+vercel --prod      # promotes to production
+```
+
+**Option 2 — GitHub + Vercel dashboard:**
+
+1. `gh repo create almanac --private --source . --push` (or push to your own remote).
+2. At [vercel.com/new](https://vercel.com/new), import the repo. Vite is auto-detected.
+3. No environment variables required. Click Deploy.
+
+The `vercel.json` in this repo handles the rest:
+- **SPA rewrites** — every path falls back to `index.html` so direct links to `#/today`, `#/labs?id=3`, etc. work after refresh.
+- **Security headers** — `Strict-Transport-Security`, `X-Frame-Options: DENY`, `Permissions-Policy` blocking camera/mic/geolocation, `Referrer-Policy: no-referrer`.
+- **Asset caching** — fingerprinted bundles get `Cache-Control: public, max-age=31536000, immutable`.
+
+Note: deploying to Vercel means *the public can reach the site*, but Almanac is still a single-tenant app — every visitor sets up their own profile in their own browser, runs against their own Anthropic key, and stores their data in their own IndexedDB. Nothing is shared, because there's no backend to share through.
+
 ## Run it
 
 ```bash

@@ -8,6 +8,7 @@
 //   #/settings     profile, key, export/import/wipe
 
 import { getProfile } from "./db";
+import { renderWelcome, consentAcknowledged } from "./pages/welcome";
 import { renderOnboarding } from "./pages/onboarding";
 import { renderToday }      from "./pages/today";
 import { renderPlan }       from "./pages/plan";
@@ -20,13 +21,22 @@ async function route(): Promise<void> {
   const hash = location.hash || "#/today";
   const path = hash.split("?")[0] ?? hash;
 
+  // Consent gate: every user must explicitly acknowledge the three points
+  // (not medical advice / local-first / BYOK billed to them) before any
+  // other route. Acknowledgment is one-time, persisted in localStorage.
+  if (!consentAcknowledged() && path !== "#/welcome") {
+    location.hash = "#/welcome";
+    return;
+  }
+
   const profile = await getProfile();
-  if (!profile && path !== "#/onboarding") {
+  if (!profile && path !== "#/onboarding" && path !== "#/welcome") {
     location.hash = "#/onboarding";
     return;
   }
 
   switch (path) {
+    case "#/welcome":    return renderWelcome();
     case "#/onboarding": return renderOnboarding();
     case "#/labs":       return renderLabs();
     case "#/plan":       return renderPlan();
