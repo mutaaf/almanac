@@ -21,7 +21,7 @@ export async function renderSettings(): Promise<void> {
         </h1>
 
         <form id="set" style="max-width: 60ch; margin-top: 2.2rem;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
             <div class="field">
               <label for="name">Your name</label>
               <input id="name" name="name" type="text" required value="${esc(p.ownerName)}" />
@@ -32,7 +32,7 @@ export async function renderSettings(): Promise<void> {
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
             <div class="field">
               <label for="sex">Sex</label>
               <select id="sex" name="sex">
@@ -42,12 +42,12 @@ export async function renderSettings(): Promise<void> {
               </select>
             </div>
             <div class="field">
-              <label for="heightCm">Height (cm)</label>
-              <input id="heightCm" name="heightCm" type="number" step="0.5" value="${p.heightCm ?? ""}" />
+              <label for="heightIn">Height (inches)</label>
+              <input id="heightIn" name="heightIn" type="number" step="0.5" value="${p.heightIn ?? ""}" />
             </div>
             <div class="field">
-              <label for="weightKg">Weight (kg)</label>
-              <input id="weightKg" name="weightKg" type="number" step="0.1" value="${p.weightKg ?? ""}" />
+              <label for="weightLb">Weight (lb)</label>
+              <input id="weightLb" name="weightLb" type="number" step="0.1" value="${p.weightLb ?? ""}" />
             </div>
           </div>
 
@@ -64,7 +64,7 @@ export async function renderSettings(): Promise<void> {
             <textarea id="dietPattern" name="dietPattern" required>${esc(p.dietPattern)}</textarea>
             <div class="hint">Halal/kosher/vegan, cuisines, dislikes, allergies, cooking capacity.</div>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
             <div class="field">
               <label for="householdSize">Household size</label>
               <input id="householdSize" name="householdSize" type="number" min="1" max="12" value="${p.householdSize ?? 1}" />
@@ -128,8 +128,8 @@ export async function renderSettings(): Promise<void> {
       ownerName:    String(fd.get("name") ?? "").trim(),
       birthDate:    String(fd.get("birthDate") ?? "") || undefined,
       sex:          (String(fd.get("sex") ?? "unspecified") as Sex),
-      heightCm:     numOrUndef(fd.get("heightCm")),
-      weightKg:     numOrUndef(fd.get("weightKg")),
+      heightIn:     numOrUndef(fd.get("heightIn")),
+      weightLb:     numOrUndef(fd.get("weightLb")),
       goals:        String(fd.get("goals") ?? "").trim(),
       conditions:   String(fd.get("conditions") ?? "").trim(),
       dietPattern:  String(fd.get("dietPattern") ?? "").trim(),

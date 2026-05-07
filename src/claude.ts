@@ -347,8 +347,8 @@ function formatProfile(p: Profile): string {
     `Name:    ${p.ownerName}`,
     `Age:     ${a}`,
     `Sex:     ${p.sex}`,
-    p.heightCm ? `Height:  ${p.heightCm} cm` : "",
-    p.weightKg ? `Weight:  ${p.weightKg} kg` : "",
+    p.heightIn ? `Height:  ${p.heightIn} in (${formatHeight(p.heightIn)})` : "",
+    p.weightLb ? `Weight:  ${p.weightLb} lb` : "",
     p.householdSize ? `Household size: ${p.householdSize}` : "",
     ``,
     `# Goals`,
@@ -396,6 +396,13 @@ function formatResult(r: Result): string {
   const optimal = r.optimalRange ? rangeStr(r.optimalRange, r.unit) : "—";
   const flag = r.flag ? ` [${r.flag}]` : "";
   return `${name}: ${r.value} ${r.unit} · lab ${lab} · functional ${optimal}${flag}`;
+}
+
+/** Friendly height like 5'11". Helps Claude reason without doing the math. */
+function formatHeight(inches: number): string {
+  const ft = Math.floor(inches / 12);
+  const inch = Math.round(inches - ft * 12);
+  return `${ft}'${inch}"`;
 }
 
 function rangeStr(r: { low?: number; high?: number }, unit: string): string {

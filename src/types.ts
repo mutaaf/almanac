@@ -12,8 +12,8 @@ export interface Profile {
   ownerName: string;
   birthDate?: Day;
   sex: Sex;
-  heightCm?: number;
-  weightKg?: number;
+  heightIn?: number;
+  weightLb?: number;
 
   goals: string;              // free-form
   conditions: string;         // free-form: dx, meds, allergies

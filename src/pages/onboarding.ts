@@ -29,7 +29,7 @@ export async function renderOnboarding(): Promise<void> {
         </p>
 
         <form id="onb" style="max-width: 60ch; margin-top: 2.6rem;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
             <div class="field">
               <label for="name">Your name</label>
               <input id="name" name="name" type="text" required value="${esc(existing?.ownerName ?? "")}" />
@@ -40,7 +40,7 @@ export async function renderOnboarding(): Promise<void> {
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
             <div class="field">
               <label for="sex">Sex (for ranges)</label>
               <select id="sex" name="sex" required>
@@ -50,12 +50,12 @@ export async function renderOnboarding(): Promise<void> {
               </select>
             </div>
             <div class="field">
-              <label for="heightCm">Height (cm)</label>
-              <input id="heightCm" name="heightCm" type="number" step="0.5" value="${existing?.heightCm ?? ""}" />
+              <label for="heightIn">Height (inches)</label>
+              <input id="heightIn" name="heightIn" type="number" step="0.5" placeholder="e.g. 70 = 5'10&quot;" value="${existing?.heightIn ?? ""}" />
             </div>
             <div class="field">
-              <label for="weightKg">Weight (kg)</label>
-              <input id="weightKg" name="weightKg" type="number" step="0.1" value="${existing?.weightKg ?? ""}" />
+              <label for="weightLb">Weight (lb)</label>
+              <input id="weightLb" name="weightLb" type="number" step="0.1" value="${existing?.weightLb ?? ""}" />
             </div>
           </div>
 
@@ -77,7 +77,7 @@ export async function renderOnboarding(): Promise<void> {
             <div class="hint">Halal/kosher/vegan/keto, cuisines you cook, dislikes, allergies, and how much you actually cook. The meal plan is built against this.</div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
             <div class="field">
               <label for="householdSize">Household size (for grocery)</label>
               <input id="householdSize" name="householdSize" type="number" min="1" max="12" value="${existing?.householdSize ?? 1}" />
@@ -125,8 +125,8 @@ export async function renderOnboarding(): Promise<void> {
       ownerName:    String(fd.get("name") ?? "").trim(),
       birthDate:    String(fd.get("birthDate") ?? "") || undefined,
       sex:          (String(fd.get("sex") ?? "unspecified") as Sex),
-      heightCm:     numOrUndef(fd.get("heightCm")),
-      weightKg:     numOrUndef(fd.get("weightKg")),
+      heightIn:     numOrUndef(fd.get("heightIn")),
+      weightLb:     numOrUndef(fd.get("weightLb")),
       goals:        String(fd.get("goals") ?? "").trim(),
       conditions:   String(fd.get("conditions") ?? "").trim(),
       dietPattern:  String(fd.get("dietPattern") ?? "").trim(),
