@@ -494,13 +494,18 @@ body {
 .staged__chip {
   position: relative;
   display: grid;
-  grid-template-columns: 48px 1fr auto;
+  grid-template-columns: 48px minmax(0, 1fr) auto;
   gap: 0.65rem;
   align-items: center;
   padding: 0.55rem 0.6rem;
   border: 1px solid var(--rule);
   background: var(--paper-deep);
   font-family: var(--body);
+  min-width: 0;
+  overflow: hidden;
+}
+.staged__meta {
+  min-width: 0;          /* lets the name actually truncate inside the 1fr cell */
 }
 .staged__thumb {
   width: 48px; height: 48px;

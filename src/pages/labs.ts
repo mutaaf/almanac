@@ -70,7 +70,7 @@ export async function renderLabs(): Promise<void> {
         <div id="staged" class="staged"></div>
 
         <div id="actions" style="margin-top: 1rem; display: none; flex-wrap: wrap; gap: 1rem; align-items: center;">
-          <button id="extract" class="btn btn--accent">Extract from <span id="extract-count">0</span> page<span id="extract-plural">s</span></button>
+          <button id="extract" class="btn btn--accent">Extract</button>
           <button id="clear"   class="btn btn--ghost">Clear</button>
         </div>
 
@@ -239,8 +239,7 @@ function isAllowed(f: File): boolean {
 function renderStaged(): void {
   const stage   = document.getElementById("staged");
   const actions = document.getElementById("actions");
-  const count   = document.getElementById("extract-count");
-  const plural  = document.getElementById("extract-plural");
+  const extract = document.getElementById("extract");
   if (!stage || !actions) return;
 
   if (!staged.length) {
@@ -250,8 +249,10 @@ function renderStaged(): void {
   }
 
   actions.style.display = "flex";
-  if (count)  count.textContent  = String(staged.length);
-  if (plural) plural.textContent = staged.length === 1 ? "" : "s";
+  // Single text node — inline spans + letter-spacing render with phantom gaps.
+  if (extract) {
+    extract.textContent = `Extract from ${staged.length} page${staged.length === 1 ? "" : "s"}`;
+  }
 
   stage.innerHTML = staged.map((f, i) => {
     const isImg = f.type.startsWith("image/");
