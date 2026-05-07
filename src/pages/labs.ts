@@ -18,15 +18,16 @@ import type { Panel, Result } from "../types";
 /* The staging set lives outside render so paste handlers can mutate it
    without re-running the whole component. */
 let staged: File[] = [];
-let pasteHandler: ((e: ClipboardEvent) => void) | null = null;
+
+/**
+ * The paste listener is attached to `window` exactly once per browser tab,
+ * stashed on the window itself so Vite HMR re-evaluating this module can't
+ * leak duplicates. Each invocation re-reads `staged` (a module-level binding)
+ * and only acts when we're actually on the labs route.
+ */
+const PASTE_KEY = "__almanacPasteListener__";
 
 export async function renderLabs(): Promise<void> {
-  // Reset paste handler whenever we (re)render the labs screen.
-  if (pasteHandler) {
-    window.removeEventListener("paste", pasteHandler);
-    pasteHandler = null;
-  }
-
   const profile = await getProfile();
   if (!profile) { location.hash = "#/onboarding"; return; }
 
@@ -158,11 +159,21 @@ function wireUpload(): void {
     input.value = "";   // allow re-picking the same file later
   });
 
-  // Paste — listen on window so the user doesn't need focus on the dropzone.
-  pasteHandler = (e: ClipboardEvent) => {
+  // Paste — single window-level listener, idempotent across HMR reloads.
+  // We only attach once per tab; the handler reads `staged` via the
+  // module-level binding (which Vite refreshes on HMR), and bails when
+  // we're not on the labs route.
+  const w = window as unknown as Record<string, unknown>;
+  if (w[PASTE_KEY]) {
+    window.removeEventListener("paste", w[PASTE_KEY] as EventListener);
+  }
+  const handler = (e: ClipboardEvent) => {
     if (location.hash.split("?")[0] !== "#/labs") return;
     if (!e.clipboardData) return;
 
+    // Read EXACTLY ONE source — clipboardData.items. Reading both .items
+    // and .files double-stages the same image because each lookup yields
+    // a fresh File reference that won't match a simple identity dedupe.
     const accepted: File[] = [];
     for (const item of Array.from(e.clipboardData.items)) {
       if (item.kind === "file") {
@@ -170,16 +181,13 @@ function wireUpload(): void {
         if (f) accepted.push(maybeRename(f));
       }
     }
-    // Also handle when files arrive via clipboardData.files (some browsers).
-    for (const f of Array.from(e.clipboardData.files ?? [])) {
-      if (!accepted.includes(f)) accepted.push(maybeRename(f));
-    }
     if (accepted.length) {
       e.preventDefault();
       acceptFiles(accepted);
     }
   };
-  window.addEventListener("paste", pasteHandler);
+  w[PASTE_KEY] = handler;
+  window.addEventListener("paste", handler);
 
   // Buttons
   document.getElementById("extract")?.addEventListener("click", () => {
@@ -203,9 +211,21 @@ function maybeRename(f: File): File {
 function acceptFiles(files: File[]): void {
   for (const f of files) {
     if (!isAllowed(f)) continue;
+    if (alreadyStaged(f)) continue;   // belt + braces against duplicate adds
     staged.push(f);
   }
   renderStaged();
+}
+
+/**
+ * Fingerprint dedupe — a paste/drop that re-introduces the same content
+ * (same name, size, and lastModified) is treated as a no-op. Catches both
+ * accidental double-adds and any handler-fan-out we haven't anticipated.
+ */
+function alreadyStaged(f: File): boolean {
+  return staged.some(s =>
+    s.name === f.name && s.size === f.size && s.lastModified === f.lastModified,
+  );
 }
 
 function isAllowed(f: File): boolean {
