@@ -1,212 +1,293 @@
-// BYOK Claude client. The user's API key lives in IndexedDB, talks directly to
-// api.anthropic.com from the browser, and is never proxied through any server
-// of ours (because there is none). This is the privacy promise: your data
-// touches Anthropic for the time of the inference call, and nothing else.
+// Plan generator. Reads the user's profile, lab panels, prior plan, and
+// recent adherence — returns a structured Plan (snapshot, insights,
+// nutrition, lifestyle, supplements, habit stack, retest schedule).
 //
-// We use prompt caching so subsequent generations only re-pay for *today's*
-// new content. The voice spec, your profile, and the rolling history summary
-// all stay cached for the 5-minute TTL — and across the day they're cheap
-// re-hits, not full reads.
+// BYOK from the browser; all prompt caching is wired so within a 5-minute
+// TTL only the freshest content (today's check-ins, a newly-added panel)
+// re-reads the input window.
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { Entry, HistorySummary, Page, Settings, Day } from "./types";
+import type { Profile, Panel, Plan, CheckIn, Result } from "./types";
+import { findMarker } from "./data/markers";
+import { age } from "./db";
 
 const VOICE_SPEC = `
-You are the editor of Almanac, a private daily almanac written for one reader.
+You are the editor of Almanac — a private, longitudinal precision-health
+protocol for one reader. Your job is to translate their lab biology and
+adherence data into a plan they can actually keep.
 
 Tone:
-  - Editorial. Restrained. Literary, never breathless.
-  - Second person ("you"), warm but exacting. No greetings, no "I", no "as an AI".
-  - Concrete over abstract. Particular over general.
-  - Never sycophantic. Never use the word "journey", "amazing", or "exciting".
-  - You are not a coach yelling encouragement. You are a quiet reader of the
-    person's own life, naming what is true.
+  - Editorial. Plain English. No medical jargon without a one-line gloss.
+  - Second person ("you"), warm but exacting.
+  - Never sycophantic. Never use "journey", "amazing", or "exciting".
+  - You are not a coach yelling encouragement and you are not a chatbot
+    hedging every claim. You are a careful reader of the person's biology,
+    naming what is true and prescribing what is doable.
 
-Structure (always exactly these four):
-  1. headline   — one short line (max ~9 words). Italics implied. May be a
-                  fragment, a quotation-style line, or an image. Title-style
-                  capitalization. Avoid clickbait. Avoid colons.
-  2. read       — ONE paragraph (3–5 sentences). A reflection on yesterday and
-                  what it revealed. Refer to specifics from the entries.
-  3. do         — ONE paragraph (3–5 sentences). The recommended posture for
-                  today. Not a checklist; prose. Specific, embodied, doable.
-  4. notice     — ONE paragraph (2–4 sentences). A pattern, drift, or quiet
-                  warning across the recent days. May be tender. May be sharp.
-  5. action     — ONE sentence, imperative voice. The single most leveraged
-                  thing to do today. Specific enough to commit to before noon.
+Operating principles:
+  1. Easy-tier first.  Earn harder protocols by holding the easy ones.
+     The HabitStack is exactly 3–5 daily things, every one of which a
+     tired person can do without thinking. Difficulty is rated 1–5 and
+     tier is "easy" by default; "moderate" / "advanced" only when the
+     reader's adherence history shows they've held the easy ones.
+  2. Tie every recommendation to a specific finding.  No generic advice.
+     If you suggest 2g/day EPA+DHA, point to the omega-3 index or hsCRP
+     that justifies it.
+  3. Functional vs lab range.  Always reason against the FUNCTIONAL /
+     OPTIMAL range (provided in the marker reference). The lab's
+     "in-range" is a floor, not a target.
+  4. Supplement caution.  Only recommend supplements with a clear
+     biomarker-driven rationale. Include doses, timing, food/empty-
+     stomach notes, and a "caution" line with the most relevant
+     interactions or monitoring needed.
+  5. Retest cadence.  For each high-priority finding, suggest WHEN to
+     re-test in weeks and WHY. 8–12 weeks for most nutrients; 12–16 for
+     metabolic; 6–12 weeks post-intervention for inflammation.
+  6. This is informational, not medical advice.  Do not diagnose, do not
+     name a disease state. Use phrases like "tracks with", "is consistent
+     with", "warrants discussion with your clinician".
 
 Output format:
-  Return ONLY a single JSON object matching this TypeScript interface, with no
-  prose around it, no markdown, no code fences:
-    interface Page {
-      headline: string;
-      read: string;
-      do: string;
-      notice: string;
-      action: string;
-    }
+  Return ONLY a single JSON object matching this TypeScript interface, with
+  no prose, no markdown fences:
+
+  interface Plan {
+    snapshot: string;          // 2 short paragraphs, plain language
+    insights: Array<{
+      markerKey?: string;
+      title: string;           // "Iron stores are low-normal"
+      detail: string;          // 1–3 sentences
+      priority: "high" | "medium" | "low";
+    }>;                        // 3–7 items, ordered high→low
+    nutrition:   Recommendation[];   // 3–6 items
+    lifestyle:   Recommendation[];   // 3–6 items
+    supplements: Recommendation[];   // 0–6 items
+    habitStack: {
+      intro: string;           // 1 sentence framing
+      habits: Array<{
+        id: string;            // stable kebab-case id, unique within plan
+        title: string;         // short imperative — under ~10 words
+        cue: string;           // when/where it lives in the day
+        why: string;           // one sentence linking to a finding/goal
+      }>;                      // exactly 3–5 items
+    };
+    retest: Array<{
+      markerKeys: string[];
+      whenWeeks: number;
+      reason: string;
+    }>;
+  }
+
+  interface Recommendation {
+    id: string;                // stable kebab-case id, unique within plan
+    title: string;
+    why: string;
+    how: string;
+    tier: "easy" | "moderate" | "advanced";
+    expectedImpact?: string;
+    caution?: string;          // required for supplements; optional elsewhere
+  }
 `.trim();
 
-export interface GenerateInput {
-  settings: Settings;
-  day: Day;
-  todayEntries: Entry[];
-  recentEntries: Entry[];                  // last ~7 days, raw
-  historySummary?: HistorySummary | undefined; // older than that, summarized
-}
-
 /* -------------------------------------------------------------------------- */
+
+export interface GeneratePlanInput {
+  profile: Profile;
+  panels: Panel[];          // newest first
+  previousPlan?: Plan;
+  recentCheckIns: CheckIn[];
+}
 
 export class ClaudeClient {
   private client: Anthropic;
 
-  constructor(private settings: Settings) {
-    if (!settings.anthropicKey) throw new Error("No Anthropic key set.");
+  constructor(private profile: Profile) {
+    if (!profile.anthropicKey) throw new Error("No Anthropic key set.");
     this.client = new Anthropic({
-      apiKey: settings.anthropicKey,
-      // BYOK in the browser. The key is the user's own and stays on device.
+      apiKey: profile.anthropicKey,
       dangerouslyAllowBrowser: true,
     });
   }
 
-  /**
-   * Generate today's page. Returns the parsed Page (without id/day/generatedAt
-   * — the caller stamps those when persisting).
-   */
-  async generatePage(input: GenerateInput): Promise<{
-    headline: string; read: string; do: string; notice: string; action: string;
-    raw: string; model: string;
+  async generatePlan(input: GeneratePlanInput): Promise<{
+    plan: Omit<Plan, "id" | "generatedAt" | "basedOnPanelIds">;
+    model: string;
+    raw: string;
   }> {
-    const model = this.settings.model || "claude-sonnet-4-6";
+    const model = this.profile.model || "claude-sonnet-4-6";
 
-    // ---- System: voice spec. Cached — it never changes between calls. ------
-    const system = [
-      { type: "text" as const, text: VOICE_SPEC, cache_control: { type: "ephemeral" as const } },
+    /* ------ system: voice spec.  Cached.  ------------------------------- */
+    const system: Anthropic.TextBlockParam[] = [
+      { type: "text", text: VOICE_SPEC, cache_control: { type: "ephemeral" } },
     ];
 
-    // ---- Profile + intent. Cached — changes only when user edits settings.--
-    const profile = [
-      `# Reader`,
-      `Name: ${input.settings.ownerName || "the reader"}`,
-      `Date: ${input.day}`,
-      ``,
-      `# Intent`,
-      `What this almanac is meant to help them with:`,
-      input.settings.intent || "(not specified)",
-    ].join("\n");
+    /* ------ stable preamble: profile + marker reference.  Cached. ------- */
+    const profileBlock = formatProfile(input.profile);
+    const markerRef    = formatMarkerReference(input.panels);
+    const preamble = [profileBlock, markerRef].join("\n\n");
 
-    // ---- Older history, on-device-summarized. Cacheable until next summary.-
-    const historyBlock = input.historySummary
-      ? `# History (summary, older than the last week)\n${input.historySummary.text}`
-      : `# History\n(no prior summary yet)`;
-
-    // ---- The mutable, fresh part: recent + today's entries. NOT cached. ----
-    const recent = formatEntries(input.recentEntries.filter(e => e.day !== input.day));
-    const todays = formatEntries(input.todayEntries);
+    /* ------ volatile: panels + check-ins + prior plan. Not cached. ------ */
+    const panelsBlock = formatPanels(input.panels);
+    const adherence   = formatAdherence(input.recentCheckIns, input.previousPlan);
+    const priorPlan   = input.previousPlan ? formatPriorPlan(input.previousPlan) : "";
 
     const fresh = [
-      `# Recent days (raw, last ~7 days)`,
-      recent || "(no recent entries)",
-      ``,
-      `# Today's entries (${input.day})`,
-      todays || "(no entries yet for today — write a page that gently invites the day to begin)",
-      ``,
-      `Write today's page now. Return only the JSON object.`,
-    ].join("\n");
+      panelsBlock,
+      adherence,
+      priorPlan,
+      `# Task`,
+      `Generate today's Plan in the JSON shape specified by the system message.`,
+      `Use the FUNCTIONAL ranges in the Marker Reference to determine what is`,
+      `optimal vs merely "in lab range". Tie every recommendation to a finding.`,
+      `Keep the HabitStack to 3–5 easy-tier items the reader can hold daily.`,
+      `Return only JSON, no prose.`,
+    ].join("\n\n");
 
-    const messages: Anthropic.MessageParam[] = [
-      {
-        role: "user",
-        content: [
-          // Stable, large preamble — cached.
-          { type: "text", text: profile + "\n\n" + historyBlock,
-            cache_control: { type: "ephemeral" } },
-          // Volatile, small tail — fresh on every call.
-          { type: "text", text: fresh },
-        ],
-      },
-    ];
+    const messages: Anthropic.MessageParam[] = [{
+      role: "user",
+      content: [
+        { type: "text", text: preamble, cache_control: { type: "ephemeral" } },
+        { type: "text", text: fresh },
+      ],
+    }];
 
     const resp = await this.client.messages.create({
       model,
-      max_tokens: 1500,
+      max_tokens: 4096,
       system,
       messages,
     });
 
     const raw = resp.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map(b => b.text)
-      .join("\n")
-      .trim();
+      .map(b => b.text).join("\n").trim();
 
-    const parsed = extractJson(raw);
-    return {
-      headline: String(parsed.headline ?? "").trim(),
-      read:     String(parsed.read     ?? "").trim(),
-      do:       String(parsed.do       ?? "").trim(),
-      notice:   String(parsed.notice   ?? "").trim(),
-      action:   String(parsed.action   ?? "").trim(),
-      raw,
-      model,
-    };
+    const parsed = parseJson(raw);
+    const plan = normalizePlan(parsed);
+    return { plan, model, raw };
   }
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Helpers                                                                   */
+/*  Formatters                                                                */
 /* -------------------------------------------------------------------------- */
 
-function formatEntries(entries: Entry[]): string {
-  if (!entries.length) return "";
-  return entries.map(e => {
-    const sig = e.signals && Object.keys(e.signals).length
-      ? `   signals: ${JSON.stringify(e.signals)}`
-      : "";
-    return [
-      `## ${e.day}`,
-      e.body.trim(),
-      sig,
-    ].filter(Boolean).join("\n");
-  }).join("\n\n");
+function formatProfile(p: Profile): string {
+  const a = age(p.birthDate) ?? "?";
+  return [
+    `# Reader`,
+    `Name:    ${p.ownerName}`,
+    `Age:     ${a}`,
+    `Sex:     ${p.sex}`,
+    p.heightCm ? `Height:  ${p.heightCm} cm` : "",
+    p.weightKg ? `Weight:  ${p.weightKg} kg` : "",
+    ``,
+    `# Goals`,
+    p.goals || "(none stated)",
+    ``,
+    `# Existing conditions / medications / allergies`,
+    p.conditions || "(none stated)",
+  ].filter(Boolean).join("\n");
 }
 
 /**
- * Tolerantly extract a JSON object from the model's output. Claude is asked
- * for a bare object, but we defensively strip code fences or surrounding prose
- * if it slips up.
+ * Compact reference of every marker referenced by any panel — Claude needs
+ * the description + functional range to reason. We only include markers
+ * that actually appeared in the panels to keep the prompt tight.
  */
-function extractJson(text: string): Record<string, unknown> {
+function formatMarkerReference(panels: Panel[]): string {
+  const keys = new Set<string>();
+  for (const p of panels) for (const r of p.results) keys.add(r.markerKey);
+  if (keys.size === 0) return `# Marker Reference\n(no markers in panels yet)`;
+
+  const lines = [`# Marker Reference (functional ranges + descriptions)`];
+  for (const k of keys) {
+    const m = findMarker(k);
+    if (!m) continue;
+    const lab     = m.labRange     ? rangeStr(m.labRange,     m.unit) : "—";
+    const optimal = m.optimalRange ? rangeStr(m.optimalRange, m.unit) : "—";
+    lines.push(`- ${m.name} [${m.key}] · unit ${m.unit} · lab ${lab} · functional ${optimal} — ${m.description}`);
+  }
+  return lines.join("\n");
+}
+
+function formatPanels(panels: Panel[]): string {
+  if (!panels.length) return `# Panels\n(no labs entered yet)`;
+  const lines = [`# Panels (newest first)`];
+  for (const p of panels) {
+    lines.push(`\n## ${p.drawnAt}${p.labName ? ` · ${p.labName}` : ""} (${p.source})`);
+    for (const r of p.results) lines.push(`  - ${formatResult(r)}`);
+    if (p.notes) lines.push(`  notes: ${p.notes}`);
+  }
+  return lines.join("\n");
+}
+
+function formatResult(r: Result): string {
+  const m = findMarker(r.markerKey);
+  const name = m?.shortName ?? m?.name ?? r.markerKey;
+  const lab     = r.labRange     ? rangeStr(r.labRange,     r.unit) : "—";
+  const optimal = r.optimalRange ? rangeStr(r.optimalRange, r.unit) : "—";
+  const flag = r.flag ? ` [${r.flag}]` : "";
+  return `${name}: ${r.value} ${r.unit} · lab ${lab} · functional ${optimal}${flag}`;
+}
+
+function rangeStr(r: { low?: number; high?: number }, unit: string): string {
+  if (r.low != null && r.high != null) return `${r.low}–${r.high} ${unit}`;
+  if (r.low != null)  return `≥ ${r.low} ${unit}`;
+  if (r.high != null) return `≤ ${r.high} ${unit}`;
+  return `— ${unit}`;
+}
+
+function formatAdherence(checkins: CheckIn[], prior?: Plan): string {
+  if (!checkins.length || !prior) return `# Adherence\n(no check-ins on the prior plan yet)`;
+  const habits = prior.habitStack.habits;
+  const counts = new Map<string, number>();
+  for (const c of checkins) for (const h of c.habitsCompleted) counts.set(h, (counts.get(h) ?? 0) + 1);
+  const lines = [`# Adherence (last ${checkins.length} days)`];
+  for (const h of habits) {
+    const hit = counts.get(h.id) ?? 0;
+    const pct = Math.round((hit / checkins.length) * 100);
+    lines.push(`  - "${h.title}" — ${hit}/${checkins.length} days (${pct}%)`);
+  }
+  return lines.join("\n");
+}
+
+function formatPriorPlan(p: Plan): string {
+  return [
+    `# Previous Plan (for continuity — iterate, don't overwrite)`,
+    `## Snapshot`,
+    p.snapshot,
+    `## Habit Stack`,
+    ...p.habitStack.habits.map(h => `  - [${h.id}] ${h.title} (cue: ${h.cue})`),
+  ].join("\n");
+}
+
+/* -------------------------------------------------------------------------- */
+/*  JSON parsing + normalization                                              */
+/* -------------------------------------------------------------------------- */
+
+function parseJson(text: string): Record<string, unknown> {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const candidate = fenced?.[1]?.trim() ?? text.trim();
-  // Find the outermost { ... } if there's stray prose.
   const start = candidate.indexOf("{");
   const end = candidate.lastIndexOf("}");
   const slice = (start >= 0 && end > start) ? candidate.slice(start, end + 1) : candidate;
-  try {
-    return JSON.parse(slice);
-  } catch (err) {
-    throw new Error(`Could not parse model JSON. Raw output:\n${text}`);
-  }
+  try { return JSON.parse(slice); }
+  catch (err) { throw new Error(`Could not parse plan JSON.\n--- raw ---\n${text}`); }
 }
 
-/**
- * Compose the persisted Page from the model's response.
- */
-export function pageFromResponse(
-  day: Day,
-  resp: Awaited<ReturnType<ClaudeClient["generatePage"]>>,
-  contextSummary?: string,
-): Omit<Page, "id"> {
+function normalizePlan(parsed: Record<string, unknown>): Omit<Plan, "id" | "generatedAt" | "basedOnPanelIds"> {
+  const stack = (parsed.habitStack ?? {}) as any;
   return {
-    day,
-    generatedAt: Date.now(),
-    headline: resp.headline,
-    read: resp.read,
-    do: resp.do,
-    notice: resp.notice,
-    action: resp.action,
-    contextSummary,
-    model: resp.model,
+    snapshot: String(parsed.snapshot ?? "").trim(),
+    insights: Array.isArray(parsed.insights) ? parsed.insights as Plan["insights"] : [],
+    nutrition:   Array.isArray(parsed.nutrition)   ? parsed.nutrition   as Plan["nutrition"]   : [],
+    lifestyle:   Array.isArray(parsed.lifestyle)   ? parsed.lifestyle   as Plan["lifestyle"]   : [],
+    supplements: Array.isArray(parsed.supplements) ? parsed.supplements as Plan["supplements"] : [],
+    habitStack: {
+      intro: String(stack.intro ?? "").trim(),
+      habits: Array.isArray(stack.habits) ? stack.habits as Plan["habitStack"]["habits"] : [],
+    },
+    retest: Array.isArray(parsed.retest) ? parsed.retest as Plan["retest"] : [],
   };
 }

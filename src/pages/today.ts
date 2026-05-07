@@ -1,212 +1,191 @@
-// Today's Page — the ritual screen. The whole product compresses to this one
-// view. Open the app, read it, close the app.
+// Today — the daily check-in. The whole product compresses to here once
+// the plan exists. Tap each habit to mark it done. 20 seconds, done.
 
 import { mount, h, esc, longDate } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
-  getSettings, today, entriesForDay, recentEntries,
-  pageFor, savePage, latestSummary, saveSummary, db,
+  getProfile, today, latestPlan, checkInFor, upsertCheckIn, recentCheckIns,
 } from "../db";
-import { ClaudeClient, pageFromResponse } from "../claude";
-import { summarizeEntries, olderThan } from "../summarizer";
-import type { Page } from "../types";
+import type { CheckIn, Habit } from "../types";
 
 export async function renderToday(): Promise<void> {
-  const settings = await getSettings();
-  if (!settings) { location.hash = "#/onboarding"; return; }
+  const profile = await getProfile();
+  if (!profile) { location.hash = "#/onboarding"; return; }
 
-  const day = today();
-  const existing = await pageFor(day);
-
-  if (existing) {
-    return paint(existing);
+  const plan = await latestPlan();
+  if (!plan) {
+    return paintNoPlan();
   }
 
-  // No page yet for today. Show the "compose" affordance.
-  await paintEmpty();
-}
-
-async function paintEmpty(): Promise<void> {
   const day = today();
+  const ci = await checkInFor(day);
+  const completed = new Set(ci?.habitsCompleted ?? []);
+
+  // 14-day adherence map for the streak strip.
+  const recent = await recentCheckIns(14);
+  const recentMap = new Map(recent.map(c => [c.day, c]));
+
+  const habits = plan.habitStack.habits;
   const masth = await masthead("#/today");
-  const todays = await entriesForDay(day);
 
   const frag = h(`
     <div class="reveal">
       ${masth}
-
       <section class="page">
         <div class="eyebrow">${esc(longDate(day))}</div>
         <h1 class="headline" style="margin-top: 0.4rem; max-width: 22ch;">
-          Today's page is <em>not yet written</em>.
+          ${greeting(profile.ownerName)}.
         </h1>
-
-        <p class="lede" style="max-width: 56ch; margin-top: 1rem;">
-          ${todays.length
-            ? `You've added <strong>${todays.length}</strong> note${todays.length === 1 ? "" : "s"} so far.
-               Compose the page when you're ready — you can always re-roll it.`
-            : `Add a note from yesterday or this morning, then ask the editor to compose the page.`}
+        <p class="lede" style="max-width: 60ch; margin-top: 0.8rem;">
+          ${esc(plan.habitStack.intro)}
         </p>
 
-        <div style="display: flex; gap: 1rem; margin-top: 2.2rem;">
-          <button id="compose" class="btn btn--accent">Compose today's page</button>
-          <a href="#/inputs" class="btn btn--ghost">Add a note first</a>
+        <ol class="habit-checks" style="margin-top: 2rem;">
+          ${habits.map((h, i) => habitCheckRow(h, i + 1, completed.has(h.id))).join("")}
+        </ol>
+
+        <details style="margin-top: 2.4rem;">
+          <summary class="section-mark" style="cursor: pointer; list-style: none;">Optional · how do you feel?</summary>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem;">
+            <div class="field">
+              <label for="sleep">Sleep (hours)</label>
+              <input id="sleep" type="number" step="0.25" value="${ci?.signals?.sleepHours ?? ""}" />
+            </div>
+            <div class="field">
+              <label for="mood">Mood (1–5)</label>
+              <input id="mood" type="number" min="1" max="5" value="${ci?.signals?.mood ?? ""}" />
+            </div>
+            <div class="field">
+              <label for="energy">Energy (1–5)</label>
+              <input id="energy" type="number" min="1" max="5" value="${ci?.signals?.energy ?? ""}" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="note">A line about today (optional)</label>
+            <input id="note" type="text" value="${esc(ci?.note ?? "")}" />
+          </div>
+        </details>
+
+        <div class="streak-strip" style="margin-top: 2.4rem;">
+          ${streakStrip(habits, recentMap)}
         </div>
 
-        <div id="status" class="quiet" style="display: none; margin-top: 2rem;"></div>
+        <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center;">
+          <button id="save" class="btn btn--accent">Save check-in</button>
+          <span id="save-status" class="quiet" style="padding:0; font-size: 0.95rem;"></span>
+        </div>
       </section>
-
-      ${foot("iii")}
+      ${foot("i")}
     </div>
   `);
 
   mount(frag);
-  document.getElementById("compose")?.addEventListener("click", () => compose());
-}
 
-async function compose(): Promise<void> {
-  const settings = await getSettings();
-  if (!settings) return;
-  const day = today();
+  // Toggle habit cards
+  for (const card of document.querySelectorAll(".habit-check")) {
+    card.addEventListener("click", () => {
+      card.classList.toggle("is-done");
+    });
+  }
 
-  const status = document.getElementById("status") as HTMLDivElement | null;
-  const setStatus = (msg: string) => {
-    if (!status) return;
-    status.style.display = "block";
-    status.innerHTML = `<span class="spinner"></span>&nbsp;&nbsp;${esc(msg)}`;
-  };
+  document.getElementById("save")?.addEventListener("click", async () => {
+    const card$ = document.querySelectorAll(".habit-check.is-done");
+    const habitsCompleted: string[] = [];
+    card$.forEach(c => { const id = (c as HTMLElement).dataset.id; if (id) habitsCompleted.push(id); });
 
-  try {
-    setStatus("Gathering notes from the past week…");
-    const recent = await recentEntries(60);   // raw window, generous
-    const todays = await entriesForDay(day);
+    const sleep = numOrUndef((document.getElementById("sleep") as HTMLInputElement)?.value);
+    const mood  = clamp1to5((document.getElementById("mood")  as HTMLInputElement)?.value);
+    const energy= clamp1to5((document.getElementById("energy")as HTMLInputElement)?.value);
+    const note  = ((document.getElementById("note")as HTMLInputElement)?.value ?? "").trim();
 
-    // If there are entries older than ~7 days that aren't yet summarized,
-    // (re)summarize them on-device.
-    const old = olderThan(recent, day, 7);
-    let history = await latestSummary();
-    const haveOld = old.length > 0;
-    const needsRefresh = haveOld && (
-      !history ||
-      // Refresh weekly: if newest summary is more than 7 days old.
-      (Date.now() - history.createdAt) > 7 * 86400000
-    );
+    const signals: NonNullable<CheckIn["signals"]> = {};
+    if (sleep != null)  signals.sleepHours = sleep;
+    if (mood  != null)  signals.mood   = mood;
+    if (energy!= null)  signals.energy = energy;
 
-    if (needsRefresh) {
-      setStatus("Loading the on-device summarizer (one-time, ~80MB)…");
-      // Pull the *whole* archive of older entries for the summary, not just the
-      // 60-row window — the local summarizer handles long input via trimming.
-      const allOlderEntries = await db.entries
-        .where("day").below(olderCutoffIso(day, 7))
-        .toArray();
-      setStatus("Summarizing your earlier weeks on this device…");
-      const text = await summarizeEntries(allOlderEntries);
-      if (text) {
-        await saveSummary({ day, text });
-        history = { day, text, createdAt: Date.now() };
-      }
-    }
-
-    setStatus("Asking the editor to compose the page…");
-    const client = new ClaudeClient(settings);
-    const recentForClaude = recent.filter(e => e.day >= olderCutoffIso(day, 7));
-
-    const resp = await client.generatePage({
-      settings,
-      day,
-      todayEntries: todays,
-      recentEntries: recentForClaude,
-      ...(history ? { historySummary: history } : {}),
+    await upsertCheckIn({
+      day: today(),
+      habitsCompleted,
+      ...(Object.keys(signals).length ? { signals } : {}),
+      ...(note ? { note } : {}),
     });
 
-    const page = pageFromResponse(day, resp, history?.text);
-    await savePage(page);
+    const s = document.getElementById("save-status");
+    if (s) s.textContent = "Saved.";
+  });
+}
 
-    paint({ ...page, id: 0 });
-  } catch (err: any) {
-    if (status) {
-      status.style.display = "block";
-      status.innerHTML = `<strong style="color: var(--oxblood)">The page didn't compose.</strong><br/>${esc(err.message ?? String(err))}`;
-    }
+function habitCheckRow(h: Habit, n: number, done: boolean): string {
+  return `
+    <li class="habit-check ${done ? "is-done" : ""}" data-id="${esc(h.id)}">
+      <div class="habit-check__num">${n}</div>
+      <div class="habit-check__body">
+        <div class="habit-check__title">${esc(h.title)}</div>
+        <div class="habit-check__cue">${esc(h.cue)}</div>
+      </div>
+      <div class="habit-check__mark">✓</div>
+    </li>
+  `;
+}
+
+function greeting(name: string): string {
+  const h = new Date().getHours();
+  const part = h < 5 ? "Late, but here" : h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return `${esc(part)}, <em>${esc(name)}</em>`;
+}
+
+/** A 14-day strip showing % of habits done each day. */
+function streakStrip(habits: Habit[], map: Map<string, CheckIn>): string {
+  const total = Math.max(1, habits.length);
+  const days: string[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const iso = d.toISOString().slice(0,10);
+    const ci = map.get(iso);
+    const hit = ci ? ci.habitsCompleted.length : 0;
+    const pct = Math.min(1, hit / total);
+    const isToday = i === 0;
+    days.push(`<div class="streak-cell ${isToday ? "is-today" : ""}" style="--fill:${pct};" title="${iso}: ${hit}/${total}"></div>`);
   }
+  return `
+    <div class="streak-strip__label">Last 14 days</div>
+    <div class="streak-strip__cells">${days.join("")}</div>
+  `;
 }
 
-function olderCutoffIso(day: string, keepDays: number): string {
-  const d = new Date(day);
-  d.setDate(d.getDate() - keepDays);
-  return d.toISOString().slice(0, 10);
-}
-
-async function paint(page: Page): Promise<void> {
-  const settings = await getSettings();
-  const day = page.day;
+async function paintNoPlan(): Promise<void> {
   const masth = await masthead("#/today");
-
   const frag = h(`
     <div class="reveal">
       ${masth}
-
-      <article class="page">
-        <div class="spread">
-          <div class="body">
-            <div class="eyebrow">${esc(longDate(day))}</div>
-            <h1 class="headline" style="margin-top: 0.4rem;">
-              ${esc(page.headline)}
-            </h1>
-
-            <div class="ornament"><span class="dot"></span></div>
-
-            <section class="prose">
-              <div class="section-mark">Read</div>
-              <p class="first">${esc(page.read)}</p>
-            </section>
-
-            <section class="prose">
-              <div class="section-mark">Do</div>
-              <p>${esc(page.do)}</p>
-            </section>
-
-            <section class="prose">
-              <div class="section-mark">Notice</div>
-              <p>${esc(page.notice)}</p>
-            </section>
-
-            <div class="action">
-              <p>${esc(page.action)}</p>
-            </div>
-
-            <div style="margin-top: 2.4rem; display: flex; gap: 0.8rem;">
-              <button id="reroll" class="btn btn--ghost">Re-roll the page</button>
-              <a href="#/almanac" class="btn btn--ghost">The almanac</a>
-            </div>
-          </div>
-
-          <aside class="marginalia">
-            <div class="label">Reader</div>
-            <div class="value">${esc(settings?.ownerName ?? "")}</div>
-
-            <div class="label">Composed</div>
-            <div class="value">${esc(new Date(page.generatedAt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }))}</div>
-
-            <div class="label">Editor</div>
-            <div class="value" style="font-family: var(--mono); font-size: 0.82rem;">${esc(page.model ?? "")}</div>
-          </aside>
+      <section class="page">
+        <div class="eyebrow">${esc(longDate(today()))}</div>
+        <h1 class="headline" style="margin-top: 0.4rem;">
+          A plan first, then a <em>habit stack</em>.
+        </h1>
+        <p class="lede" style="max-width: 60ch; margin-top: 1rem;">
+          Today's check-in tracks adherence to your habit stack — and the stack lives inside your plan. Add a lab panel and compose the plan to begin.
+        </p>
+        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+          <a href="#/labs" class="btn btn--accent">Add labs</a>
+          <a href="#/plan" class="btn btn--ghost">Compose the plan</a>
         </div>
-      </article>
-
-      ${foot("iii")}
+      </section>
+      ${foot("i")}
     </div>
   `);
-
   mount(frag);
+}
 
-  document.getElementById("reroll")?.addEventListener("click", async () => {
-    // Drop today's page so compose() will write a fresh one.
-    const existing = await pageFor(day);
-    if (existing?.id != null) {
-      await db.pages.delete(existing.id);
-    }
-    await paintEmpty();
-    setTimeout(() => compose(), 50);
-  });
+function numOrUndef(v: string | undefined): number | undefined {
+  if (!v) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+function clamp1to5(v: string | undefined): 1|2|3|4|5 | undefined {
+  const n = numOrUndef(v);
+  if (n == null) return undefined;
+  if (n < 1 || n > 5) return undefined;
+  return Math.round(n) as 1|2|3|4|5;
 }

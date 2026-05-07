@@ -1,34 +1,35 @@
-// Bootstrap + hash router. Five routes, one root.
+// Bootstrap + hash router.
 //
 //   #/onboarding   first-run; required before anything else
-//   #/today        the ritual screen
-//   #/inputs       the notebook
-//   #/almanac      the archive
-//   #/settings     identity, key, model, export/import
-//
+//   #/today        the daily check-in (the ritual)
+//   #/plan         the living protocol
+//   #/labs         lab panels: upload, view, manual entry
+//   #/progress     trends across panels
+//   #/settings     profile, key, export/import/wipe
 
-import { getSettings } from "./db";
+import { getProfile } from "./db";
 import { renderOnboarding } from "./pages/onboarding";
-import { renderInputs }     from "./pages/inputs";
 import { renderToday }      from "./pages/today";
-import { renderAlmanac }    from "./pages/almanac";
+import { renderPlan }       from "./pages/plan";
+import { renderLabs }       from "./pages/labs";
+import { renderProgress }   from "./pages/progress";
 import { renderSettings }   from "./pages/settings";
 
 async function route(): Promise<void> {
   const hash = location.hash || "#/today";
   const path = hash.split("?")[0] ?? hash;
 
-  // Onboarding gate — if no settings, force users through it.
-  const settings = await getSettings();
-  if (!settings && path !== "#/onboarding") {
+  const profile = await getProfile();
+  if (!profile && path !== "#/onboarding") {
     location.hash = "#/onboarding";
     return;
   }
 
   switch (path) {
     case "#/onboarding": return renderOnboarding();
-    case "#/inputs":     return renderInputs();
-    case "#/almanac":    return renderAlmanac();
+    case "#/labs":       return renderLabs();
+    case "#/plan":       return renderPlan();
+    case "#/progress":   return renderProgress();
     case "#/settings":   return renderSettings();
     case "#/today":
     default:             return renderToday();
@@ -37,8 +38,6 @@ async function route(): Promise<void> {
 
 window.addEventListener("hashchange", () => { void route(); });
 window.addEventListener("DOMContentLoaded", () => { void route(); });
-
-// If the file is loaded after DOMContentLoaded already fired (Vite), run now.
 if (document.readyState !== "loading") {
   void route();
 }

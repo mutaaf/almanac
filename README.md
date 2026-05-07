@@ -1,20 +1,25 @@
 # Almanac
 
-> *A daily page, printed only on this device.*
+> *Your biology, translated into a plan you can keep.*
 
-A local-first personal almanac. You feed it your inputs — labs, sleep, what you ate, a paragraph about yesterday — and each morning it composes one page written for you: a *Read*, a *Do*, a *Notice*, and a single concrete *Action of the day*.
+A local-first precision-health protocol. You upload your lab reports — PDFs or photos — and Almanac extracts every marker, reconciles it against **functional / optimal** ranges (not just the lab's "in-range"), and composes a single living protocol:
 
-It is not a dashboard. It is not a coach. It is the morning ritual of opening a thin, well-set book.
+- **Snapshot** — what your biology is saying right now, in plain language
+- **Insights** — 3–7 prioritized findings that drive everything else
+- **Nutrition · Lifestyle · Supplements** — specific recommendations, each tied to a finding, ranked **easy → moderate → advanced**
+- **Habit stack** — exactly 3–5 daily things you can hold without thinking. Earn the harder protocols by sustaining the easy ones.
+- **Retest cadence** — when to recheck what, and why
+
+A 20-second daily check-in tracks adherence. New labs come in → the plan re-tunes against what changed.
 
 ## The privacy promise
 
 There is no server. There is no cloud. There is no telemetry.
 
-- Your entries, pages, summaries, and API key live in **this browser's IndexedDB**, on this machine.
-- The only network request the app makes is the call to `api.anthropic.com` that drafts your daily page — directly from your browser, using **your own** Anthropic key (BYOK).
-- Older entries are summarized **on-device** with [Transformers.js](https://github.com/xenova/transformers.js) before any context is sent to Claude — so most of your raw history never leaves the machine, even on inference calls.
-- Export anytime to a single `.almanac.json` file. That file is the entire almanac. Keep it where you trust.
-- Sharing with friends means each person runs their own copy with their own key. That's the point.
+- Your profile, panels, plans, and check-ins live in **this browser's IndexedDB**, on this machine.
+- Your Anthropic API key lives in IndexedDB. The only egress is direct from your browser to `api.anthropic.com` — once when you upload a lab (Claude extracts markers from the PDF/photo), and once when you compose or recompose your plan.
+- Original lab PDFs/images stay on the device as `Blob`s in IndexedDB. They are never uploaded anywhere except the one extraction call.
+- Export anytime to a single `.almanac.json`. Sharing with friends means each person runs their own copy with their own key.
 
 ## Stack
 
@@ -23,8 +28,9 @@ There is no server. There is no cloud. There is no telemetry.
 | Build | Vite + TypeScript, vanilla DOM (no framework) |
 | Storage | IndexedDB via [Dexie](https://dexie.org/) |
 | Inference | [Anthropic SDK](https://github.com/anthropics/anthropic-sdk-typescript), browser-direct, BYOK |
-| On-device summarization | [@xenova/transformers](https://huggingface.co/docs/transformers.js) — `Xenova/distilbart-cnn-6-6` |
-| Type | Editorial / private-press: Cormorant Garamond + Inter Tight, cream + ink + a single oxblood accent |
+| Lab extraction | Claude Vision — PDFs and images parsed directly into structured results |
+| Functional ranges | Built-in DB of ~40 common markers (`src/data/markers.ts`) — extend as needed |
+| Aesthetic | Editorial / private-press: Cormorant Garamond + Inter Tight, cream + ink + a single oxblood accent |
 
 ## Run it
 
@@ -34,56 +40,47 @@ npm install
 npm run dev          # → http://127.0.0.1:5181
 ```
 
-First run drops you on `#/onboarding`:
+## The first lap
 
-1. **Your name** — how the page should address you.
-2. **Intent** — a few sentences on what you want this almanac to help with. The editor reads this every morning.
-3. **Anthropic API key** — get one at https://console.anthropic.com/settings/keys.
-4. Pick a model (default: `claude-sonnet-4-6`).
+1. **Onboarding** — name, DOB, sex, height/weight, goals, conditions, Anthropic key. (`#/onboarding`)
+2. **Labs** (`#/labs`) — drop a PDF or photo of your last report. Claude extracts every numeric marker. Or click *enter values manually*.
+3. **Plan** (`#/plan`) — *Compose the plan*. Snapshot, insights, nutrition / lifestyle / supplements, habit stack, retest schedule. Re-compose anytime.
+4. **Today** (`#/today`) — your habit stack as tappable cards. 20 seconds. Optionally log mood / energy / sleep.
+5. **Progress** (`#/progress`) — for any marker that appears in 2+ panels, a small inline trend with the functional range as the band behind it. Direction is colored relative to the optimum, not the lab range.
+6. **Settings** (`#/settings`) — edit profile, key, model, **export**, **import**, **burn**.
 
-Then write a note (`#/inputs`) — anything; a paragraph is plenty — and press **Compose today's page** on `#/today`.
+## How the plan stays current
 
-## The day
+- **Adherence loop** — your last 14 daily check-ins go into the plan-generation prompt. If you've held the easy tier reliably, the next composition can promote you to moderate.
+- **Panel loop** — every new lab feeds the next composition. Insights name what changed since last draw.
+- **Prompt caching** — the voice spec, your profile, and the marker reference live in a `cache_control: ephemeral` block. Re-compositions within a 5-minute TTL only pay for the freshest content.
 
-```
-Inputs (notebook)  ─►  Compose  ─►  Today's Page  ─►  read · close · come back tomorrow
-       ▲                                │
-       └────────  every entry feeds the next morning's draft  ───┘
-```
+## Design choices worth flagging
 
-The first compose of the week downloads the on-device summarizer (~80MB, one-time). Subsequent compositions reuse the cached model and the cached prompt — Anthropic's prompt cache means the editor's voice spec, your profile, and your rolling history summary are paid for once and re-read for free.
+- **Both ranges, always.** Every result shows the lab's reference range AND a functional range. The lab's "normal" is a floor; the functional range is the target.
+- **Easy tier first.** The HabitStack is capped at 3–5 items, every one of which a tired person can do without thinking. The plan generator is explicitly told to default to *easy* and only promote to *moderate*/*advanced* when adherence justifies it.
+- **Light disclaimer, no dark patterns.** A single line at the bottom of every page: *informational, not medical advice*. No popups, no consent walls.
+- **No streaks-as-pressure.** The 14-day strip is a calm visualization, not a Snapchat-style retention loop. Miss a day; the strip just shows it. No alerts.
 
-## The five screens
+## What's deliberately missing in v1
 
-- `#/onboarding` — name, intent, key. Once.
-- `#/today` — the page. Compose, read, re-roll if you want.
-- `#/inputs` — the notebook. One textarea, optional structured signals.
-- `#/almanac` — bound archive of past pages.
-- `#/settings` — edit profile/key/model, toggle signals, **export**, **import**, **burn**.
-
-## Backup and sharing
-
-- **Export** writes `YYYY-MM-DD.almanac.json` to your Downloads folder. That's the whole thing.
-- To **share with someone else**, hand them this repo + their own Anthropic key. Their almanac is theirs, on their machine.
-- To **sync between your own machines**, drop the export file into a folder you already trust (iCloud Drive, Dropbox, Syncthing, a USB stick). On the other machine, **Import a backup**.
-- To **burn it all**, Settings → *Burn the almanac*. There is no undo.
-
-## What's deliberately missing in v0
-
-- No streaks, no graphs, no notifications, no gamification.
 - No login, no account, no sync server.
 - No web tracking, no analytics, no error reporting.
+- No wearables yet (Apple Health / Whoop / Oura) — those are roadmap.
 - No social feed, no sharing buttons, no export to anything but JSON.
 
-These will stay missing until they're earned. The almanac is a quiet object.
+## Roadmap
 
-## Roadmap (small, deliberate)
-
-- **v0.2** — Ollama / local-model toggle for full zero-egress (no Claude call at all).
-- **v0.3** — Apple Health / Whoop / Oura readers (read-only, on-device).
-- **v0.4** — Print-to-PDF that actually looks like a printed almanac.
-- **v0.5** — Voice-first entry mode (speak the notebook, transcribe locally with Whisper.cpp).
+- **v1.1** — Wearables: Apple Health import (CSV/XML) + Whoop / Oura via their export files. Read-only, on-device parsing.
+- **v1.2** — Compare two panels side-by-side; "since last draw" diff in the plan.
+- **v1.3** — Print-to-PDF that actually looks like a printed almanac.
+- **v1.4** — User-extensible marker DB: add your own markers + functional ranges.
+- **v2** — Optional Ollama / local-model toggle for full zero-egress (no Claude call at all).
 
 ## License
 
 Private. For me, and for whoever I hand a copy to.
+
+---
+
+*Informational, not medical advice. Discuss recommendations and supplement dosing with a clinician who knows your history.*

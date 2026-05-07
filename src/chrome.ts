@@ -1,16 +1,17 @@
-// Masthead + foot — the persistent chrome around every page.
-// Rendered fresh on each navigation; cheap.
+// Persistent masthead + foot.
 
 import { esc, longDate, issueLabel } from "./ui";
-import { getSettings, today } from "./db";
+import { getProfile, today } from "./db";
 
 export async function masthead(currentRoute: string): Promise<string> {
-  const settings = await getSettings();
+  const profile = await getProfile();
   const dateline = longDate(today());
-  const issue = settings ? issueLabel(settings.createdAt) : "";
+  const issue = profile ? issueLabel(profile.createdAt) : "";
 
-  const link = (href: string, label: string) =>
-    `<a href="${href}" ${href === currentRoute ? 'aria-current="page"' : ""}>${label}</a>`;
+  const link = (href: string, label: string) => {
+    const active = href.split("?")[0] === currentRoute.split("?")[0];
+    return `<a href="${href}" ${active ? 'aria-current="page"' : ""}>${label}</a>`;
+  };
 
   return `
     <header class="masthead">
@@ -19,10 +20,11 @@ export async function masthead(currentRoute: string): Promise<string> {
         <div class="wordmark">Almanac<span class="amp">.</span></div>
       </div>
       <nav>
-        ${link("#/today",   "Today")}
-        ${link("#/inputs",  "Inputs")}
-        ${link("#/almanac", "Almanac")}
-        ${link("#/settings","Settings")}
+        ${link("#/today",    "Today")}
+        ${link("#/plan",     "Plan")}
+        ${link("#/labs",     "Labs")}
+        ${link("#/progress", "Progress")}
+        ${link("#/settings", "Settings")}
       </nav>
     </header>
   `;
@@ -31,7 +33,7 @@ export async function masthead(currentRoute: string): Promise<string> {
 export function foot(pageNo: number | string = ""): string {
   return `
     <footer class="foot">
-      <span class="colophon">Printed quietly, on this device.</span>
+      <span class="colophon">Informational, not medical advice. Discuss changes with your clinician.</span>
       <span>${esc(pageNo)}</span>
     </footer>
   `;

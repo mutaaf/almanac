@@ -1,12 +1,11 @@
-// First-run screen. Three things and we're done: name, intent, key.
-// No tutorial, no welcome video, no "what is Almanac" pitch — the page itself
-// is the pitch.
+// First-run onboarding. Just enough to make a useful first Plan.
 
 import { mount, h, esc } from "../ui";
-import { saveSettings, getSettings } from "../db";
+import { saveProfile, getProfile } from "../db";
+import type { Sex } from "../types";
 
 export async function renderOnboarding(): Promise<void> {
-  const existing = await getSettings();
+  const existing = await getProfile();
 
   const frag = h(`
     <div>
@@ -20,40 +19,63 @@ export async function renderOnboarding(): Promise<void> {
       <section class="page">
         <div class="ornament"><span class="dot"></span></div>
 
-        <h1 class="headline" style="max-width: 22ch;">
-          A daily page, <em>printed</em><br/>only on this device.
+        <h1 class="headline" style="max-width: 26ch;">
+          Your <em>biology</em>, translated<br/>into a plan you can keep.
         </h1>
 
-        <p class="lede" style="max-width: 56ch; margin-top: 1.4rem;">
-          Tell it three things and it begins.
-          Your data stays on this machine. The only egress is your own
-          Anthropic key, used once a day to draft the page.
+        <p class="lede" style="max-width: 60ch; margin-top: 1.4rem;">
+          Tell it the basics. Upload your last lab report. Get a snapshot,
+          a small daily habit stack, and a clear protocol — all on this device.
         </p>
 
-        <form id="onb" style="max-width: 56ch; margin-top: 2.4rem;">
-          <div class="field">
-            <label for="name">Your name</label>
-            <input id="name" name="name" type="text" required
-                   value="${esc(existing?.ownerName ?? "")}"
-                   placeholder="Mutaaf" />
-            <div class="hint">How the page should address you.</div>
+        <form id="onb" style="max-width: 60ch; margin-top: 2.6rem;">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="field">
+              <label for="name">Your name</label>
+              <input id="name" name="name" type="text" required value="${esc(existing?.ownerName ?? "")}" />
+            </div>
+            <div class="field">
+              <label for="birthDate">Date of birth</label>
+              <input id="birthDate" name="birthDate" type="date" required value="${esc(existing?.birthDate ?? "")}" />
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+            <div class="field">
+              <label for="sex">Sex (for ranges)</label>
+              <select id="sex" name="sex" required>
+                ${(["male","female","intersex","unspecified"] as Sex[]).map(s => `
+                  <option value="${s}" ${(existing?.sex ?? "unspecified") === s ? "selected" : ""}>${s[0]!.toUpperCase()+s.slice(1)}</option>
+                `).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <label for="heightCm">Height (cm)</label>
+              <input id="heightCm" name="heightCm" type="number" step="0.5" value="${existing?.heightCm ?? ""}" />
+            </div>
+            <div class="field">
+              <label for="weightKg">Weight (kg)</label>
+              <input id="weightKg" name="weightKg" type="number" step="0.1" value="${existing?.weightKg ?? ""}" />
+            </div>
           </div>
 
           <div class="field">
-            <label for="intent">What is this almanac for?</label>
-            <textarea id="intent" name="intent" required
-                      placeholder="To track sleep, training, and how my mood drifts. To get one quiet recommendation each morning. To notice patterns I'd otherwise miss.">${esc(existing?.intent ?? "")}</textarea>
-            <div class="hint">A few sentences. The editor reads this every morning.</div>
+            <label for="goals">What are you optimizing for?</label>
+            <textarea id="goals" name="goals" required placeholder="Energy through the afternoon. Lower hsCRP. Get triglycerides under 100. Hold lifts twice a week.">${esc(existing?.goals ?? "")}</textarea>
+            <div class="hint">Two or three sentences. The plan is written against this.</div>
+          </div>
+
+          <div class="field">
+            <label for="conditions">Existing conditions, medications, allergies</label>
+            <textarea id="conditions" name="conditions" placeholder="Hashimoto's; levothyroxine 88mcg. NKDA. Family history of T2D.">${esc(existing?.conditions ?? "")}</textarea>
+            <div class="hint">Optional, but it sharpens recommendations and keeps them safe.</div>
           </div>
 
           <div class="field">
             <label for="key">Anthropic API key</label>
-            <input id="key" name="key" type="password" required
-                   value="${esc(existing?.anthropicKey ?? "")}"
-                   placeholder="sk-ant-..." autocomplete="off" />
+            <input id="key" name="key" type="password" required value="${esc(existing?.anthropicKey ?? "")}" placeholder="sk-ant-..." autocomplete="off" />
             <div class="hint">
-              Stored in this browser's IndexedDB. Sent only to api.anthropic.com,
-              and only when generating a page.
+              Stored only in this browser. Used to extract labs (PDF/photo) and compose your plan.
               <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Get one →</a>
             </div>
           </div>
@@ -68,13 +90,13 @@ export async function renderOnboarding(): Promise<void> {
           </div>
 
           <div style="display: flex; gap: 1rem; margin-top: 2rem;">
-            <button type="submit" class="btn btn--accent">Begin the almanac</button>
+            <button type="submit" class="btn btn--accent">Begin</button>
           </div>
         </form>
       </section>
 
       <footer class="foot">
-        <span class="colophon">Printed quietly, on this device.</span>
+        <span class="colophon">Informational, not medical advice.</span>
         <span>i</span>
       </footer>
     </div>
@@ -86,13 +108,22 @@ export async function renderOnboarding(): Promise<void> {
     e.preventDefault();
     const f = e.target as HTMLFormElement;
     const fd = new FormData(f);
-    await saveSettings({
-      ownerName: String(fd.get("name") ?? "").trim(),
-      intent: String(fd.get("intent") ?? "").trim(),
+    await saveProfile({
+      ownerName:    String(fd.get("name") ?? "").trim(),
+      birthDate:    String(fd.get("birthDate") ?? "") || undefined,
+      sex:          (String(fd.get("sex") ?? "unspecified") as Sex),
+      heightCm:     numOrUndef(fd.get("heightCm")),
+      weightKg:     numOrUndef(fd.get("weightKg")),
+      goals:        String(fd.get("goals") ?? "").trim(),
+      conditions:   String(fd.get("conditions") ?? "").trim(),
       anthropicKey: String(fd.get("key") ?? "").trim(),
-      model: String(fd.get("model") ?? "claude-sonnet-4-6"),
-      enabledSignals: existing?.enabledSignals ?? ["sleepHours", "mood", "energy"],
+      model:        String(fd.get("model") ?? "claude-sonnet-4-6"),
     });
-    location.hash = "#/today";
+    location.hash = "#/labs";   // straight to "upload your first labs"
   });
+}
+
+function numOrUndef(v: FormDataEntryValue | null): number | undefined {
+  if (v == null || v === "") return undefined;
+  const n = Number(v); return Number.isFinite(n) ? n : undefined;
 }
