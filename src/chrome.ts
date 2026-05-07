@@ -21,6 +21,7 @@ export async function masthead(currentRoute: string): Promise<string> {
       </div>
       <nav>
         ${link("#/today",    "Today")}
+        ${link("#/meals",    "Meals")}
         ${link("#/plan",     "Plan")}
         ${link("#/labs",     "Labs")}
         ${link("#/progress", "Progress")}

@@ -1,12 +1,18 @@
-// Today — the daily check-in. The whole product compresses to here once
-// the plan exists. Tap each habit to mark it done. 20 seconds, done.
+// Today — the daily ritual.
+//
+// Order of importance:
+//   1. Today's three meals (breakfast / lunch / dinner). Tap to mark "ate it".
+//   2. Habit stack — 3–5 cards.
+//   3. Optional how-do-you-feel signals (sleep / mood / energy).
+//   4. 14-day streak strip.
 
 import { mount, h, esc, longDate } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
-  getProfile, today, latestPlan, checkInFor, upsertCheckIn, recentCheckIns,
+  getProfile, today, latestPlan, latestMealPlan,
+  checkInFor, upsertCheckIn, recentCheckIns,
 } from "../db";
-import type { CheckIn, Habit } from "../types";
+import type { CheckIn, Habit, Meal, DayMeals } from "../types";
 
 export async function renderToday(): Promise<void> {
   const profile = await getProfile();
@@ -18,15 +24,26 @@ export async function renderToday(): Promise<void> {
   }
 
   const day = today();
-  const ci = await checkInFor(day);
+  const ci  = await checkInFor(day);
   const completed = new Set(ci?.habitsCompleted ?? []);
+  const ate       = new Set(ci?.mealsAte ?? []);
 
-  // 14-day adherence map for the streak strip.
+  // 14-day adherence strip.
   const recent = await recentCheckIns(14);
   const recentMap = new Map(recent.map(c => [c.day, c]));
 
+  // Today's meals — only if there's a current meal plan that covers today.
+  const mp = await latestMealPlan();
+  const todays: DayMeals | undefined = mp && mp.planId === plan.id
+    ? mp.days.find(d => d.day === day)
+    : undefined;
+
   const habits = plan.habitStack.habits;
-  const masth = await masthead("#/today");
+  const masth  = await masthead("#/today");
+
+  const mealsHtml = todays
+    ? renderMealsRow(todays, ate)
+    : renderMealsEmpty(!!mp && mp.planId === plan.id);
 
   const frag = h(`
     <div class="reveal">
@@ -36,34 +53,32 @@ export async function renderToday(): Promise<void> {
         <h1 class="headline" style="margin-top: 0.4rem; max-width: 22ch;">
           ${greeting(profile.ownerName)}.
         </h1>
-        <p class="lede" style="max-width: 60ch; margin-top: 0.8rem;">
-          ${esc(plan.habitStack.intro)}
-        </p>
 
-        <ol class="habit-checks" style="margin-top: 2rem;">
-          ${habits.map((h, i) => habitCheckRow(h, i + 1, completed.has(h.id))).join("")}
-        </ol>
+        <section style="margin-top: 2rem;">
+          <div class="section-mark">Today's meals</div>
+          ${mealsHtml}
+        </section>
 
-        <details style="margin-top: 2.4rem;">
+        <section style="margin-top: 2.6rem;">
+          <div class="section-mark">Habit stack</div>
+          <p class="lede" style="max-width: 60ch; margin: 0 0 0.9rem;">${esc(plan.habitStack.intro)}</p>
+          <ol class="habit-checks">
+            ${habits.map((h, i) => habitCheckRow(h, i + 1, completed.has(h.id))).join("")}
+          </ol>
+        </section>
+
+        <details style="margin-top: 2rem;">
           <summary class="section-mark" style="cursor: pointer; list-style: none;">Optional · how do you feel?</summary>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: 1rem;">
-            <div class="field">
-              <label for="sleep">Sleep (hours)</label>
-              <input id="sleep" type="number" step="0.25" value="${ci?.signals?.sleepHours ?? ""}" />
-            </div>
-            <div class="field">
-              <label for="mood">Mood (1–5)</label>
-              <input id="mood" type="number" min="1" max="5" value="${ci?.signals?.mood ?? ""}" />
-            </div>
-            <div class="field">
-              <label for="energy">Energy (1–5)</label>
-              <input id="energy" type="number" min="1" max="5" value="${ci?.signals?.energy ?? ""}" />
-            </div>
+            <div class="field"><label for="sleep">Sleep (hours)</label>
+              <input id="sleep" type="number" step="0.25" value="${ci?.signals?.sleepHours ?? ""}" /></div>
+            <div class="field"><label for="mood">Mood (1–5)</label>
+              <input id="mood" type="number" min="1" max="5" value="${ci?.signals?.mood ?? ""}" /></div>
+            <div class="field"><label for="energy">Energy (1–5)</label>
+              <input id="energy" type="number" min="1" max="5" value="${ci?.signals?.energy ?? ""}" /></div>
           </div>
-          <div class="field">
-            <label for="note">A line about today (optional)</label>
-            <input id="note" type="text" value="${esc(ci?.note ?? "")}" />
-          </div>
+          <div class="field"><label for="note">A line about today (optional)</label>
+            <input id="note" type="text" value="${esc(ci?.note ?? "")}" /></div>
         </details>
 
         <div class="streak-strip" style="margin-top: 2.4rem;">
@@ -81,17 +96,21 @@ export async function renderToday(): Promise<void> {
 
   mount(frag);
 
-  // Toggle habit cards
-  for (const card of document.querySelectorAll(".habit-check")) {
-    card.addEventListener("click", () => {
-      card.classList.toggle("is-done");
-    });
-  }
+  for (const card of document.querySelectorAll(".habit-check"))
+    card.addEventListener("click", () => card.classList.toggle("is-done"));
+
+  for (const card of document.querySelectorAll(".meal-tile"))
+    card.addEventListener("click", () => card.classList.toggle("is-eaten"));
 
   document.getElementById("save")?.addEventListener("click", async () => {
-    const card$ = document.querySelectorAll(".habit-check.is-done");
     const habitsCompleted: string[] = [];
-    card$.forEach(c => { const id = (c as HTMLElement).dataset.id; if (id) habitsCompleted.push(id); });
+    document.querySelectorAll(".habit-check.is-done").forEach(c => {
+      const id = (c as HTMLElement).dataset.id; if (id) habitsCompleted.push(id);
+    });
+    const mealsAte: string[] = [];
+    document.querySelectorAll(".meal-tile.is-eaten").forEach(c => {
+      const id = (c as HTMLElement).dataset.id; if (id) mealsAte.push(id);
+    });
 
     const sleep = numOrUndef((document.getElementById("sleep") as HTMLInputElement)?.value);
     const mood  = clamp1to5((document.getElementById("mood")  as HTMLInputElement)?.value);
@@ -106,6 +125,7 @@ export async function renderToday(): Promise<void> {
     await upsertCheckIn({
       day: today(),
       habitsCompleted,
+      ...(mealsAte.length ? { mealsAte } : {}),
       ...(Object.keys(signals).length ? { signals } : {}),
       ...(note ? { note } : {}),
     });
@@ -113,6 +133,43 @@ export async function renderToday(): Promise<void> {
     const s = document.getElementById("save-status");
     if (s) s.textContent = "Saved.";
   });
+}
+
+function renderMealsRow(dm: DayMeals, ate: Set<string>): string {
+  const meals: { meal: Meal; label: string }[] = [
+    { meal: dm.breakfast, label: "Breakfast" },
+    { meal: dm.lunch,     label: "Lunch" },
+    { meal: dm.dinner,    label: "Dinner" },
+  ];
+  if (dm.snack) meals.push({ meal: dm.snack, label: "Snack" });
+
+  return `
+    <div class="meal-tiles">
+      ${meals.map(({ meal, label }) => `
+        <div class="meal-tile ${ate.has(meal.id) ? "is-eaten" : ""}" data-id="${esc(meal.id)}">
+          <div class="meal-tile__label">${esc(label)} · ${esc(meal.effort)} · ${meal.timeMinutes}m</div>
+          <div class="meal-tile__title">${esc(meal.title)}</div>
+          <div class="meal-tile__desc">${esc(meal.description)}</div>
+          <div class="meal-tile__mark">✓</div>
+        </div>
+      `).join("")}
+    </div>
+    <div style="margin-top: 0.6rem;">
+      <a href="#/meals?day=${esc(dm.day)}" style="font-family:var(--body);font-size:0.74rem;color:var(--ink-faint);letter-spacing:0.14em;text-transform:uppercase;text-decoration:none;">View full meal details →</a>
+    </div>
+  `;
+}
+
+function renderMealsEmpty(planExists: boolean): string {
+  return `
+    <div class="quiet" style="padding: 1.4rem 1.6rem; border: 1px dashed var(--rule); background: var(--paper-deep);">
+      ${planExists
+        ? `Your plan exists, but the week's meals haven't been generated.<br/>
+           <a href="#/meals" class="btn btn--accent" style="margin-top: 1rem;">Generate this week's meals</a>`
+        : `Compose the plan first; the meal plan reads from it.<br/>
+           <a href="#/plan" class="btn btn--accent" style="margin-top: 1rem;">Go to the plan</a>`}
+    </div>
+  `;
 }
 
 function habitCheckRow(h: Habit, n: number, done: boolean): string {
@@ -134,7 +191,6 @@ function greeting(name: string): string {
   return `${esc(part)}, <em>${esc(name)}</em>`;
 }
 
-/** A 14-day strip showing % of habits done each day. */
 function streakStrip(habits: Habit[], map: Map<string, CheckIn>): string {
   const total = Math.max(1, habits.length);
   const days: string[] = [];
@@ -162,10 +218,10 @@ async function paintNoPlan(): Promise<void> {
       <section class="page">
         <div class="eyebrow">${esc(longDate(today()))}</div>
         <h1 class="headline" style="margin-top: 0.4rem;">
-          A plan first, then a <em>habit stack</em>.
+          A plan first, then a <em>day</em>.
         </h1>
         <p class="lede" style="max-width: 60ch; margin-top: 1rem;">
-          Today's check-in tracks adherence to your habit stack — and the stack lives inside your plan. Add a lab panel and compose the plan to begin.
+          Today's view shows your meals and your habit stack — both come from the plan. Add a lab panel and compose the plan to begin.
         </p>
         <div style="display: flex; gap: 1rem; margin-top: 2rem;">
           <a href="#/labs" class="btn btn--accent">Add labs</a>

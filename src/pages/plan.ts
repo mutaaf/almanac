@@ -1,14 +1,24 @@
-// Plan screen — the living protocol. Reads latest Plan from IndexedDB; if none
-// exists (or the user hits "regenerate"), calls Claude with current panels +
-// adherence to compose a fresh one.
+// Plan screen — the food-forward protocol.
+//
+// Layout:
+//   - Snapshot
+//   - Insights (prioritized)
+//   - EAT list  (centerpiece — specific foods, frequency, portion)
+//   - AVOID list (with swaps)
+//   - Habit stack
+//   - Lifestyle / Supplements (secondary)
+//   - Retest cadence
+//
+// Plus a CTA to generate or re-roll the weekly meal plan.
 
 import { mount, h, esc, longDate } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, latestPlan, savePlan, recentCheckIns,
+  latestMealPlan,
 } from "../db";
 import { ClaudeClient } from "../claude";
-import type { Plan, Recommendation } from "../types";
+import type { Plan, EatItem, AvoidItem, Recommendation } from "../types";
 
 export async function renderPlan(): Promise<void> {
   const profile = await getProfile();
@@ -32,7 +42,7 @@ async function paintEmpty(): Promise<void> {
         <h1 class="headline" style="margin-top: 0.4rem; max-width: 26ch;">
           ${haveLabs
             ? `Your <em>protocol</em> hasn't been written yet.`
-            : `Add labs first; the <em>protocol</em> reads from them.`}
+            : `Add labs first — the <em>protocol</em> reads from them.`}
         </h1>
         <p class="lede" style="max-width: 60ch; margin-top: 1rem;">
           ${haveLabs
@@ -101,56 +111,11 @@ async function compose(): Promise<void> {
 
 async function paint(plan: Plan): Promise<void> {
   const masth = await masthead("#/plan");
+  const mealPlan = await latestMealPlan();
+  const haveMeals = mealPlan && mealPlan.planId === plan.id;
 
   const insights = [...plan.insights].sort((a, b) =>
     priorityOrder(a.priority) - priorityOrder(b.priority));
-
-  const recBlock = (title: string, items: Recommendation[], emptyText: string) => `
-    <section class="prose" style="margin-top: 2.4rem;">
-      <div class="section-mark">${esc(title)}</div>
-      ${items.length === 0 ? `<div class="quiet" style="padding: 0.6rem 0;">${esc(emptyText)}</div>` : ""}
-      ${items.map(r => `
-        <div class="rec rec--${esc(r.tier)}">
-          <div class="rec__title">${esc(r.title)} <span class="rec__tier">${esc(r.tier)}</span></div>
-          <p class="rec__why"><em>Why:</em> ${esc(r.why)}</p>
-          <p class="rec__how"><em>How:</em> ${esc(r.how)}</p>
-          ${r.expectedImpact ? `<p class="rec__impact"><em>Expected:</em> ${esc(r.expectedImpact)}</p>` : ""}
-          ${r.caution ? `<p class="rec__caution">⚠ ${esc(r.caution)}</p>` : ""}
-        </div>
-      `).join("")}
-    </section>
-  `;
-
-  const habits = plan.habitStack.habits;
-  const habitsHtml = `
-    <section style="margin-top: 2.4rem;">
-      <div class="section-mark">Habit stack · the easy tier</div>
-      <p class="lede" style="max-width: 60ch; margin: 0 0 1.2rem;">${esc(plan.habitStack.intro)}</p>
-      <ol class="habit-list">
-        ${habits.map((h, i) => `
-          <li class="habit-list__item">
-            <span class="habit-list__num">${i + 1}</span>
-            <div>
-              <div class="habit-list__title">${esc(h.title)}</div>
-              <div class="habit-list__cue">${esc(h.cue)}</div>
-              <div class="habit-list__why"><em>${esc(h.why)}</em></div>
-            </div>
-          </li>
-        `).join("")}
-      </ol>
-    </section>
-  `;
-
-  const retestHtml = plan.retest.length === 0 ? "" : `
-    <section style="margin-top: 2.4rem;">
-      <div class="section-mark">Retest cadence</div>
-      <ul class="retest-list">
-        ${plan.retest.map(r => `
-          <li><strong>${esc(r.markerKeys.join(", "))}</strong> in <strong>${r.whenWeeks}</strong> weeks — ${esc(r.reason)}</li>
-        `).join("")}
-      </ul>
-    </section>
-  `;
 
   const frag = h(`
     <div class="reveal">
@@ -177,17 +142,43 @@ async function paint(plan: Plan): Promise<void> {
           </ul>
         </section>
 
-        ${recBlock("Nutrition",   plan.nutrition,   "Nothing prescribed beyond what the labs already support.")}
+        <section style="margin-top: 2.6rem;">
+          <div class="section-mark">Eat — the food prescription</div>
+          ${plan.eatList.length === 0
+            ? `<div class="quiet">No additions prescribed.</div>`
+            : plan.eatList.map(eatRow).join("")}
+        </section>
+
+        <section style="margin-top: 2.6rem;">
+          <div class="section-mark">Reduce or replace</div>
+          ${plan.avoidList.length === 0
+            ? `<div class="quiet">Nothing flagged for avoidance.</div>`
+            : plan.avoidList.map(avoidRow).join("")}
+        </section>
+
+        <section style="margin-top: 2.6rem;">
+          <div class="meal-cta">
+            <div>
+              <div class="meal-cta__title">${haveMeals
+                ? `This week's meals are ready.`
+                : `Turn this into a 7-day meal plan.`}</div>
+              <div class="meal-cta__hint">${haveMeals
+                ? `<span style="color: var(--ink-faint);">Last generated ${new Date(mealPlan!.generatedAt).toLocaleDateString()}.</span>`
+                : `Each meal hits the eat list at the right frequency, never includes anything from the avoid list, and respects your dietary pattern.`}</div>
+            </div>
+            <a href="#/meals" class="btn btn--accent">${haveMeals ? "Open the meals" : "Generate the meals"}</a>
+          </div>
+        </section>
+
         ${recBlock("Lifestyle",   plan.lifestyle,   "")}
         ${recBlock("Supplements", plan.supplements, "No supplement is justified by your current labs.")}
 
-        ${habitsHtml}
-
-        ${retestHtml}
+        ${habitsHtml(plan)}
+        ${retestHtml(plan)}
 
         <div style="margin-top: 3rem; display: flex; gap: 1rem;">
-          <a href="#/today" class="btn btn--accent">Go to today's check-in</a>
-          <button id="recompose" class="btn btn--ghost">Re-compose</button>
+          <a href="#/today" class="btn btn--accent">Go to today</a>
+          <button id="recompose" class="btn btn--ghost">Re-compose plan</button>
         </div>
         <div id="status" class="quiet" style="display: none; margin-top: 1.4rem;"></div>
       </article>
@@ -198,6 +189,83 @@ async function paint(plan: Plan): Promise<void> {
   mount(frag);
 
   document.getElementById("recompose")?.addEventListener("click", () => compose());
+}
+
+function eatRow(e: EatItem): string {
+  return `
+    <div class="eat-item">
+      <div class="eat-item__head">
+        <div class="eat-item__food">${esc(e.food)}</div>
+        <div class="eat-item__freq">${esc(e.frequency)} · ${esc(e.portion)}</div>
+      </div>
+      <p class="eat-item__why"><em>Why:</em> ${esc(e.why)}</p>
+      ${e.examples?.length ? `<div class="eat-item__examples">e.g. ${e.examples.map(esc).join(" · ")}</div>` : ""}
+      ${e.cuisineNotes ? `<div class="eat-item__cuisine">${esc(e.cuisineNotes)}</div>` : ""}
+    </div>
+  `;
+}
+
+function avoidRow(a: AvoidItem): string {
+  return `
+    <div class="avoid-item">
+      <div class="avoid-item__food">${esc(a.food)}</div>
+      <p class="avoid-item__why"><em>Why:</em> ${esc(a.why)}</p>
+      ${a.swap ? `<p class="avoid-item__swap"><em>Swap:</em> ${esc(a.swap)}</p>` : ""}
+    </div>
+  `;
+}
+
+function recBlock(title: string, items: Recommendation[], emptyText: string): string {
+  return `
+    <section class="prose" style="margin-top: 2.4rem;">
+      <div class="section-mark">${esc(title)}</div>
+      ${items.length === 0 ? `<div class="quiet" style="padding: 0.6rem 0;">${esc(emptyText)}</div>` : ""}
+      ${items.map(r => `
+        <div class="rec rec--${esc(r.tier)}">
+          <div class="rec__title">${esc(r.title)} <span class="rec__tier">${esc(r.tier)}</span></div>
+          <p class="rec__why"><em>Why:</em> ${esc(r.why)}</p>
+          <p class="rec__how"><em>How:</em> ${esc(r.how)}</p>
+          ${r.expectedImpact ? `<p class="rec__impact"><em>Expected:</em> ${esc(r.expectedImpact)}</p>` : ""}
+          ${r.caution ? `<p class="rec__caution">⚠ ${esc(r.caution)}</p>` : ""}
+        </div>
+      `).join("")}
+    </section>
+  `;
+}
+
+function habitsHtml(plan: Plan): string {
+  return `
+    <section style="margin-top: 2.4rem;">
+      <div class="section-mark">Habit stack · the easy tier</div>
+      <p class="lede" style="max-width: 60ch; margin: 0 0 1.2rem;">${esc(plan.habitStack.intro)}</p>
+      <ol class="habit-list">
+        ${plan.habitStack.habits.map((h, i) => `
+          <li class="habit-list__item">
+            <span class="habit-list__num">${i + 1}</span>
+            <div>
+              <div class="habit-list__title">${esc(h.title)}</div>
+              <div class="habit-list__cue">${esc(h.cue)}</div>
+              <div class="habit-list__why"><em>${esc(h.why)}</em></div>
+            </div>
+          </li>
+        `).join("")}
+      </ol>
+    </section>
+  `;
+}
+
+function retestHtml(plan: Plan): string {
+  if (plan.retest.length === 0) return "";
+  return `
+    <section style="margin-top: 2.4rem;">
+      <div class="section-mark">Retest cadence</div>
+      <ul class="retest-list">
+        ${plan.retest.map(r => `
+          <li><strong>${esc(r.markerKeys.join(", "))}</strong> in <strong>${r.whenWeeks}</strong> weeks — ${esc(r.reason)}</li>
+        `).join("")}
+      </ul>
+    </section>
+  `;
 }
 
 function priorityOrder(p: "high" | "medium" | "low"): number {

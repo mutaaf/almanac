@@ -835,3 +835,396 @@ body {
   .trend__delta  { grid-area: delta; justify-self: end; }
   .trend__flag   { grid-area: flag; justify-self: end; }
 }
+
+/* =============================================================================
+   FOOD — eat list, avoid list, meals, grocery
+   ============================================================================= */
+
+/* ---- eat items (the food prescription) ---------------------------------- */
+.eat-item {
+  border-left: 3px solid #2F4A2E;
+  padding: 0.95rem 1.1rem;
+  margin: 0.7rem 0;
+  background: var(--paper-deep);
+}
+.eat-item__head {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 1.2rem;
+  margin-bottom: 0.4rem;
+}
+.eat-item__food {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  color: var(--ink);
+  font-weight: 500;
+  flex: 1 1 60%;
+}
+.eat-item__freq {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--oxblood);
+  letter-spacing: 0.02em;
+}
+.eat-item__why {
+  font-family: var(--display);
+  font-size: 1.02rem;
+  color: var(--ink-soft);
+  margin: 0.3rem 0 0;
+  line-height: 1.5;
+}
+.eat-item__why em {
+  font-style: normal;
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-right: 0.5em;
+}
+.eat-item__examples {
+  margin-top: 0.4rem;
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+.eat-item__cuisine {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+
+/* ---- avoid items -------------------------------------------------------- */
+.avoid-item {
+  border-left: 3px solid var(--oxblood);
+  padding: 0.85rem 1.1rem;
+  margin: 0.7rem 0;
+  background: var(--paper-deep);
+}
+.avoid-item__food {
+  font-family: var(--display);
+  font-size: 1.18rem;
+  color: var(--ink);
+  font-weight: 500;
+}
+.avoid-item__why, .avoid-item__swap {
+  font-family: var(--display);
+  font-size: 1rem;
+  color: var(--ink-soft);
+  margin: 0.3rem 0 0;
+  line-height: 1.5;
+}
+.avoid-item__why em, .avoid-item__swap em {
+  font-style: normal;
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-right: 0.5em;
+}
+.avoid-item__swap em { color: #2F4A2E; }
+
+/* ---- meal CTA on Plan page --------------------------------------------- */
+.meal-cta {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.4rem;
+  border: 1px solid var(--oxblood);
+  background: rgba(122,31,43,0.04);
+  padding: 1.1rem 1.4rem;
+}
+.meal-cta__title {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  color: var(--ink);
+}
+.meal-cta__hint {
+  font-family: var(--display);
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  margin-top: 0.2rem;
+  max-width: 56ch;
+}
+
+@media (max-width: 720px) {
+  .meal-cta { flex-direction: column; align-items: flex-start; }
+}
+
+/* ---- meals: day strip --------------------------------------------------- */
+.day-strip {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  border: 1px solid var(--rule);
+  padding: 4px;
+  background: var(--paper-deep);
+}
+.day-strip__cell {
+  text-align: center;
+  padding: 0.6rem 0.4rem;
+  background: var(--paper);
+  text-decoration: none;
+  color: var(--ink);
+  border: 1px solid transparent;
+  transition: border-color 200ms var(--ease), background 200ms var(--ease);
+}
+.day-strip__cell:hover { border-color: var(--ink); }
+.day-strip__cell.is-today { border-color: var(--oxblood); background: rgba(122,31,43,0.06); }
+.day-strip__cell.is-focus { background: var(--ink); color: var(--paper); }
+.day-strip__dow {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.day-strip__cell.is-focus .day-strip__dow { color: var(--paper-deep); }
+.day-strip__num {
+  font-family: var(--display);
+  font-size: 1.4rem;
+  font-style: italic;
+  margin-top: 0.1rem;
+}
+
+/* ---- meals: day blocks (week list view) -------------------------------- */
+.day-block {
+  margin-top: 1.6rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--rule);
+}
+.day-block__head {
+  display: flex; align-items: baseline; gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+.day-block__dow {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 1.6rem;
+  color: var(--ink);
+}
+.day-block__date {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+}
+
+.day-block__meals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.7rem;
+}
+
+/* ---- meal cards (compact, in week view) -------------------------------- */
+.meal-card {
+  border: 1px solid var(--rule);
+  border-left-width: 3px;
+  background: var(--paper-deep);
+  padding: 0.8rem 0.9rem;
+}
+.meal-card--assembly  { border-left-color: var(--ink-faint); }
+.meal-card--weeknight { border-left-color: #2F4A2E; }
+.meal-card--weekend   { border-left-color: var(--oxblood); }
+.meal-card--batch     { border-left-color: #8B4A1F; }
+.meal-card__label {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.meal-card__title {
+  font-family: var(--display);
+  font-size: 1.18rem;
+  margin-top: 0.2rem;
+  color: var(--ink);
+}
+.meal-card__desc {
+  font-family: var(--display);
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  margin-top: 0.3rem;
+  line-height: 1.4;
+}
+.meal-card__cuisine {
+  margin-top: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+/* ---- meal detail (single-day view) ------------------------------------- */
+.meal-detail {
+  border: 1px solid var(--rule);
+  border-left-width: 3px;
+  background: var(--paper);
+  padding: 1.2rem 1.3rem;
+  margin: 1rem 0;
+}
+.meal-detail--assembly  { border-left-color: var(--ink-faint); }
+.meal-detail--weeknight { border-left-color: #2F4A2E; }
+.meal-detail--weekend   { border-left-color: var(--oxblood); }
+.meal-detail--batch     { border-left-color: #8B4A1F; }
+.meal-detail__label {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.meal-detail__title {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  font-style: italic;
+  margin: 0.25rem 0 0;
+  color: var(--ink);
+}
+.meal-detail__desc {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  color: var(--ink-soft);
+  margin: 0.4rem 0 0;
+  line-height: 1.5;
+}
+.meal-detail__cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.6rem;
+  margin-top: 1.2rem;
+}
+@media (max-width: 720px) {
+  .meal-detail__cols { grid-template-columns: 1fr; }
+}
+.meal-detail__ingredients,
+.meal-detail__steps {
+  font-family: var(--display);
+  font-size: 1rem;
+  color: var(--ink);
+  line-height: 1.6;
+  padding-left: 1.2rem;
+  margin: 0.6rem 0 0;
+}
+.meal-detail__hits {
+  margin-top: 1rem;
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+
+/* ---- meal tiles (Today screen) ----------------------------------------- */
+.meal-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.7rem;
+}
+.meal-tile {
+  position: relative;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+  padding: 0.95rem 1.1rem;
+  cursor: pointer;
+  transition: background 200ms var(--ease), border-color 200ms var(--ease), transform 120ms var(--ease);
+}
+.meal-tile:hover { border-color: var(--ink); }
+.meal-tile:active { transform: translateY(1px); }
+.meal-tile__label {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.meal-tile__title {
+  font-family: var(--display);
+  font-size: 1.2rem;
+  color: var(--ink);
+  margin-top: 0.3rem;
+  line-height: 1.25;
+}
+.meal-tile__desc {
+  font-family: var(--display);
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+  margin-top: 0.3rem;
+  line-height: 1.4;
+}
+.meal-tile__mark {
+  position: absolute;
+  top: 0.7rem; right: 0.7rem;
+  width: 1.6rem; height: 1.6rem;
+  border: 1.5px solid var(--rule);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--body); font-weight: 600;
+  color: transparent;
+  transition: all 220ms var(--ease);
+}
+.meal-tile.is-eaten {
+  background: rgba(47,74,46,0.06);
+  border-color: #2F4A2E;
+}
+.meal-tile.is-eaten .meal-tile__title {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--ink-faint);
+  color: var(--ink-soft);
+}
+.meal-tile.is-eaten .meal-tile__mark {
+  background: #2F4A2E;
+  border-color: #2F4A2E;
+  color: var(--paper);
+}
+
+/* ---- grocery list ------------------------------------------------------- */
+.grocery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.6rem 2.2rem;
+  margin-top: 1.4rem;
+}
+.grocery__section { break-inside: avoid; }
+.grocery__items { list-style: none; padding: 0; margin: 0.6rem 0 0; }
+.grocery__row {
+  display: grid;
+  grid-template-columns: 1.4rem 1fr auto;
+  gap: 0.7rem;
+  align-items: baseline;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--paper-edge);
+  cursor: pointer;
+  font-family: var(--display);
+  font-size: 1.02rem;
+  color: var(--ink);
+}
+.grocery__row input[type="checkbox"] {
+  appearance: none;
+  width: 1.1rem; height: 1.1rem;
+  border: 1.5px solid var(--rule);
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+}
+.grocery__row input[type="checkbox"]:checked {
+  background: #2F4A2E;
+  border-color: #2F4A2E;
+}
+.grocery__row input[type="checkbox"]:checked::after {
+  content: "✓";
+  color: var(--paper);
+  font-size: 0.8rem;
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: 600;
+}
+.grocery__row input:checked ~ .grocery__name {
+  text-decoration: line-through;
+  color: var(--ink-faint);
+}
+.grocery__qty {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}

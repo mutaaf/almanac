@@ -11,6 +11,7 @@ import { getProfile } from "./db";
 import { renderOnboarding } from "./pages/onboarding";
 import { renderToday }      from "./pages/today";
 import { renderPlan }       from "./pages/plan";
+import { renderMeals }      from "./pages/meals";
 import { renderLabs }       from "./pages/labs";
 import { renderProgress }   from "./pages/progress";
 import { renderSettings }   from "./pages/settings";
@@ -29,6 +30,7 @@ async function route(): Promise<void> {
     case "#/onboarding": return renderOnboarding();
     case "#/labs":       return renderLabs();
     case "#/plan":       return renderPlan();
+    case "#/meals":      return renderMeals();
     case "#/progress":   return renderProgress();
     case "#/settings":   return renderSettings();
     case "#/today":

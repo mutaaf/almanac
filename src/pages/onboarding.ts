@@ -72,6 +72,19 @@ export async function renderOnboarding(): Promise<void> {
           </div>
 
           <div class="field">
+            <label for="dietPattern">Dietary pattern</label>
+            <textarea id="dietPattern" name="dietPattern" required placeholder="Halal, mostly pescatarian, love South Asian and Mediterranean cuisines. No shellfish (allergy). Cook real meals 3 weeknights, batch on Sunday, assemble the rest. Up for one ambitious cook on weekends.">${esc(existing?.dietPattern ?? "")}</textarea>
+            <div class="hint">Halal/kosher/vegan/keto, cuisines you cook, dislikes, allergies, and how much you actually cook. The meal plan is built against this.</div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="field">
+              <label for="householdSize">Household size (for grocery)</label>
+              <input id="householdSize" name="householdSize" type="number" min="1" max="12" value="${existing?.householdSize ?? 1}" />
+            </div>
+          </div>
+
+          <div class="field">
             <label for="key">Anthropic API key</label>
             <input id="key" name="key" type="password" required value="${esc(existing?.anthropicKey ?? "")}" placeholder="sk-ant-..." autocomplete="off" />
             <div class="hint">
@@ -116,6 +129,8 @@ export async function renderOnboarding(): Promise<void> {
       weightKg:     numOrUndef(fd.get("weightKg")),
       goals:        String(fd.get("goals") ?? "").trim(),
       conditions:   String(fd.get("conditions") ?? "").trim(),
+      dietPattern:  String(fd.get("dietPattern") ?? "").trim(),
+      householdSize: numOrUndef(fd.get("householdSize")) ?? 1,
       anthropicKey: String(fd.get("key") ?? "").trim(),
       model:        String(fd.get("model") ?? "claude-sonnet-4-6"),
     });

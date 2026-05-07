@@ -2,15 +2,18 @@
 
 > *Your biology, translated into a plan you can keep.*
 
-A local-first precision-health protocol. You upload your lab reports — PDFs or photos — and Almanac extracts every marker, reconciles it against **functional / optimal** ranges (not just the lab's "in-range"), and composes a single living protocol:
+A local-first precision-health protocol that's **food-first**. You upload your lab reports — PDFs or photos — and Almanac extracts every marker, reconciles it against **functional / optimal** ranges (not just the lab's "in-range"), and composes:
 
-- **Snapshot** — what your biology is saying right now, in plain language
-- **Insights** — 3–7 prioritized findings that drive everything else
-- **Nutrition · Lifestyle · Supplements** — specific recommendations, each tied to a finding, ranked **easy → moderate → advanced**
-- **Habit stack** — exactly 3–5 daily things you can hold without thinking. Earn the harder protocols by sustaining the easy ones.
+- **Snapshot + Insights** — what your biology is saying, prioritized
+- **Eat list** — specific foods, with frequency and portion, each tied to a marker (e.g. *"Fatty fish — 2x per week, ~4 oz cooked — for omega-3 index at 4% → target ≥8%"*)
+- **Avoid list** — specific foods to reduce, with the swap
+- **A 7-day meal plan** — real breakfast / lunch / dinner for each of the next seven days, distributed across **batch** / **weekend** / **weeknight** / **assembly** efforts so the week is realistic
+- **Grocery list** — auto-derived from the week's meals, organized by section
+- **Habit stack** — exactly 3–5 daily things you can hold without thinking
+- **Lifestyle + Supplements** — supporting players, only when labs justify them
 - **Retest cadence** — when to recheck what, and why
 
-A 20-second daily check-in tracks adherence. New labs come in → the plan re-tunes against what changed.
+A 20-second daily check-in tracks meals eaten and habit adherence. New labs come in → the plan re-tunes; new week begins → the meal plan can be re-rolled independently.
 
 ## The privacy promise
 
@@ -42,12 +45,13 @@ npm run dev          # → http://127.0.0.1:5181
 
 ## The first lap
 
-1. **Onboarding** — name, DOB, sex, height/weight, goals, conditions, Anthropic key. (`#/onboarding`)
+1. **Onboarding** (`#/onboarding`) — name, DOB, sex, height/weight, goals, conditions, **dietary pattern** (halal / vegetarian / cuisines / cooking capacity / allergies — all in one free-form line), household size, Anthropic key.
 2. **Labs** (`#/labs`) — drop a PDF or photo of your last report. Claude extracts every numeric marker. Or click *enter values manually*.
-3. **Plan** (`#/plan`) — *Compose the plan*. Snapshot, insights, nutrition / lifestyle / supplements, habit stack, retest schedule. Re-compose anytime.
-4. **Today** (`#/today`) — your habit stack as tappable cards. 20 seconds. Optionally log mood / energy / sleep.
-5. **Progress** (`#/progress`) — for any marker that appears in 2+ panels, a small inline trend with the functional range as the band behind it. Direction is colored relative to the optimum, not the lab range.
-6. **Settings** (`#/settings`) — edit profile, key, model, **export**, **import**, **burn**.
+3. **Plan** (`#/plan`) — *Compose the plan*. Snapshot, insights, **eat list**, **avoid list**, lifestyle, supplements, habit stack, retest schedule.
+4. **Meals** (`#/meals`) — *Generate the week*. Seven days of meals + a grocery list, all aligned to the eat list, free of anything on the avoid list, respecting your dietary pattern. Re-roll any time.
+5. **Today** (`#/today`) — today's three meals as tap-to-mark cards, then the habit stack, then optional mood/energy/sleep. The day's ritual.
+6. **Progress** (`#/progress`) — sparkline trends per marker once you have 2+ panels, with the functional range as the band behind the line.
+7. **Settings** (`#/settings`) — edit profile, key, model, **export**, **import**, **burn**.
 
 ## How the plan stays current
 

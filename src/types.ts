@@ -1,5 +1,4 @@
 // Domain types for Almanac.
-// Stored verbatim in IndexedDB; also the shape of the .almanac.json export.
 
 export type Day = string;     // YYYY-MM-DD, local time
 export type Sex = "male" | "female" | "intersex" | "unspecified";
@@ -11,14 +10,23 @@ export type Sex = "male" | "female" | "intersex" | "unspecified";
 export interface Profile {
   id: "singleton";
   ownerName: string;
-  birthDate?: Day;            // YYYY-MM-DD; we derive age from this
-  sex: Sex;                   // for sex-specific reference ranges
+  birthDate?: Day;
+  sex: Sex;
   heightCm?: number;
   weightKg?: number;
-  goals: string;              // free-form, fed to plan generation
-  conditions: string;         // free-form: existing dx, medications, allergies
-  anthropicKey: string;       // BYOK; never leaves the device except → api.anthropic.com
-  model: string;              // claude-sonnet-4-6 by default
+
+  goals: string;              // free-form
+  conditions: string;         // free-form: dx, meds, allergies
+
+  /**
+   * Dietary pattern in plain English. Captures halal / vegetarian / pescatarian /
+   * cuisines / dislikes / allergies in one place. Read by the meal generator.
+   */
+  dietPattern: string;
+  householdSize?: number;     // for grocery quantities; defaults to 1
+
+  anthropicKey: string;       // BYOK
+  model: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -29,26 +37,19 @@ export interface Profile {
 
 export type Flag = "low" | "high" | "in-range" | "suboptimal" | "optimal";
 
-/**
- * A definition for a single biomarker we know about. Lives in markers.ts as a
- * static seed; user-added markers get persisted under the same shape.
- *
- * `key` is the canonical identifier (slug-style). Aliases are the strings we
- * accept from lab reports during extraction.
- */
 export interface MarkerDef {
   key: string;
-  name: string;               // human-readable: "Vitamin D, 25-Hydroxy"
-  shortName?: string;         // "Vitamin D"
+  name: string;
+  shortName?: string;
   category: MarkerCategory;
-  unit: string;               // canonical unit
-  altUnits?: { unit: string; toCanonical: number }[];   // multiplier into canonical
-  aliases: string[];          // common report names + LOINC if useful
-  labRange?: Range;           // typical lab "normal" if no per-lab range arrived
-  optimalRange: Range;        // functional / optimal target
-  description: string;        // 1–2 sentence plain-language summary
-  higherIsBetter?: boolean;   // for one-sided markers; default false (range-bound)
-  sex?: Sex;                  // restrict to a sex if applicable
+  unit: string;
+  altUnits?: { unit: string; toCanonical: number }[];
+  aliases: string[];
+  labRange?: Range;
+  optimalRange: Range;
+  description: string;
+  higherIsBetter?: boolean;
+  sex?: Sex;
 }
 
 export type MarkerCategory =
@@ -59,14 +60,9 @@ export type MarkerCategory =
 
 export interface Range { low?: number; high?: number; }
 
-/**
- * A single result inside a panel: one marker, one value, both ranges captured.
- * `labRange` is what THIS lab reported for this draw; it can differ slightly
- * from the marker's typical labRange. Functional range comes from the seed DB.
- */
 export interface Result {
-  markerKey: string;          // FK to MarkerDef.key
-  rawName?: string;           // exactly what appeared on the report
+  markerKey: string;
+  rawName?: string;
   value: number;
   unit: string;
   labRange?: Range;
@@ -75,25 +71,20 @@ export interface Result {
   notes?: string;
 }
 
-/**
- * A drawn panel — the output of one blood draw or lab visit. Multiple results.
- * If we extracted from a PDF/image, we keep the original blob locally so the
- * user can revisit the source. The blob never leaves IndexedDB.
- */
 export interface Panel {
   id?: number;
-  drawnAt: Day;               // date of draw
-  labName?: string;           // "Quest Diagnostics", etc.
+  drawnAt: Day;
+  labName?: string;
   source: "pdf" | "image" | "manual";
   fileName?: string;
-  fileBlob?: Blob;            // original PDF/image, kept on-device
+  fileBlob?: Blob;
   results: Result[];
   notes?: string;
   createdAt: number;
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Plan — the living protocol                                                */
+/*  Plan — food-forward protocol                                              */
 /* -------------------------------------------------------------------------- */
 
 export interface Plan {
@@ -102,54 +93,127 @@ export interface Plan {
   basedOnPanelIds: number[];
   model?: string;
 
-  snapshot: string;           // 1–2 paragraphs, plain language
+  snapshot: string;                  // 1–2 short paragraphs
 
-  insights: Insight[];        // 3–7 specific findings, prioritized
+  insights: Insight[];               // 3–7 prioritized findings
 
-  nutrition: Recommendation[];
-  lifestyle: Recommendation[];
-  supplements: Recommendation[];
+  eatList:   EatItem[];              // foods to add — specific, with frequency + portion
+  avoidList: AvoidItem[];            // foods to reduce — specific, with swap
 
-  habitStack: HabitStack;     // 3–5 daily things, the easy tier
+  lifestyle:   Recommendation[];     // smaller; supportive
+  supplements: Recommendation[];     // small; only when labs justify
 
+  habitStack: HabitStack;            // 3–5 daily things, easy tier first
   retest: RetestItem[];
 }
 
 export interface Insight {
-  markerKey?: string;         // optional — some insights span markers
-  title: string;              // "Iron stores are low-normal"
-  detail: string;             // 1–3 sentences
+  markerKey?: string;
+  title: string;
+  detail: string;
   priority: "high" | "medium" | "low";
+}
+
+/**
+ * The food prescription. Specific, frequency-and-portion driven, tied to markers.
+ */
+export interface EatItem {
+  id: string;                        // stable id
+  food: string;                      // "Fatty fish (salmon, sardines, mackerel)"
+  frequency: string;                 // "2x per week"
+  portion: string;                   // "~4 oz cooked, palm-sized"
+  why: string;                       // tied to specific findings
+  markerKeys: string[];              // which markers this addresses
+  examples?: string[];               // concrete options the user can buy
+  cuisineNotes?: string;             // tying back to their preferred cuisines
+}
+
+export interface AvoidItem {
+  id: string;
+  food: string;                      // "Industrial seed oils"
+  why: string;
+  markerKeys?: string[];
+  swap?: string;                     // "Use olive oil, avocado oil, or ghee instead"
 }
 
 export type Tier = "easy" | "moderate" | "advanced";
 
 export interface Recommendation {
-  id: string;                 // stable id for adherence tracking
-  title: string;              // "Eat fatty fish 2x/week"
-  why: string;                // tied to a specific finding
-  how: string;                // concrete: foods, doses, times
+  id: string;
+  title: string;
+  why: string;
+  how: string;
   tier: Tier;
-  expectedImpact?: string;    // "↑ omega-3 index, ↓ hsCRP over ~12 weeks"
-  caution?: string;           // for supplements: interactions, monitoring
+  expectedImpact?: string;
+  caution?: string;
 }
 
 export interface HabitStack {
-  intro: string;              // 1 sentence framing
-  habits: Habit[];            // exactly 3–5
+  intro: string;
+  habits: Habit[];
 }
 
 export interface Habit {
-  id: string;                 // stable id (matches CheckIn entries)
-  title: string;              // short imperative: "10g creatine with breakfast"
-  cue: string;                // when/where it lives in the day
-  why: string;                // one sentence linking it to a marker or goal
+  id: string;
+  title: string;
+  cue: string;
+  why: string;
 }
 
 export interface RetestItem {
   markerKeys: string[];
-  whenWeeks: number;          // re-test in N weeks
+  whenWeeks: number;
   reason: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Weekly meal plan (separate generation, separate table)                    */
+/* -------------------------------------------------------------------------- */
+
+export type Effort = "assembly" | "weeknight" | "weekend" | "batch";
+
+export interface MealPlan {
+  id?: number;
+  planId: number;                    // FK → Plan.id
+  weekStart: Day;                    // first day in days[]
+  generatedAt: number;
+  model?: string;
+
+  days: DayMeals[];                  // exactly 7
+  grocery: GrocerySection[];
+}
+
+export interface DayMeals {
+  day: Day;
+  breakfast: Meal;
+  lunch: Meal;
+  dinner: Meal;
+  snack?: Meal;
+}
+
+export interface Meal {
+  id: string;                        // stable within plan; e.g. "mon-dinner"
+  title: string;                     // "Salmon with lentils + sautéed kale"
+  description: string;               // 1–2 sentences
+  effort: Effort;
+  timeMinutes: number;               // active time
+  servings: number;
+  ingredients: string[];             // free-form lines, e.g. "1 lb wild salmon"
+  steps?: string[];                  // optional brief steps; missing = trust the user
+  hits: string[];                    // markerKeys this meal contributes to
+  cuisine?: string;
+  tags?: string[];                   // ["high-protein", "anti-inflammatory", ...]
+}
+
+export interface GrocerySection {
+  name: string;                      // "Produce", "Protein", "Pantry", "Dairy"
+  items: GroceryItem[];
+}
+
+export interface GroceryItem {
+  name: string;                      // "wild salmon, frozen"
+  quantity?: string;                 // "1.5 lb"
+  forMeals?: string[];               // meal ids this item supports
 }
 
 /* -------------------------------------------------------------------------- */
@@ -159,8 +223,9 @@ export interface RetestItem {
 export interface CheckIn {
   id?: number;
   day: Day;
-  habitsCompleted: string[];  // habit ids that were done today
+  habitsCompleted: string[];
+  mealsAte?: string[];               // ids of meals from today's plan that were eaten
   signals?: { sleepHours?: number; mood?: 1|2|3|4|5; energy?: 1|2|3|4|5 };
-  note?: string;              // optional one-liner
+  note?: string;
   createdAt: number;
 }

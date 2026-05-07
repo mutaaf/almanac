@@ -60,6 +60,17 @@ export async function renderSettings(): Promise<void> {
             <textarea id="conditions" name="conditions">${esc(p.conditions)}</textarea>
           </div>
           <div class="field">
+            <label for="dietPattern">Dietary pattern</label>
+            <textarea id="dietPattern" name="dietPattern" required>${esc(p.dietPattern)}</textarea>
+            <div class="hint">Halal/kosher/vegan, cuisines, dislikes, allergies, cooking capacity.</div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+            <div class="field">
+              <label for="householdSize">Household size</label>
+              <input id="householdSize" name="householdSize" type="number" min="1" max="12" value="${p.householdSize ?? 1}" />
+            </div>
+          </div>
+          <div class="field">
             <label for="key">Anthropic API key</label>
             <input id="key" name="key" type="password" value="${esc(p.anthropicKey)}" autocomplete="off" />
           </div>
@@ -121,6 +132,8 @@ export async function renderSettings(): Promise<void> {
       weightKg:     numOrUndef(fd.get("weightKg")),
       goals:        String(fd.get("goals") ?? "").trim(),
       conditions:   String(fd.get("conditions") ?? "").trim(),
+      dietPattern:  String(fd.get("dietPattern") ?? "").trim(),
+      householdSize: numOrUndef(fd.get("householdSize")) ?? 1,
       anthropicKey: String(fd.get("key") ?? "").trim(),
       model:        String(fd.get("model") ?? "claude-sonnet-4-6"),
     });
