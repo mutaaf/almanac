@@ -1,11 +1,11 @@
 // Lab extractor.
 //
-// Takes a File (PDF or image) the user uploaded, base64-encodes it, hands it
-// to Claude with a strict extraction schema, then reconciles each extracted
-// row against the local marker database to attach functional ranges and flags.
+// Accepts one or more files (PDFs and/or images) representing pages of a
+// SINGLE lab draw. Sends all of them in one Claude Vision call so the model
+// can deduplicate across pages and reconcile a single set of results.
 //
-// The file blob itself stays in IndexedDB on the user's device — only the
-// base64 payload is transmitted, and only to api.anthropic.com via BYOK.
+// Files stay on-device; only the base64 payload is transmitted, and only to
+// api.anthropic.com via BYOK.
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { Profile, Result, Panel } from "./types";
@@ -13,6 +13,9 @@ import { matchMarker, flagFor, findMarker } from "./data/markers";
 
 const EXTRACTION_PROMPT = `
 You are extracting structured biomarker results from a clinical lab report.
+The inputs may be MULTIPLE pages of the same draw — PDFs and/or images.
+Aggregate results across all pages and deduplicate any marker that appears
+on more than one page (keep the most complete row).
 
 For each numeric marker, return:
   - "rawName":   the marker name exactly as printed on the report
@@ -20,11 +23,10 @@ For each numeric marker, return:
   - "unit":      the unit as printed (e.g. "mg/dL", "ng/mL", "uIU/mL", "%")
   - "labRange":  { "low": number?, "high": number? }   the lab's reference
                  range as printed; omit a side if it's one-sided
-  - "drawnAt":   the date the sample was drawn, in YYYY-MM-DD form, if visible
-                 anywhere on the report. Same date applies to all rows from
-                 the same draw — return it once at the top level too.
-  - "labName":   the laboratory's name (e.g. "Quest Diagnostics", "LabCorp")
-                 if visible on the page; otherwise omit.
+
+Top-level fields:
+  - "drawnAt":   YYYY-MM-DD if visible anywhere on the report; else null
+  - "labName":   laboratory's name if visible; else null
 
 Return ONLY a JSON object, no prose, no code fences:
 
@@ -67,9 +69,8 @@ export interface ExtractionResult {
 /* -------------------------------------------------------------------------- */
 
 /** Read a File into a base64 string (without the data: URL prefix). */
-async function fileToBase64(file: File): Promise<string> {
+async function fileToBase64(file: File | Blob): Promise<string> {
   const buf = await file.arrayBuffer();
-  // Browsers cap btoa() at small chunk sizes for big buffers; stream it.
   const bytes = new Uint8Array(buf);
   let binary = "";
   const chunk = 0x8000;
@@ -79,14 +80,20 @@ async function fileToBase64(file: File): Promise<string> {
   return btoa(binary);
 }
 
-function mediaTypeOf(file: File): { kind: "pdf"; mt: "application/pdf" }
-                                  | { kind: "image"; mt: "image/png" | "image/jpeg" | "image/webp" | "image/gif" } {
+type Mt =
+  | { kind: "pdf";   mt: "application/pdf" }
+  | { kind: "image"; mt: "image/png" | "image/jpeg" | "image/webp" | "image/gif" };
+
+function mediaTypeOf(file: File): Mt {
   const t = file.type;
-  if (t === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+  const name = (file.name ?? "").toLowerCase();
+  if (t === "application/pdf" || name.endsWith(".pdf")) {
     return { kind: "pdf", mt: "application/pdf" };
   }
   if (t === "image/png")  return { kind: "image", mt: "image/png"  };
-  if (t === "image/jpeg" || t === "image/jpg") return { kind: "image", mt: "image/jpeg" };
+  if (t === "image/jpeg" || t === "image/jpg" || name.endsWith(".jpg") || name.endsWith(".jpeg")) {
+    return { kind: "image", mt: "image/jpeg" };
+  }
   if (t === "image/webp") return { kind: "image", mt: "image/webp" };
   if (t === "image/gif")  return { kind: "image", mt: "image/gif"  };
   // Default to JPEG; Claude is forgiving on photo uploads.
@@ -94,27 +101,29 @@ function mediaTypeOf(file: File): { kind: "pdf"; mt: "application/pdf" }
 }
 
 /**
- * Run the extraction. Throws on parse / API failure.
+ * Run the extraction over a set of files (treated as pages of ONE panel).
  */
-export async function extractFromFile(file: File, profile: Profile): Promise<ExtractionResult> {
+export async function extractFromFiles(files: File[], profile: Profile): Promise<ExtractionResult> {
+  if (!files.length) throw new Error("No files to extract from.");
+
   const client = new Anthropic({
     apiKey: profile.anthropicKey,
     dangerouslyAllowBrowser: true,
   });
 
-  const b64 = await fileToBase64(file);
-  const mt  = mediaTypeOf(file);
-
-  // Build the user content. PDFs use document blocks; images use image blocks.
-  const fileBlock: Anthropic.ContentBlockParam = mt.kind === "pdf"
-    ? {
-        type: "document",
-        source: { type: "base64", media_type: "application/pdf", data: b64 },
-      } as any   // SDK types still tightening on document blocks
-    : {
-        type: "image",
-        source: { type: "base64", media_type: mt.mt, data: b64 },
-      };
+  // Build one content block per file, then a single text instruction.
+  const blocks: Anthropic.ContentBlockParam[] = [];
+  for (const file of files) {
+    const b64 = await fileToBase64(file);
+    const mt  = mediaTypeOf(file);
+    blocks.push(mt.kind === "pdf"
+      ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } } as any
+      : { type: "image",    source: { type: "base64", media_type: mt.mt,           data: b64 } });
+  }
+  blocks.push({
+    type: "text",
+    text: `${files.length} ${files.length === 1 ? "page/file" : "pages/files"} above. Extract every biomarker per the schema; deduplicate across pages. Return JSON only.`,
+  });
 
   const resp = await client.messages.create({
     model: profile.model || "claude-sonnet-4-6",
@@ -122,13 +131,7 @@ export async function extractFromFile(file: File, profile: Profile): Promise<Ext
     system: [
       { type: "text", text: EXTRACTION_PROMPT, cache_control: { type: "ephemeral" } },
     ],
-    messages: [{
-      role: "user",
-      content: [
-        fileBlock,
-        { type: "text", text: "Extract every biomarker per the schema. Return JSON only." },
-      ],
-    }],
+    messages: [{ role: "user", content: blocks }],
   });
 
   const raw = resp.content
@@ -145,7 +148,6 @@ export async function extractFromFile(file: File, profile: Profile): Promise<Ext
 
 /**
  * Reconcile extraction rows against the marker DB and produce Result[].
- * Drops rows we can't match (caller can surface them as "unrecognized").
  */
 export function reconcile(rows: ExtractedRow[], profile: Profile): {
   results: Result[];
@@ -158,7 +160,6 @@ export function reconcile(rows: ExtractedRow[], profile: Profile): {
     const marker = matchMarker(row.rawName, profile.sex);
     if (!marker) { unmatched.push(row); continue; }
 
-    // Try to convert into the canonical unit if the lab reported a different one.
     let value = row.value;
     let unit  = row.unit;
     if (unit.toLowerCase() !== marker.unit.toLowerCase()) {
@@ -167,9 +168,6 @@ export function reconcile(rows: ExtractedRow[], profile: Profile): {
         value = row.value * alt.toCanonical;
         unit  = marker.unit;
       }
-      // If no conversion known, leave the value alone but note the unit
-      // mismatch so the UI can flag it. We still attempt a flag using the
-      // optimal range (best effort).
     }
 
     const labRange = row.labRange ?? marker.labRange;
@@ -191,22 +189,26 @@ export function reconcile(rows: ExtractedRow[], profile: Profile): {
 }
 
 /**
- * Build a Panel from a file + extraction + reconcile pass.
+ * Build a Panel from a set of files + extraction + reconcile pass.
  */
-export async function panelFromFile(file: File, profile: Profile): Promise<{
+export async function panelFromFiles(files: File[], profile: Profile): Promise<{
   panel: Omit<Panel, "id" | "createdAt">;
   unmatched: ExtractedRow[];
 }> {
-  const ext = await extractFromFile(file, profile);
+  const ext = await extractFromFiles(files, profile);
   const { results, unmatched } = reconcile(ext.rows, profile);
 
-  const mt = mediaTypeOf(file);
+  // Determine source kind: pdf-only / image-only / mixed.
+  const kinds = new Set(files.map(f => mediaTypeOf(f).kind));
+  const source: Panel["source"] =
+    kinds.size === 1 ? (kinds.has("pdf") ? "pdf" : "image") : "mixed";
+
   const panel: Omit<Panel, "id" | "createdAt"> = {
     drawnAt: ext.drawnAt && /^\d{4}-\d{2}-\d{2}$/.test(ext.drawnAt) ? ext.drawnAt : todayIso(),
     ...(ext.labName ? { labName: ext.labName } : {}),
-    source: mt.kind,
-    fileName: file.name,
-    fileBlob: file,
+    source,
+    fileNames: files.map(f => f.name),
+    fileBlobs: files.slice(),
     results,
   };
 
@@ -225,8 +227,7 @@ function parseJson(text: string): Record<string, unknown> {
   const end = candidate.lastIndexOf("}");
   const slice = (start >= 0 && end > start) ? candidate.slice(start, end + 1) : candidate;
   try { return JSON.parse(slice); }
-  catch (err) { throw new Error(`Could not parse extraction JSON.\n--- raw ---\n${text}`); }
+  catch { throw new Error(`Could not parse extraction JSON.\n--- raw ---\n${text}`); }
 }
 
-/** Re-export for callers (e.g. preview before saving). */
 export { findMarker };

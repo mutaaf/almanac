@@ -1,7 +1,8 @@
-// Labs screen — upload PDFs / photos, manual entry, and the list of all panels.
+// Labs screen — multi-file upload (PDFs + images), paste support, manual entry,
+// and the list of all panels.
 //
-// Layout:
-//   #/labs                → list + upload affordance
+// Routes:
+//   #/labs                → list + upload (paste / drop / pick)
 //   #/labs?id=N           → review a single panel's results
 //   #/labs?manual=1       → manual entry form
 
@@ -10,11 +11,22 @@ import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
 } from "../db";
-import { panelFromFile } from "../extractor";
+import { panelFromFiles } from "../extractor";
 import { MARKERS, findMarker, flagFor } from "../data/markers";
 import type { Panel, Result } from "../types";
 
+/* The staging set lives outside render so paste handlers can mutate it
+   without re-running the whole component. */
+let staged: File[] = [];
+let pasteHandler: ((e: ClipboardEvent) => void) | null = null;
+
 export async function renderLabs(): Promise<void> {
+  // Reset paste handler whenever we (re)render the labs screen.
+  if (pasteHandler) {
+    window.removeEventListener("paste", pasteHandler);
+    pasteHandler = null;
+  }
+
   const profile = await getProfile();
   if (!profile) { location.hash = "#/onboarding"; return; }
 
@@ -26,6 +38,9 @@ export async function renderLabs(): Promise<void> {
   const panels = await allPanels();
   const masth = await masthead("#/labs");
 
+  // Reset stage on a fresh visit to the upload screen.
+  staged = [];
+
   const frag = h(`
     <div class="reveal">
       ${masth}
@@ -35,13 +50,27 @@ export async function renderLabs(): Promise<void> {
           The <em>raw biology</em>.
         </h1>
         <p class="lede" style="max-width: 60ch; margin-top: 0.8rem;">
-          Drop a PDF or a photo of your last lab report. The editor will extract every numeric marker and reconcile it against functional ranges.
+          Drop, paste, or pick one or more pages of a lab report — PDFs, photos,
+          or screenshots all work. The editor extracts every numeric marker
+          across the pages and reconciles them against functional ranges.
         </p>
 
         <div id="drop" class="dropzone" style="margin-top: 2.2rem;">
-          <input id="file" type="file" accept="application/pdf,image/*" style="display:none;" />
-          <div class="dropzone__title">Drop a lab report here</div>
-          <div class="dropzone__hint">PDF, JPG, PNG — or <a id="pickfile" href="#">choose a file</a>. Original stays on this device.</div>
+          <input id="file" type="file" multiple accept="application/pdf,image/*" style="display:none;" />
+          <div class="dropzone__title">Drop, paste, or pick</div>
+          <div class="dropzone__hint">
+            <kbd class="kbd">⌘V</kbd> to paste a screenshot ·
+            drag PDFs/photos here ·
+            <a id="pickfile" href="#">choose files</a>.
+            Multiple pages of the same draw all go into one panel.
+          </div>
+        </div>
+
+        <div id="staged" class="staged"></div>
+
+        <div id="actions" style="margin-top: 1rem; display: none; flex-wrap: wrap; gap: 1rem; align-items: center;">
+          <button id="extract" class="btn btn--accent">Extract from <span id="extract-count">0</span> page<span id="extract-plural">s</span></button>
+          <button id="clear"   class="btn btn--ghost">Clear</button>
         </div>
 
         <div style="margin-top: 1.4rem;">
@@ -62,7 +91,7 @@ export async function renderLabs(): Promise<void> {
   `);
 
   mount(frag);
-  wireDropzone();
+  wireUpload();
 }
 
 function panelRow(p: Panel, idx: number): string {
@@ -72,10 +101,11 @@ function panelRow(p: Panel, idx: number): string {
     counts.suboptimal  ? `${counts.suboptimal} suboptimal`   : "",
     counts.low + counts.high ? `${counts.low + counts.high} out of range` : "",
   ].filter(Boolean).join(" · ");
+  const pageCount = p.fileBlobs?.length ?? (p.source === "manual" ? 0 : 1);
   return `
     <a class="entry-row" href="#/labs?id=${p.id}">
       <div class="date">${esc(p.drawnAt)}</div>
-      <div class="title">${esc(p.labName ?? "Lab panel")} <span style="color:var(--ink-faint);font-style:normal;font-size:0.85em;">— ${p.results.length} markers · ${esc(pieces || "—")}</span></div>
+      <div class="title">${esc(p.labName ?? "Lab panel")} <span style="color:var(--ink-faint);font-style:normal;font-size:0.85em;">— ${p.results.length} markers${pageCount > 1 ? ` · ${pageCount} pages` : ""} · ${esc(pieces || "—")}</span></div>
       <div class="pageno">${idx}</div>
     </a>
   `;
@@ -94,32 +124,153 @@ function countByFlag(results: Result[]) {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Drop / upload                                                             */
+/*  Upload wiring: drop, pick, paste, stage, extract                          */
 /* -------------------------------------------------------------------------- */
 
-function wireDropzone(): void {
+function wireUpload(): void {
   const drop  = document.getElementById("drop");
   const input = document.getElementById("file") as HTMLInputElement | null;
   const pick  = document.getElementById("pickfile");
   if (!drop || !input) return;
 
+  // Pick
   pick?.addEventListener("click", (e) => { e.preventDefault(); input.click(); });
-  drop.addEventListener("click", () => input.click());
+  drop.addEventListener("click", (e) => {
+    // Don't intercept clicks on the inner anchor.
+    const t = e.target as HTMLElement;
+    if (t.tagName === "A") return;
+    input.click();
+  });
+
+  // Drag and drop
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("is-over"); });
   drop.addEventListener("dragleave", () => drop.classList.remove("is-over"));
   drop.addEventListener("drop", (e) => {
     e.preventDefault();
     drop.classList.remove("is-over");
-    const f = (e as DragEvent).dataTransfer?.files?.[0];
-    if (f) handleFile(f);
+    const list = (e as DragEvent).dataTransfer?.files;
+    if (list) acceptFiles(Array.from(list));
   });
+
+  // Picker
   input.addEventListener("change", () => {
-    const f = input.files?.[0];
-    if (f) handleFile(f);
+    if (input.files) acceptFiles(Array.from(input.files));
+    input.value = "";   // allow re-picking the same file later
+  });
+
+  // Paste — listen on window so the user doesn't need focus on the dropzone.
+  pasteHandler = (e: ClipboardEvent) => {
+    if (location.hash.split("?")[0] !== "#/labs") return;
+    if (!e.clipboardData) return;
+
+    const accepted: File[] = [];
+    for (const item of Array.from(e.clipboardData.items)) {
+      if (item.kind === "file") {
+        const f = item.getAsFile();
+        if (f) accepted.push(maybeRename(f));
+      }
+    }
+    // Also handle when files arrive via clipboardData.files (some browsers).
+    for (const f of Array.from(e.clipboardData.files ?? [])) {
+      if (!accepted.includes(f)) accepted.push(maybeRename(f));
+    }
+    if (accepted.length) {
+      e.preventDefault();
+      acceptFiles(accepted);
+    }
+  };
+  window.addEventListener("paste", pasteHandler);
+
+  // Buttons
+  document.getElementById("extract")?.addEventListener("click", () => {
+    if (staged.length) extractStaged();
+  });
+  document.getElementById("clear")?.addEventListener("click", () => {
+    staged = [];
+    renderStaged();
   });
 }
 
-async function handleFile(file: File): Promise<void> {
+/** Some clipboard images come in as "image.png" with a generic name; give them
+ *  a timestamp so the stage list isn't a wall of "image.png" entries. */
+function maybeRename(f: File): File {
+  if (f.name && f.name !== "image.png" && f.name !== "image.jpeg") return f;
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
+  const ext = f.type === "image/png" ? "png" : "jpg";
+  return new File([f], `pasted-${ts}.${ext}`, { type: f.type });
+}
+
+function acceptFiles(files: File[]): void {
+  for (const f of files) {
+    if (!isAllowed(f)) continue;
+    staged.push(f);
+  }
+  renderStaged();
+}
+
+function isAllowed(f: File): boolean {
+  if (f.type === "application/pdf") return true;
+  if (f.type.startsWith("image/")) return true;
+  const n = f.name.toLowerCase();
+  return n.endsWith(".pdf") || n.endsWith(".png") || n.endsWith(".jpg")
+      || n.endsWith(".jpeg") || n.endsWith(".webp") || n.endsWith(".gif");
+}
+
+function renderStaged(): void {
+  const stage   = document.getElementById("staged");
+  const actions = document.getElementById("actions");
+  const count   = document.getElementById("extract-count");
+  const plural  = document.getElementById("extract-plural");
+  if (!stage || !actions) return;
+
+  if (!staged.length) {
+    stage.innerHTML = "";
+    actions.style.display = "none";
+    return;
+  }
+
+  actions.style.display = "flex";
+  if (count)  count.textContent  = String(staged.length);
+  if (plural) plural.textContent = staged.length === 1 ? "" : "s";
+
+  stage.innerHTML = staged.map((f, i) => {
+    const isImg = f.type.startsWith("image/");
+    const url   = isImg ? URL.createObjectURL(f) : "";
+    const sub   = isImg ? "" : `<span class="staged__kind">PDF</span>`;
+    return `
+      <div class="staged__chip" data-i="${i}">
+        ${isImg
+          ? `<img class="staged__thumb" src="${url}" alt="" />`
+          : `<div class="staged__thumb staged__thumb--pdf">PDF</div>`}
+        <div class="staged__meta">
+          <div class="staged__name" title="${esc(f.name)}">${esc(f.name)}</div>
+          <div class="staged__size">${formatBytes(f.size)} ${sub}</div>
+        </div>
+        <button class="staged__remove" aria-label="Remove" data-i="${i}">×</button>
+      </div>
+    `;
+  }).join("");
+
+  // Wire remove buttons.
+  for (const btn of stage.querySelectorAll(".staged__remove")) {
+    btn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const i = Number((ev.currentTarget as HTMLElement).dataset.i ?? -1);
+      if (Number.isFinite(i) && i >= 0) {
+        staged = staged.filter((_, j) => j !== i);
+        renderStaged();
+      }
+    });
+  }
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+async function extractStaged(): Promise<void> {
   const profile = await getProfile();
   if (!profile) return;
 
@@ -131,8 +282,9 @@ async function handleFile(file: File): Promise<void> {
   };
 
   try {
-    setStatus(`Extracting from ${file.name}…`);
-    const { panel, unmatched } = await panelFromFile(file, profile);
+    setStatus(`Extracting from ${staged.length} page${staged.length === 1 ? "" : "s"}…`);
+    const files = staged.slice();
+    const { panel, unmatched } = await panelFromFiles(files, profile);
 
     setStatus("Saving…");
     const id = await addPanel(panel);
@@ -140,6 +292,7 @@ async function handleFile(file: File): Promise<void> {
     if (unmatched.length) {
       sessionStorage.setItem(`unmatched-${id}`, JSON.stringify(unmatched));
     }
+    staged = [];
     location.hash = `#/labs?id=${id}`;
   } catch (err: any) {
     if (status) {
@@ -160,7 +313,6 @@ async function renderPanelDetail(id: number): Promise<void> {
 
   const unmatched = JSON.parse(sessionStorage.getItem(`unmatched-${id}`) || "[]");
 
-  // Group results by category for readability.
   const grouped = new Map<string, Result[]>();
   for (const r of panel.results) {
     const m = findMarker(r.markerKey);
@@ -172,9 +324,7 @@ async function renderPanelDetail(id: number): Promise<void> {
   const groupsHtml = Array.from(grouped.entries()).map(([cat, rows]) => `
     <section style="margin-top: 2.4rem;">
       <div class="section-mark">${esc(cat)}</div>
-      <div class="results">
-        ${rows.map(resultRow).join("")}
-      </div>
+      <div class="results">${rows.map(resultRow).join("")}</div>
     </section>
   `).join("");
 
@@ -188,22 +338,26 @@ async function renderPanelDetail(id: number): Promise<void> {
     </section>
   ` : "";
 
+  const pageCount = panel.fileBlobs?.length ?? 0;
+  const sourceLabel = panel.source === "manual"
+    ? "Manual entry"
+    : pageCount > 1 ? `${pageCount} pages (${panel.source})` : panel.source;
+
   const frag = h(`
     <div class="reveal">
       ${masth}
       <section class="page">
         <div style="margin-bottom: 1rem;"><a href="#/labs" style="font-family:var(--body);font-size:0.78rem;color:var(--ink-faint);letter-spacing:0.16em;text-transform:uppercase;text-decoration:none;">← Back to labs</a></div>
 
-        <div class="eyebrow">${esc(panel.drawnAt)}${panel.labName ? ` · ${esc(panel.labName)}` : ""}</div>
+        <div class="eyebrow">${esc(panel.drawnAt)}${panel.labName ? ` · ${esc(panel.labName)}` : ""} · ${esc(sourceLabel)}</div>
         <h1 class="headline" style="margin-top: 0.4rem;">
           <em>${panel.results.length}</em> markers, drawn ${esc(panel.drawnAt)}.
         </h1>
 
         ${groupsHtml || `<div class="quiet">No matched results.</div>`}
-
         ${unmatchedHtml}
 
-        <div style="margin-top: 3rem; display: flex; gap: 1rem;">
+        <div style="margin-top: 3rem; display: flex; gap: 1rem; flex-wrap: wrap;">
           <a href="#/plan" class="btn btn--accent">Generate or update the plan</a>
           <button id="delete" class="btn btn--ghost" style="border-color: var(--oxblood); color: var(--oxblood);">Delete this panel</button>
         </div>
@@ -260,7 +414,6 @@ async function renderManualEntry(): Promise<void> {
   if (!profile) { location.hash = "#/onboarding"; return; }
   const masth = await masthead("#/labs");
 
-  // Show only markers relevant to the user's sex.
   const visibleMarkers = MARKERS.filter(m => !m.sex || m.sex === profile.sex);
 
   const frag = h(`
@@ -271,10 +424,10 @@ async function renderManualEntry(): Promise<void> {
 
         <div class="eyebrow">Manual entry</div>
         <h1 class="headline" style="margin-top: 0.4rem;">Type the values <em>by hand</em>.</h1>
-        <p class="lede" style="max-width: 60ch; margin-top: 0.8rem;">Fill the markers you have — leave the rest blank. Skip the upload entirely.</p>
+        <p class="lede" style="max-width: 60ch; margin-top: 0.8rem;">Fill the markers you have — leave the rest blank.</p>
 
         <form id="manual" style="margin-top: 2.2rem;">
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
             <div class="field">
               <label for="drawnAt">Date drawn</label>
               <input id="drawnAt" name="drawnAt" type="date" required />
@@ -297,7 +450,7 @@ async function renderManualEntry(): Promise<void> {
             `).join("")}
           </div>
 
-          <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+          <div style="display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap;">
             <button type="submit" class="btn btn--accent">Save panel</button>
             <a href="#/labs" class="btn btn--ghost">Cancel</a>
           </div>
@@ -349,5 +502,4 @@ async function renderManualEntry(): Promise<void> {
   });
 }
 
-// quiet linting
 void updatePanel;

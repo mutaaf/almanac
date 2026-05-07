@@ -483,6 +483,92 @@ body {
 }
 .dropzone__hint a { color: var(--oxblood); }
 
+/* ---- staged-file chips (multi-page upload) ------------------------------ */
+.staged {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.9rem;
+}
+.staged:empty { margin-top: 0; }
+.staged__chip {
+  position: relative;
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.55rem 0.6rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+  font-family: var(--body);
+}
+.staged__thumb {
+  width: 48px; height: 48px;
+  object-fit: cover;
+  border: 1px solid var(--paper-edge);
+  background: var(--paper);
+  display: block;
+}
+.staged__thumb--pdf {
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--body);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--oxblood);
+}
+.staged__name {
+  font-size: 0.86rem;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.staged__size {
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+  margin-top: 0.1rem;
+}
+.staged__kind {
+  margin-left: 0.4rem;
+  color: var(--oxblood);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+.staged__remove {
+  width: 1.6rem; height: 1.6rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-family: var(--body);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 180ms var(--ease), color 180ms var(--ease), background 180ms var(--ease);
+}
+.staged__remove:hover {
+  border-color: var(--oxblood);
+  color: var(--oxblood);
+  background: rgba(122,31,43,0.06);
+}
+
+/* Inline keyboard-shortcut pill */
+.kbd {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-bottom-width: 2px;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 3px;
+  vertical-align: 1px;
+}
+
 /* ---- result rows (panel detail) ----------------------------------------- */
 .results { display: flex; flex-direction: column; }
 .result {

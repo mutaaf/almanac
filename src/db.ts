@@ -176,8 +176,12 @@ export async function exportAll(): Promise<AlmanacExport> {
     db.mealPlans.orderBy("generatedAt").toArray(),
     db.checkins.orderBy("day").toArray(),
   ]);
-  // Strip blobs from export by default.
-  const lean = panels.map(p => { const { fileBlob: _f, ...rest } = p; return rest; });
+  // Strip blobs from export by default — they balloon the file. Source PDFs
+  // / images stay on this device; the JSON has every extracted result.
+  const lean = panels.map(p => {
+    const { fileBlobs: _b, ...rest } = p;
+    return rest;
+  });
   return {
     version: 3, exportedAt: Date.now(),
     ...(profile ? { profile } : {}),

@@ -75,9 +75,14 @@ export interface Panel {
   id?: number;
   drawnAt: Day;
   labName?: string;
-  source: "pdf" | "image" | "manual";
-  fileName?: string;
-  fileBlob?: Blob;
+  /**
+   * A single panel can come from many pages — lab reports often arrive as
+   * several photos or screenshots of the same draw. "mixed" when the
+   * staged files were a combination of PDFs and images.
+   */
+  source: "pdf" | "image" | "manual" | "mixed";
+  fileNames?: string[];   // parallel to fileBlobs
+  fileBlobs?: Blob[];     // originals, kept on-device
   results: Result[];
   notes?: string;
   createdAt: number;
