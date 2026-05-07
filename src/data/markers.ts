@@ -485,6 +485,294 @@ export const MARKERS: MarkerDef[] = [
     higherIsBetter: true,
     description: "EPA+DHA in red cells. >8% is the best-evidenced cardio-protective range.",
   },
+
+  /* ---------- Lipids — the rest of the panel ---------------------------- */
+  {
+    key: "total_cholesterol",
+    name: "Total Cholesterol",
+    category: "lipids",
+    unit: "mg/dL",
+    altUnits: [{ unit: "mmol/L", toCanonical: 38.66976 }],
+    aliases: ["cholesterol, total", "total cholesterol", "cholesterol total", "cholesterol"],
+    labRange:     { high: 200 },
+    optimalRange: { low: 160, high: 200 },
+    description: "Total minus HDL is the better marker; the absolute number matters less than ApoB and the LDL/HDL particle picture.",
+  },
+
+  /* ---------- CBC — the rest ------------------------------------------- */
+  {
+    key: "rbc_count_m",
+    name: "Red Blood Cell Count (Male)",
+    shortName: "RBC",
+    category: "blood",
+    sex: "male",
+    unit: "10*6/uL",
+    altUnits: [{ unit: "M/uL", toCanonical: 1 }, { unit: "x10^6/uL", toCanonical: 1 }],
+    aliases: ["red blood cell count", "rbc", "rbc count", "erythrocytes"],
+    labRange:     { low: 4.7, high: 6.1 },
+    optimalRange: { low: 4.8, high: 5.5 },
+    description: "Erythrocyte concentration. Trends with hemoglobin; isolated abnormalities track with hydration status.",
+  },
+  {
+    key: "rbc_count_f",
+    name: "Red Blood Cell Count (Female)",
+    shortName: "RBC",
+    category: "blood",
+    sex: "female",
+    unit: "10*6/uL",
+    altUnits: [{ unit: "M/uL", toCanonical: 1 }, { unit: "x10^6/uL", toCanonical: 1 }],
+    aliases: ["red blood cell count", "rbc", "rbc count", "erythrocytes"],
+    labRange:     { low: 4.2, high: 5.4 },
+    optimalRange: { low: 4.4, high: 5.0 },
+    description: "Erythrocyte concentration. Trends with hemoglobin; isolated abnormalities track with hydration status.",
+  },
+  {
+    key: "hematocrit_m",
+    name: "Hematocrit (Male)",
+    shortName: "Hct",
+    category: "blood",
+    sex: "male",
+    unit: "%",
+    aliases: ["hematocrit", "hct"],
+    labRange:     { low: 41, high: 53 },
+    optimalRange: { low: 43, high: 49 },
+    description: "Volume fraction of red cells. >50% can reflect dehydration, smoking, or polycythemia.",
+  },
+  {
+    key: "hematocrit_f",
+    name: "Hematocrit (Female)",
+    shortName: "Hct",
+    category: "blood",
+    sex: "female",
+    unit: "%",
+    aliases: ["hematocrit", "hct"],
+    labRange:     { low: 36, high: 46 },
+    optimalRange: { low: 38, high: 44 },
+    description: "Volume fraction of red cells.",
+  },
+  {
+    key: "mcv",
+    name: "MCV — Mean Corpuscular Volume",
+    shortName: "MCV",
+    category: "blood",
+    unit: "fL",
+    aliases: ["mcv", "mean corpuscular volume", "mean cell volume"],
+    labRange:     { low: 80, high: 100 },
+    optimalRange: { low: 88, high: 92 },
+    description: "Average red-cell size. Low: iron / B6 deficiency. High: B12 / folate deficiency or alcohol.",
+  },
+  {
+    key: "mch",
+    name: "MCH — Mean Corpuscular Hemoglobin",
+    shortName: "MCH",
+    category: "blood",
+    unit: "pg",
+    aliases: ["mch", "mean corpuscular hemoglobin"],
+    labRange:     { low: 27, high: 33 },
+    optimalRange: { low: 28, high: 32 },
+    description: "Average hemoglobin per red cell. Tracks with MCV.",
+  },
+  {
+    key: "mchc",
+    name: "MCHC — Mean Corpuscular Hemoglobin Concentration",
+    shortName: "MCHC",
+    category: "blood",
+    unit: "g/dL",
+    aliases: ["mchc", "mean corpuscular hemoglobin concentration"],
+    labRange:     { low: 32, high: 36 },
+    optimalRange: { low: 33, high: 35 },
+    description: "Hemoglobin density inside red cells.",
+  },
+  {
+    key: "rdw",
+    name: "RDW — Red Cell Distribution Width",
+    shortName: "RDW",
+    category: "blood",
+    unit: "%",
+    aliases: ["rdw", "rdw-cv", "red cell distribution width", "red cell distribution"],
+    labRange:     { high: 14.5 },
+    optimalRange: { high: 13.0 },
+    description: "Variability in red-cell size. High RDW (>13%) tracks with mortality risk independent of anemia.",
+  },
+  {
+    key: "neutrophils_pct",
+    name: "Neutrophils (%)",
+    category: "blood",
+    unit: "%",
+    aliases: ["neutrophils", "neutrophils %", "neutrophils percent", "polys", "segs"],
+    labRange:     { low: 40, high: 70 },
+    optimalRange: { low: 50, high: 65 },
+    description: "Bacterial-defense leukocytes. Chronically high suggests infection or stress.",
+  },
+  {
+    key: "lymphocytes_pct",
+    name: "Lymphocytes (%)",
+    category: "blood",
+    unit: "%",
+    aliases: ["lymphocytes", "lymphocytes %", "lymphocytes percent", "lymphs"],
+    labRange:     { low: 20, high: 44 },
+    optimalRange: { low: 24, high: 40 },
+    description: "Adaptive-immune leukocytes. Low during acute viral infections and chronic stress.",
+  },
+  {
+    key: "eosinophils_pct",
+    name: "Eosinophils (%)",
+    category: "blood",
+    unit: "%",
+    aliases: ["eosinophils", "eosinophils %", "eos"],
+    labRange:     { low: 0, high: 7 },
+    optimalRange: { low: 0, high: 3 },
+    description: "Allergy + parasite leukocytes. >3% often flags allergic load.",
+  },
+  {
+    key: "monocytes_pct",
+    name: "Monocytes (%)",
+    category: "blood",
+    unit: "%",
+    aliases: ["monocytes", "monocytes %", "monos"],
+    labRange:     { low: 4, high: 12 },
+    optimalRange: { low: 4, high: 8 },
+    description: "Tissue-clearing leukocytes. Chronic high tracks with chronic infection or smoldering inflammation.",
+  },
+  {
+    key: "basophils_pct",
+    name: "Basophils (%)",
+    category: "blood",
+    unit: "%",
+    aliases: ["basophils", "basophils %", "basos"],
+    labRange:     { low: 0, high: 2 },
+    optimalRange: { low: 0, high: 1 },
+    description: "Rare leukocyte; often unhelpful but reported on every CBC.",
+  },
+
+  /* ---------- Kidney / electrolytes ------------------------------------ */
+  {
+    key: "bun",
+    name: "BUN — Blood Urea Nitrogen",
+    shortName: "BUN",
+    category: "kidney",
+    unit: "mg/dL",
+    aliases: ["bun", "blood urea nitrogen", "urea nitrogen"],
+    labRange:     { low: 7, high: 20 },
+    optimalRange: { low: 10, high: 16 },
+    description: "Protein catabolism + kidney filtration. High with dehydration or high-protein intake; low with low protein.",
+  },
+  {
+    key: "creatinine_m",
+    name: "Creatinine (Male)",
+    category: "kidney",
+    sex: "male",
+    unit: "mg/dL",
+    aliases: ["creatinine", "creatinine, serum", "serum creatinine"],
+    labRange:     { low: 0.7, high: 1.3 },
+    optimalRange: { low: 0.8, high: 1.0 },
+    description: "Muscle-derived; varies with mass. Use eGFR for filtration assessment.",
+  },
+  {
+    key: "creatinine_f",
+    name: "Creatinine (Female)",
+    category: "kidney",
+    sex: "female",
+    unit: "mg/dL",
+    aliases: ["creatinine", "creatinine, serum", "serum creatinine"],
+    labRange:     { low: 0.6, high: 1.1 },
+    optimalRange: { low: 0.7, high: 0.9 },
+    description: "Muscle-derived. Use eGFR for filtration assessment.",
+  },
+  {
+    key: "sodium",
+    name: "Sodium",
+    category: "metabolic",
+    unit: "mEq/L",
+    aliases: ["sodium", "na", "na+"],
+    labRange:     { low: 136, high: 145 },
+    optimalRange: { low: 138, high: 142 },
+    description: "Extracellular fluid balance. Low (<135) needs investigation; high tracks with dehydration.",
+  },
+  {
+    key: "potassium",
+    name: "Potassium",
+    category: "metabolic",
+    unit: "mEq/L",
+    aliases: ["potassium", "k", "k+"],
+    labRange:     { low: 3.5, high: 5.1 },
+    optimalRange: { low: 4.0, high: 4.5 },
+    description: "Intracellular electrolyte. Symptoms (cramps, palpitations) often appear before lab abnormality.",
+  },
+  {
+    key: "chloride",
+    name: "Chloride",
+    category: "metabolic",
+    unit: "mEq/L",
+    aliases: ["chloride", "cl", "cl-"],
+    labRange:     { low: 98, high: 107 },
+    optimalRange: { low: 100, high: 106 },
+    description: "Tracks with sodium; abnormalities usually mirror acid-base disorders.",
+  },
+  {
+    key: "co2",
+    name: "CO₂ (Bicarbonate)",
+    shortName: "CO₂",
+    category: "metabolic",
+    unit: "mEq/L",
+    aliases: ["co2", "co2, total", "carbon dioxide", "bicarbonate", "hco3"],
+    labRange:     { low: 22, high: 29 },
+    optimalRange: { low: 25, high: 30 },
+    description: "Acid-base balance. Low with metabolic acidosis (uncontrolled DM, kidney disease).",
+  },
+  {
+    key: "calcium",
+    name: "Calcium",
+    category: "minerals",
+    unit: "mg/dL",
+    aliases: ["calcium", "calcium, serum", "ca", "total calcium"],
+    labRange:     { low: 8.6, high: 10.3 },
+    optimalRange: { low: 9.4, high: 9.8 },
+    description: "Tightly regulated; check ionized calcium and PTH if abnormal.",
+  },
+
+  /* ---------- Liver — the rest ----------------------------------------- */
+  {
+    key: "ast",
+    name: "AST",
+    category: "liver",
+    unit: "U/L",
+    aliases: ["ast", "sgot", "aspartate aminotransferase"],
+    labRange:     { low: 10, high: 40 },
+    optimalRange: { high: 26 },
+    description: "Less liver-specific than ALT; rises with muscle damage too. AST/ALT >1 can flag alcohol or advanced liver disease.",
+  },
+  {
+    key: "alkaline_phosphatase",
+    name: "Alkaline Phosphatase",
+    shortName: "ALP",
+    category: "liver",
+    unit: "U/L",
+    aliases: ["alkaline phosphatase", "alp"],
+    labRange:     { low: 44, high: 147 },
+    optimalRange: { low: 60, high: 90 },
+    description: "Liver / bone enzyme. Elevated with biliary disease or bone turnover; very low with zinc / B6 deficiency.",
+  },
+  {
+    key: "bilirubin_total",
+    name: "Bilirubin, Total",
+    category: "liver",
+    unit: "mg/dL",
+    aliases: ["bilirubin", "bilirubin, total", "total bilirubin"],
+    labRange:     { low: 0.2, high: 1.2 },
+    optimalRange: { low: 0.2, high: 1.0 },
+    description: "Heme catabolism product. Mildly elevated values commonly reflect Gilbert's syndrome.",
+  },
+  {
+    key: "total_protein",
+    name: "Total Protein",
+    category: "liver",
+    unit: "g/dL",
+    aliases: ["total protein", "protein, total"],
+    labRange:     { low: 6.0, high: 8.3 },
+    optimalRange: { low: 6.9, high: 7.4 },
+    description: "Albumin + globulins. Low with malnutrition or liver disease; high with chronic inflammation.",
+  },
 ];
 
 /**
@@ -499,30 +787,68 @@ export function findMarker(key: string): MarkerDef | undefined {
  * Used by the extractor to normalize "25-OH Vit D" / "Vitamin D, 25-Hydroxy" / etc.
  */
 export function matchMarker(rawName: string, sex?: string): MarkerDef | undefined {
-  const norm = rawName.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  // First try exact / alias match within sex (if applicable).
+  const top = findBestMatches(rawName, sex, 1);
+  return top[0]?.marker;
+}
+
+/**
+ * Return the top N candidate markers for a free-form lab name, scored
+ * 0–1 (1 = exact alias match). Used by the panel-detail UI when a row
+ * fails automatic matching and needs human review.
+ *
+ * Sex-restricted markers are filtered out unless the caller's sex matches
+ * (`unspecified` is treated as "show all").
+ */
+export function findBestMatches(rawName: string, sex?: string, n = 3): {
+  marker: MarkerDef; score: number; via: string;
+}[] {
+  const norm = normalize(rawName);
+  const tokens = new Set(norm.split(" ").filter(Boolean));
+
+  type Hit = { marker: MarkerDef; score: number; via: string };
+  const hits: Hit[] = [];
+
   for (const m of MARKERS) {
-    if (m.sex && sex && m.sex !== sex) continue;
-    if (m.name.toLowerCase() === rawName.toLowerCase()) return m;
-    if ((m.shortName ?? "").toLowerCase() === rawName.toLowerCase()) return m;
-    for (const a of m.aliases) {
-      const an = a.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-      if (an === norm) return m;
-    }
-  }
-  // Loose contains match as a fallback — pick the longest alias match.
-  let best: { m: MarkerDef; score: number } | null = null;
-  for (const m of MARKERS) {
-    if (m.sex && sex && m.sex !== sex) continue;
-    for (const a of m.aliases) {
-      const an = a.toLowerCase();
-      if (norm.includes(an) || an.includes(norm)) {
-        const score = Math.min(an.length, norm.length);
-        if (!best || score > best.score) best = { m, score };
+    if (m.sex && sex && sex !== "unspecified" && m.sex !== sex) continue;
+
+    // Build the candidate label set: name, shortName, every alias.
+    const candidates: string[] = [m.name, m.shortName ?? "", ...m.aliases].filter(Boolean);
+    let best: { score: number; via: string } | null = null;
+
+    for (const c of candidates) {
+      const cn = normalize(c);
+      let score = 0;
+      let via = c;
+
+      if (cn === norm) {
+        score = 1;
+      } else if (cn.length >= 3 && (norm === cn || norm.startsWith(cn + " ") || norm.endsWith(" " + cn))) {
+        score = 0.95;
+      } else if (cn.length >= 4 && (norm.includes(cn) || cn.includes(norm))) {
+        score = 0.7 + 0.2 * (Math.min(cn.length, norm.length) / Math.max(cn.length, norm.length));
+      } else {
+        // Token-overlap (Jaccard).
+        const ct = new Set(cn.split(" ").filter(Boolean));
+        let inter = 0;
+        for (const t of tokens) if (ct.has(t)) inter++;
+        const union = tokens.size + ct.size - inter;
+        if (inter > 0 && union > 0) score = 0.4 * (inter / union);
       }
+
+      if (score > 0 && (!best || score > best.score)) best = { score, via };
+    }
+
+    if (best && best.score > 0.25) {
+      hits.push({ marker: m, score: best.score, via: best.via });
     }
   }
-  return best?.m;
+
+  hits.sort((a, b) => b.score - a.score);
+  return hits.slice(0, n);
+}
+
+function normalize(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
 /**

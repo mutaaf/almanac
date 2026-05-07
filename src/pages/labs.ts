@@ -11,8 +11,8 @@ import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
 } from "../db";
-import { panelFromFiles } from "../extractor";
-import { MARKERS, findMarker, flagFor } from "../data/markers";
+import { panelFromFiles, type ExtractedRow } from "../extractor";
+import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import type { Panel, Result } from "../types";
 
 /* The staging set lives outside render so paste handlers can mutate it
@@ -330,9 +330,11 @@ async function extractStaged(): Promise<void> {
 async function renderPanelDetail(id: number): Promise<void> {
   const panel = await getPanel(id);
   if (!panel) { location.hash = "#/labs"; return; }
+  const profile = await getProfile();
   const masth = await masthead("#/labs");
 
-  const unmatched = JSON.parse(sessionStorage.getItem(`unmatched-${id}`) || "[]");
+  const unmatched: ExtractedRow[] =
+    JSON.parse(sessionStorage.getItem(`unmatched-${id}`) || "[]");
 
   const grouped = new Map<string, Result[]>();
   for (const r of panel.results) {
@@ -349,15 +351,7 @@ async function renderPanelDetail(id: number): Promise<void> {
     </section>
   `).join("");
 
-  const unmatchedHtml = unmatched.length ? `
-    <section style="margin-top: 2.4rem;">
-      <div class="section-mark" style="color: var(--ink-faint);">Unrecognized rows · ${unmatched.length}</div>
-      <p class="hint" style="max-width: 60ch;">These appeared on the report but didn't match any marker in the database. They'll be ignored by the plan generator until matched.</p>
-      <ul style="font-family: var(--mono); font-size: 0.82rem; color: var(--ink-soft);">
-        ${unmatched.map((u: any) => `<li>${esc(u.rawName)} — ${esc(u.value)} ${esc(u.unit ?? "")}</li>`).join("")}
-      </ul>
-    </section>
-  ` : "";
+  const unmatchedHtml = unmatched.length ? renderUnmatchedSection(unmatched, profile?.sex) : "";
 
   const pageCount = panel.fileBlobs?.length ?? 0;
   const sourceLabel = panel.source === "manual"
@@ -394,6 +388,181 @@ async function renderPanelDetail(id: number): Promise<void> {
     await deletePanel(id);
     location.hash = "#/labs";
   });
+
+  wireUnmatchedHandlers(id);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Unrecognized-rows UI: show top suggestions + full picker per group        */
+/* -------------------------------------------------------------------------- */
+
+function renderUnmatchedSection(unmatched: ExtractedRow[], sex?: string): string {
+  // Group rows by rawName so a 4-page report with 4 'RBC' rows shows ONE
+  // card with a "Match all 4" action, not four separate cards.
+  const groups = new Map<string, ExtractedRow[]>();
+  for (const row of unmatched) {
+    const k = row.rawName;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(row);
+  }
+
+  const items = Array.from(groups.entries()).map(([rawName, rows]) => {
+    const matches = findBestMatches(rawName, sex, 3);
+
+    const valuesPreview = rows.map(r =>
+      `<span class="unmatched__val">${esc(r.value)} ${esc(r.unit ?? "")}</span>`,
+    ).join("");
+
+    const suggestionsHtml = matches.length === 0
+      ? `<div class="unmatched__nomatch">No close matches in the database.</div>`
+      : `<div class="unmatched__suggests">
+          ${matches.map((m, i) => `
+            <button class="unmatched__suggest ${i === 0 ? "is-best" : ""}"
+                    data-action="match"
+                    data-rawname="${esc(rawName)}"
+                    data-key="${esc(m.marker.key)}">
+              <span class="unmatched__name">${esc(m.marker.shortName ?? m.marker.name)}</span>
+              <span class="unmatched__score">${Math.round(m.score * 100)}%</span>
+            </button>
+          `).join("")}
+        </div>`;
+
+    // Full marker picker — for the rare case the top 3 are wrong.
+    // We exclude markers from the wrong sex.
+    const visible = MARKERS.filter(m => !m.sex || !sex || sex === "unspecified" || m.sex === sex);
+    const pickerHtml = `
+      <div class="unmatched__picker">
+        <select class="unmatched__select" data-rawname="${esc(rawName)}">
+          <option value="">— pick a different marker —</option>
+          ${visible.map(m => `<option value="${esc(m.key)}">${esc(m.shortName ?? m.name)} · ${esc(m.unit)}</option>`).join("")}
+        </select>
+        <button class="btn btn--ghost unmatched__pick-btn"
+                data-action="pick"
+                data-rawname="${esc(rawName)}">Match selected</button>
+      </div>
+    `;
+
+    return `
+      <article class="unmatched-card" data-rawname="${esc(rawName)}">
+        <header class="unmatched__head">
+          <div>
+            <div class="unmatched__rawname">${esc(rawName)}</div>
+            <div class="unmatched__values">${valuesPreview}</div>
+          </div>
+          <div class="unmatched__count">${rows.length === 1 ? "1 row" : `${rows.length} rows`}</div>
+        </header>
+        ${suggestionsHtml}
+        ${pickerHtml}
+        <div class="unmatched__skip">
+          <button class="unmatched__skip-btn" data-action="skip" data-rawname="${esc(rawName)}">
+            Skip ${rows.length === 1 ? "this row" : `all ${rows.length}`}
+          </button>
+        </div>
+      </article>
+    `;
+  }).join("");
+
+  return `
+    <section style="margin-top: 2.6rem;">
+      <div class="section-mark" style="color: var(--ink-faint);">Unrecognized rows · ${unmatched.length}</div>
+      <p class="hint" style="max-width: 64ch; margin-bottom: 1.2rem;">
+        These appeared on the report but didn't auto-match. Pick a marker and they'll be folded into your results — the plan generator only sees matched rows.
+      </p>
+      <div class="unmatched-list">${items}</div>
+    </section>
+  `;
+}
+
+/**
+ * Wire the unmatched-section actions: tap a top-3 button to match all rows
+ * with that rawName to the chosen marker; or pick from the dropdown then
+ * "Match selected"; or "Skip" to drop the rows entirely.
+ */
+function wireUnmatchedHandlers(panelId: number): void {
+  const root = document.querySelector(".unmatched-list");
+  if (!root) return;
+
+  root.addEventListener("click", async (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
+    if (!btn) return;
+    const action  = btn.dataset.action!;
+    const rawName = btn.dataset.rawname!;
+    if (!rawName) return;
+
+    if (action === "match") {
+      const key = btn.dataset.key!;
+      await matchRowsByName(panelId, rawName, key);
+    } else if (action === "pick") {
+      const sel = root.querySelector<HTMLSelectElement>(
+        `select.unmatched__select[data-rawname="${cssEscape(rawName)}"]`,
+      );
+      const key = sel?.value;
+      if (!key) { alert("Pick a marker from the dropdown first."); return; }
+      await matchRowsByName(panelId, rawName, key);
+    } else if (action === "skip") {
+      await skipRowsByName(panelId, rawName);
+    }
+  });
+}
+
+/** Match every unmatched row whose rawName equals `rawName` to `markerKey`. */
+async function matchRowsByName(panelId: number, rawName: string, markerKey: string): Promise<void> {
+  const m = findMarker(markerKey);
+  if (!m) return;
+
+  const panel = await getPanel(panelId);
+  if (!panel) return;
+
+  const stored: ExtractedRow[] =
+    JSON.parse(sessionStorage.getItem(`unmatched-${panelId}`) || "[]");
+
+  const remaining: ExtractedRow[] = [];
+  const newResults: Result[] = panel.results.slice();
+
+  for (const row of stored) {
+    if (row.rawName !== rawName) { remaining.push(row); continue; }
+
+    let value = row.value;
+    let unit  = row.unit;
+    if (unit && unit.toLowerCase() !== m.unit.toLowerCase()) {
+      const alt = (m.altUnits ?? []).find(a => a.unit.toLowerCase() === unit.toLowerCase());
+      if (alt) {
+        value = row.value * alt.toCanonical;
+        unit  = m.unit;
+      }
+    }
+    const labRange = row.labRange ?? m.labRange;
+    const optimal  = m.optimalRange;
+    const flag     = flagFor(value, optimal, labRange);
+
+    newResults.push({
+      markerKey: m.key,
+      rawName: row.rawName,
+      value,
+      unit,
+      ...(labRange ? { labRange } : {}),
+      ...(optimal  ? { optimalRange: optimal } : {}),
+      flag,
+    });
+  }
+
+  await updatePanel(panelId, { results: newResults });
+  sessionStorage.setItem(`unmatched-${panelId}`, JSON.stringify(remaining));
+  await renderPanelDetail(panelId);
+}
+
+async function skipRowsByName(panelId: number, rawName: string): Promise<void> {
+  const stored: ExtractedRow[] =
+    JSON.parse(sessionStorage.getItem(`unmatched-${panelId}`) || "[]");
+  const remaining = stored.filter(r => r.rawName !== rawName);
+  sessionStorage.setItem(`unmatched-${panelId}`, JSON.stringify(remaining));
+  await renderPanelDetail(panelId);
+}
+
+/** Tiny CSS.escape polyfill for attribute selectors. */
+function cssEscape(s: string): string {
+  if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(s);
+  return s.replace(/["'\\\]\[]/g, "\\$&");
 }
 
 function resultRow(r: Result): string {
@@ -411,8 +580,8 @@ function resultRow(r: Result): string {
         <span class="result__unit">${esc(r.unit)}</span>
       </div>
       <div class="result__ranges">
-        <div><span class="result__rangelabel">lab</span> ${esc(lab)}</div>
-        <div><span class="result__rangelabel">functional</span> ${esc(optimal)}</div>
+        <div><span class="result__rangelabel">lab</span><span>${esc(lab)}</span></div>
+        <div><span class="result__rangelabel">functional</span><span>${esc(optimal)}</span></div>
       </div>
       <div class="result__flag flag--${esc(flag)}">${esc(flag)}</div>
     </div>
