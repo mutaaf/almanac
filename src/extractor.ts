@@ -10,6 +10,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Profile, Result, Panel } from "./types";
 import { matchMarker, flagFor, findMarker } from "./data/markers";
+import { recordCall } from "./telemetry";
+import { getCachedExtraction, cacheExtraction } from "./db";
 
 const EXTRACTION_PROMPT = `
 You are extracting structured biomarker results from a clinical lab report.
@@ -101,10 +103,42 @@ function mediaTypeOf(file: File): Mt {
 }
 
 /**
+ * SHA-256 hash of the concatenated file contents — stable across re-pastes,
+ * so we can cache the extraction result and avoid re-billing Claude Vision
+ * if the user (re)uploads the same screenshots.
+ */
+async function hashFiles(files: File[]): Promise<string> {
+  const enc = new TextEncoder();
+  const buffers: ArrayBuffer[] = [];
+  for (const f of files) {
+    // Mix in name + size so a renamed file invalidates the cache.
+    buffers.push(enc.encode(`${f.name}|${f.size}|`).buffer);
+    buffers.push(await f.arrayBuffer());
+  }
+  const total = buffers.reduce((n, b) => n + b.byteLength, 0);
+  const combined = new Uint8Array(total);
+  let offset = 0;
+  for (const b of buffers) {
+    combined.set(new Uint8Array(b), offset);
+    offset += b.byteLength;
+  }
+  const digest = await crypto.subtle.digest("SHA-256", combined);
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
  * Run the extraction over a set of files (treated as pages of ONE panel).
+ * Cached: if the user re-uploads the same files, we replay the prior
+ * extraction instead of paying Claude again.
  */
 export async function extractFromFiles(files: File[], profile: Profile): Promise<ExtractionResult> {
   if (!files.length) throw new Error("No files to extract from.");
+
+  const hash = await hashFiles(files);
+  const cached = await getCachedExtraction<ExtractionResult>(hash);
+  if (cached) return cached;
 
   const client = new Anthropic({
     apiKey: profile.anthropicKey,
@@ -125,14 +159,17 @@ export async function extractFromFiles(files: File[], profile: Profile): Promise
     text: `${files.length} ${files.length === 1 ? "page/file" : "pages/files"} above. Extract every biomarker per the schema; deduplicate across pages. Return JSON only.`,
   });
 
+  const model = profile.model || "claude-sonnet-4-6";
   const resp = await client.messages.create({
-    model: profile.model || "claude-sonnet-4-6",
+    model,
     max_tokens: 8000,
     system: [
       { type: "text", text: EXTRACTION_PROMPT, cache_control: { type: "ephemeral" } },
     ],
     messages: [{ role: "user", content: blocks }],
   });
+
+  recordCall("extract", model, resp);
 
   if (resp.stop_reason === "max_tokens") {
     throw new Error(
@@ -146,11 +183,14 @@ export async function extractFromFiles(files: File[], profile: Profile): Promise
     .map(b => b.text).join("\n").trim();
 
   const parsed = parseJson(raw);
-  return {
+  const result: ExtractionResult = {
     ...(parsed.drawnAt ? { drawnAt: String(parsed.drawnAt) } : {}),
     ...(parsed.labName ? { labName: String(parsed.labName) } : {}),
     rows: Array.isArray(parsed.results) ? (parsed.results as ExtractedRow[]) : [],
   };
+  // Persist the extraction so re-pastes don't re-bill.
+  await cacheExtraction(hash, result);
+  return result;
 }
 
 /**

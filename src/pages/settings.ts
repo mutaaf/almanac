@@ -2,9 +2,10 @@
 
 import { mount, h, esc } from "../ui";
 import { masthead, foot } from "../chrome";
-import { getProfile, saveProfile, exportAll, importAll, wipeAll } from "../db";
+import { getProfile, saveProfile, exportAll, importAll, wipeAll, clearExtractCache } from "../db";
 import type { AlmanacExport } from "../db";
 import type { Sex } from "../types";
+import { list as listCalls, aggregate as aggregateCalls, clear as clearTelemetry } from "../telemetry";
 
 export async function renderSettings(): Promise<void> {
   const p = await getProfile();
@@ -104,13 +105,23 @@ export async function renderSettings(): Promise<void> {
           </p>
         </div>
 
+        ${renderTelemetry()}
+
         <div style="margin-top: 3rem;">
           <div class="section-mark" style="color: var(--oxblood);">Danger</div>
-          <button id="wipe" class="btn" style="border-color: var(--oxblood); color: var(--oxblood);">
-            Burn the almanac
-          </button>
+          <div style="display: flex; flex-wrap: wrap; gap: 0.8rem;">
+            <button id="wipe" class="btn" style="border-color: var(--oxblood); color: var(--oxblood);">
+              Burn the almanac
+            </button>
+            <button id="clearCache" class="btn btn--ghost">Clear extraction cache</button>
+            <button id="clearTelem" class="btn btn--ghost">Clear telemetry</button>
+          </div>
           <p class="hint" style="margin-top: 0.8rem; max-width: 56ch;">
-            Wipes every panel, plan, check-in, and your profile from this device. There is no undo. Export first.
+            <strong>Burn</strong>: wipes every panel, plan, check-in, and your profile. No undo. Export first.
+            <br/>
+            <strong>Clear extraction cache</strong>: forces re-extraction on the next paste of previously-seen files (useful if you've added markers to the DB).
+            <br/>
+            <strong>Clear telemetry</strong>: empties the recent-calls log below.
           </p>
         </div>
       </section>
@@ -169,6 +180,103 @@ export async function renderSettings(): Promise<void> {
     await wipeAll();
     location.hash = "#/onboarding";
   });
+
+  document.getElementById("clearCache")?.addEventListener("click", async () => {
+    await clearExtractCache();
+    alert("Extraction cache cleared. Next paste of any previously-seen files will re-extract.");
+  });
+
+  document.getElementById("clearTelem")?.addEventListener("click", async () => {
+    clearTelemetry();
+    void renderSettings();
+  });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Telemetry panel                                                           */
+/* -------------------------------------------------------------------------- */
+
+function renderTelemetry(): string {
+  const calls = listCalls();
+  const agg = aggregateCalls(calls);
+
+  if (calls.length === 0) {
+    return `
+      <div style="margin-top: 3.6rem;">
+        <div class="section-mark">AI calls · efficiency</div>
+        <p class="hint" style="max-width: 56ch;">
+          No calls logged yet. Once you compose a plan or generate meals, this section will show how many tokens were billed at full price vs. served from the prompt cache.
+        </p>
+      </div>
+    `;
+  }
+
+  const fmt = (n: number) => n.toLocaleString();
+  const pct = (n: number) => `${Math.round(n * 100)}%`;
+
+  return `
+    <div style="margin-top: 3.6rem;">
+      <div class="section-mark">AI calls · efficiency</div>
+      <p class="hint" style="max-width: 64ch;">
+        Local-only telemetry: nothing here is transmitted. Cache reads cost roughly
+        10% of normal input; cache writes are billed once at ~125% and reused for
+        the next 5 minutes. Higher hit rate = cheaper, faster generations.
+      </p>
+
+      <div class="telem-grid" style="margin-top: 1rem;">
+        <div class="telem-stat">
+          <div class="telem-stat__label">Total calls</div>
+          <div class="telem-stat__value">${agg.totalCalls}</div>
+        </div>
+        <div class="telem-stat">
+          <div class="telem-stat__label">Cache hit rate</div>
+          <div class="telem-stat__value">${pct(agg.cacheHitRate)}</div>
+        </div>
+        <div class="telem-stat">
+          <div class="telem-stat__label">Tokens cached read</div>
+          <div class="telem-stat__value">${fmt(agg.totalCacheRead)}</div>
+        </div>
+        <div class="telem-stat">
+          <div class="telem-stat__label">Tokens billed input</div>
+          <div class="telem-stat__value">${fmt(agg.totalInput + agg.totalCacheCreate)}</div>
+        </div>
+        <div class="telem-stat">
+          <div class="telem-stat__label">Tokens output</div>
+          <div class="telem-stat__value">${fmt(agg.totalOutput)}</div>
+        </div>
+        <div class="telem-stat">
+          <div class="telem-stat__label">Saved by cache</div>
+          <div class="telem-stat__value">~${fmt(agg.hypotheticalInput - agg.effectiveInput)}</div>
+        </div>
+      </div>
+
+      <details style="margin-top: 1.2rem;">
+        <summary style="cursor: pointer; font-family: var(--body); font-size: 0.74rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-faint);">
+          Recent calls (${calls.length})
+        </summary>
+        <table class="telem-table">
+          <thead><tr>
+            <th>When</th><th>Kind</th><th>Model</th>
+            <th>Input</th><th>Cache write</th><th>Cache read</th><th>Output</th><th>Stop</th>
+          </tr></thead>
+          <tbody>
+            ${calls.slice(0, 20).map(c => `
+              <tr>
+                <td>${esc(new Date(c.at).toLocaleString())}</td>
+                <td>${esc(c.kind)}</td>
+                <td>${esc(c.model.replace("claude-", ""))}</td>
+                <td>${fmt(c.inputTokens)}</td>
+                <td>${fmt(c.cacheCreateTokens)}</td>
+                <td><strong>${fmt(c.cacheReadTokens)}</strong></td>
+                <td>${fmt(c.outputTokens)}</td>
+                <td>${esc(c.stopReason)}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </details>
+    </div>
+  `;
 }
 
 function numOrUndef(v: FormDataEntryValue | null): number | undefined {

@@ -15,6 +15,27 @@ A local-first precision-health protocol that's **food-first**. You upload your l
 
 A 20-second daily check-in tracks meals eaten and habit adherence. New labs come in → the plan re-tunes; new week begins → the meal plan can be re-rolled independently.
 
+## Why this isn't a Claude wrapper
+
+The honest test: *"Why don't I just paste my labs into Claude.app and ask for a plan?"*
+
+You can. You'll get a paragraph back. Almanac wins because of state, structure, and computation that exist outside the LLM call:
+
+| What raw Claude can't do | What Almanac does |
+|---|---|
+| **Persistent timeline** — every chat starts blank | Every panel you've ever uploaded lives in IndexedDB, indexed by date and marker. The plan generator sees your full history every time. |
+| **Functional ranges** — Claude defaults to lab "normal" | A curated DB of ~70 markers carrying *both* the lab range and the tighter functional / optimal range. Recommendations reason against the optimum, not the floor. |
+| **Marker canonicalization** — "25-OH Vit D" / "Vitamin D, 25-OH" / "VitD" are different strings to Claude | All three resolve to the same canonical key, so trends span re-tests across labs and report formats. |
+| **Programmatic insight engine** — Claude only spots what it happens to spot | A deterministic rule engine (`src/insights.ts`) scans your panels for clinically meaningful multi-marker patterns *before* the LLM sees the data: subclinical hypothyroid, iron-restricted erythropoiesis, atherogenic dyslipidemia, B12/folate insufficiency, smoldering inflammation triad — plus trend rules ("persistently elevated across N draws", "monotonic decline"). The patterns are passed to Claude as authoritative findings, not derived. |
+| **Adherence loop** — Claude has no idea what you actually did | Every daily check-in feeds the next plan generation. If you held the easy tier 12/14 days, the next plan can promote to moderate. If you skipped salmon dinner three weeks running, the next plan picks a different protein vehicle. |
+| **Multi-page lab reconciliation** — Claude can read a PDF, but won't dedupe across pages of the same draw | The extractor accepts up to N PDFs/images at once and reconciles markers across pages. |
+| **Extraction caching** — Claude bills you every time | SHA-256 hash of staged files; re-pasting the same screenshots replays the prior extraction at zero cost. |
+| **Aggressive prompt caching** — Claude.app charges for every token of context every time | The voice spec, your profile, and the marker reference live in `cache_control: ephemeral` blocks. Re-rolls within 5 minutes only re-pay for the volatile content. **Settings → AI calls** shows your actual cache hit rate. |
+| **Structured artifact, not chat** — Claude.app gives you prose | Every plan / meal-plan / panel renders as a real document: tappable habits, sparkline trends per marker with the functional range as the band behind the line, a 7-day meal grid you can navigate, a grocery list with checkboxes. |
+| **Privacy** — every Claude.app conversation persists in your account | No backend exists. Your data lives in this browser. Inference calls go directly from your browser to api.anthropic.com using **your** key. |
+
+The wrapper that adds none of these is dead-weight. The one that adds all of them is a different product than the chat box.
+
 ## The privacy promise
 
 There is no server. There is no cloud. There is no telemetry.

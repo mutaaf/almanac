@@ -406,6 +406,63 @@ body {
 
 .foot .colophon { font-style: italic; text-transform: none; letter-spacing: 0.02em; font-family: var(--display); }
 
+/* ---- telemetry --------------------------------------------------------- */
+.telem-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.8rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+  padding: 0.8rem;
+}
+.telem-stat {
+  padding: 0.5rem 0.6rem;
+  border-right: 1px solid var(--paper-edge);
+}
+.telem-stat:last-child { border-right: 0; }
+.telem-stat__label {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.telem-stat__value {
+  font-family: var(--display);
+  font-size: 1.5rem;
+  color: var(--ink);
+  margin-top: 0.2rem;
+  line-height: 1;
+}
+.telem-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+}
+.telem-table th, .telem-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--paper-edge);
+  text-align: left;
+}
+.telem-table th {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 500;
+  border-bottom-color: var(--rule);
+}
+.telem-table td:nth-child(n+4) { text-align: right; }
+.telem-table th:nth-child(n+4) { text-align: right; }
+
+@media (max-width: 640px) {
+  .telem-table { font-size: 0.7rem; }
+  .telem-table th, .telem-table td { padding: 0.3rem 0.4rem; }
+}
+
 /* ---- error card (composition / extraction failures) -------------------- */
 .error-card {
   border: 1px solid var(--oxblood);

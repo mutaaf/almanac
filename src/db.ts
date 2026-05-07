@@ -3,12 +3,19 @@
 import Dexie, { type Table } from "dexie";
 import type { Profile, Panel, Plan, MealPlan, CheckIn, Day } from "./types";
 
+export interface ExtractCacheEntry {
+  hash: string;            // SHA-256 of the staged files (in order)
+  result: unknown;         // ExtractionResult — typed at the call site
+  createdAt: number;
+}
+
 class AlmanacDB extends Dexie {
-  profile!:    Table<Profile,  "singleton">;
-  panels!:     Table<Panel,    number>;
-  plans!:      Table<Plan,     number>;
-  mealPlans!:  Table<MealPlan, number>;
-  checkins!:   Table<CheckIn,  number>;
+  profile!:       Table<Profile,           "singleton">;
+  panels!:        Table<Panel,             number>;
+  plans!:         Table<Plan,              number>;
+  mealPlans!:     Table<MealPlan,          number>;
+  checkins!:      Table<CheckIn,           number>;
+  extractCache!:  Table<ExtractCacheEntry, string>;
 
   constructor() {
     super("almanac");
@@ -35,6 +42,17 @@ class AlmanacDB extends Dexie {
       plans:     "++id, generatedAt",
       mealPlans: "++id, planId, weekStart, generatedAt",
       checkins:  "++id, &day, createdAt",
+    });
+
+    // v4 — adds extraction cache. Re-pasting the same lab files reuses
+    // the previously extracted result instead of re-billing Claude Vision.
+    this.version(4).stores({
+      profile:      "id",
+      panels:       "++id, drawnAt, createdAt",
+      plans:        "++id, generatedAt",
+      mealPlans:    "++id, planId, weekStart, generatedAt",
+      checkins:     "++id, &day, createdAt",
+      extractCache: "hash, createdAt",
     });
   }
 }
@@ -152,6 +170,23 @@ export async function upsertCheckIn(c: Omit<CheckIn, "id" | "createdAt">): Promi
 }
 export async function recentCheckIns(days = 14): Promise<CheckIn[]> {
   return db.checkins.orderBy("day").reverse().limit(days).toArray();
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Extraction cache                                                          */
+/* -------------------------------------------------------------------------- */
+
+export async function getCachedExtraction<T>(hash: string): Promise<T | undefined> {
+  const row = await db.extractCache.get(hash);
+  return row?.result as T | undefined;
+}
+
+export async function cacheExtraction(hash: string, result: unknown): Promise<void> {
+  await db.extractCache.put({ hash, result, createdAt: Date.now() });
+}
+
+export async function clearExtractCache(): Promise<void> {
+  await db.extractCache.clear();
 }
 
 /* -------------------------------------------------------------------------- */

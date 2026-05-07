@@ -14,6 +14,8 @@ import type {
 } from "./types";
 import { findMarker } from "./data/markers";
 import { age, addDays } from "./db";
+import { computeInsights, formatInsightsForPrompt } from "./insights";
+import { recordCall } from "./telemetry";
 
 /* ============================================================================
    PLAN GENERATION
@@ -242,17 +244,27 @@ export class ClaudeClient {
     const adherence   = formatAdherence(input.recentCheckIns, input.previousPlan);
     const priorPlan   = input.previousPlan ? formatPriorPlan(input.previousPlan) : "";
 
+    // Pre-computed pattern + trend insights — the part Claude.app can't
+    // replicate. These run deterministically over the panel timeline and
+    // get fed in as authoritative findings.
+    const programmatic = computeInsights(input.panels, input.profile);
+    const insightsBlock = formatInsightsForPrompt(programmatic);
+
     const fresh = [
       panelsBlock,
       adherence,
       priorPlan,
+      insightsBlock,
       `# Task`,
       `Generate today's Plan in the JSON shape specified by the system message.`,
       `The eatList is the centerpiece — be specific (food, frequency, portion, why).`,
       `Honor the reader's dietary pattern absolutely (no pork if halal, etc.).`,
       `Reason against FUNCTIONAL ranges. Tie every recommendation to a finding.`,
+      programmatic.length
+        ? `Incorporate every pre-computed insight from the section above into your insights array; you may refine wording but never contradict the pattern.`
+        : "",
       `Return only JSON, no prose.`,
-    ].join("\n\n");
+    ].filter(Boolean).join("\n\n");
 
     const messages: Anthropic.MessageParam[] = [{
       role: "user",
@@ -266,6 +278,7 @@ export class ClaudeClient {
       model, max_tokens: 16000, system, messages,
     });
 
+    recordCall("plan", model, resp);
     assertNotTruncated(resp);
     const raw = textOf(resp);
     const parsed = parseJson(raw);
@@ -330,6 +343,7 @@ export class ClaudeClient {
       model, max_tokens: 16000, system, messages,
     });
 
+    recordCall("meals", model, resp);
     assertNotTruncated(resp);
     const raw = textOf(resp);
     const parsed = parseJson(raw);
