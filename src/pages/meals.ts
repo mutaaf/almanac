@@ -4,12 +4,12 @@
 //   #/meals?day=YYYY-MM-DD → expanded detail for that day
 //   #/meals?grocery=1     → focused grocery list view
 
-import { mount, h, esc } from "../ui";
+import { mount, h, esc, errorCard } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, latestPlan, latestMealPlan, allPanels, saveMealPlan, today,
 } from "../db";
-import { ClaudeClient } from "../claude";
+import { ClaudeClient, TruncatedResponseError } from "../claude";
 import type { MealPlan, Meal, DayMeals, Effort } from "../types";
 
 export async function renderMeals(): Promise<void> {
@@ -118,11 +118,24 @@ async function compose(planId: number): Promise<void> {
     location.hash = "#/meals";
     void renderMeals();
   } catch (err: any) {
-    if (status) {
-      status.style.display = "block";
-      status.innerHTML = `<strong style="color: var(--oxblood)">Generation failed.</strong><br/>${esc(err.message ?? String(err))}`;
-    }
+    if (!status) return;
+    status.style.display = "block";
+    const isTrunc = err instanceof TruncatedResponseError;
+    const raw = isTrunc ? err.raw : extractRawFromMessage(err.message);
+    status.innerHTML = errorCard({
+      title: "Meal generation failed",
+      message: err.message ?? String(err),
+      ...(raw ? { raw } : {}),
+      actions: `<button id="retry" class="btn btn--accent">Try again</button>`,
+    });
+    document.getElementById("retry")?.addEventListener("click", () => compose(planId));
   }
+}
+
+function extractRawFromMessage(msg: string | undefined): string | undefined {
+  if (!msg) return undefined;
+  const m = msg.match(/--- raw ---\n([\s\S]+)$/);
+  return m?.[1];
 }
 
 /* -------------------------------------------------------------------------- */

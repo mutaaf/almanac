@@ -127,12 +127,19 @@ export async function extractFromFiles(files: File[], profile: Profile): Promise
 
   const resp = await client.messages.create({
     model: profile.model || "claude-sonnet-4-6",
-    max_tokens: 4096,
+    max_tokens: 8000,
     system: [
       { type: "text", text: EXTRACTION_PROMPT, cache_control: { type: "ephemeral" } },
     ],
     messages: [{ role: "user", content: blocks }],
   });
+
+  if (resp.stop_reason === "max_tokens") {
+    throw new Error(
+      `Extraction was cut off before finishing — the report has more rows than fit in one response. ` +
+      `Try splitting the upload into fewer pages and run extraction twice.`,
+    );
+  }
 
   const raw = resp.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")

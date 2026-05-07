@@ -6,7 +6,7 @@
 //   #/labs?id=N           → review a single panel's results
 //   #/labs?manual=1       → manual entry form
 
-import { mount, h, esc } from "../ui";
+import { mount, h, esc, errorCard } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
@@ -316,11 +316,23 @@ async function extractStaged(): Promise<void> {
     staged = [];
     location.hash = `#/labs?id=${id}`;
   } catch (err: any) {
-    if (status) {
-      status.style.display = "block";
-      status.innerHTML = `<strong style="color: var(--oxblood)">Extraction failed.</strong><br/>${esc(err.message ?? String(err))}`;
-    }
+    if (!status) return;
+    status.style.display = "block";
+    const raw = extractRawFromMessage(err.message);
+    status.innerHTML = errorCard({
+      title: "Extraction failed",
+      message: err.message ?? String(err),
+      ...(raw ? { raw } : {}),
+      actions: `<button id="retry-extract" class="btn btn--accent">Try again</button>`,
+    });
+    document.getElementById("retry-extract")?.addEventListener("click", () => extractStaged());
   }
+}
+
+function extractRawFromMessage(msg: string | undefined): string | undefined {
+  if (!msg) return undefined;
+  const m = msg.match(/--- raw ---\n([\s\S]+)$/);
+  return m?.[1];
 }
 
 /* -------------------------------------------------------------------------- */

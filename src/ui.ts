@@ -42,6 +42,32 @@ export function roman(n: number): string {
   return out;
 }
 
+/**
+ * Render a structured error card. Used by the plan / meals / labs flows
+ * when a generation fails. `raw` is shown collapsed behind a disclosure;
+ * `actions` is HTML for any retry / dismiss buttons (or an empty string).
+ */
+export function errorCard(opts: {
+  title: string;
+  message: string;
+  raw?: string;
+  actions?: string;
+}): string {
+  return `
+    <div class="error-card">
+      <div class="error-card__title">${esc(opts.title)}</div>
+      <p class="error-card__msg">${esc(opts.message)}</p>
+      ${opts.raw ? `
+        <details>
+          <summary>Show raw response</summary>
+          <pre>${esc(opts.raw)}</pre>
+        </details>
+      ` : ""}
+      ${opts.actions ? `<div class="error-card__actions">${opts.actions}</div>` : ""}
+    </div>
+  `;
+}
+
 /** Volume / Issue label like "Vol. III · No. 47" — derived from the user's start date. */
 export function issueLabel(startedAt: number, today: Date = new Date()): string {
   const start = new Date(startedAt);

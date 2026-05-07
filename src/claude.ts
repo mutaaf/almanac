@@ -263,9 +263,10 @@ export class ClaudeClient {
     }];
 
     const resp = await this.client.messages.create({
-      model, max_tokens: 6000, system, messages,
+      model, max_tokens: 16000, system, messages,
     });
 
+    assertNotTruncated(resp);
     const raw = textOf(resp);
     const parsed = parseJson(raw);
     const plan = normalizePlan(parsed);
@@ -326,13 +327,39 @@ export class ClaudeClient {
     }];
 
     const resp = await this.client.messages.create({
-      model, max_tokens: 8000, system, messages,
+      model, max_tokens: 16000, system, messages,
     });
 
+    assertNotTruncated(resp);
     const raw = textOf(resp);
     const parsed = parseJson(raw);
     const mealPlan = normalizeMealPlan(parsed, days);
     return { mealPlan, model, raw };
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Custom error so the UI can present a useful message when the model        */
+/*  hits the output ceiling instead of "Could not parse JSON".                */
+/* -------------------------------------------------------------------------- */
+
+export class TruncatedResponseError extends Error {
+  constructor(public model: string, public raw: string) {
+    super(
+      `The response was cut off before completing the JSON. ` +
+      `This is almost always max_tokens being too tight — try again, ` +
+      `or simplify the scope (fewer panels, or a smaller model).`,
+    );
+    this.name = "TruncatedResponseError";
+  }
+}
+
+function assertNotTruncated(resp: Anthropic.Message): void {
+  if (resp.stop_reason === "max_tokens") {
+    const raw = resp.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map(b => b.text).join("\n");
+    throw new TruncatedResponseError(resp.model, raw);
   }
 }
 

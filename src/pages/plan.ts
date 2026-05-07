@@ -11,13 +11,13 @@
 //
 // Plus a CTA to generate or re-roll the weekly meal plan.
 
-import { mount, h, esc, longDate } from "../ui";
+import { mount, h, esc, longDate, errorCard } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, latestPlan, savePlan, recentCheckIns,
   latestMealPlan,
 } from "../db";
-import { ClaudeClient } from "../claude";
+import { ClaudeClient, TruncatedResponseError } from "../claude";
 import type { Plan, EatItem, AvoidItem, Recommendation } from "../types";
 
 export async function renderPlan(): Promise<void> {
@@ -100,11 +100,25 @@ async function compose(): Promise<void> {
     location.hash = "#/plan";
     void renderPlan();
   } catch (err: any) {
-    if (status) {
-      status.style.display = "block";
-      status.innerHTML = `<strong style="color: var(--oxblood)">Composition failed.</strong><br/>${esc(err.message ?? String(err))}`;
-    }
+    if (!status) return;
+    status.style.display = "block";
+    const isTrunc = err instanceof TruncatedResponseError;
+    const raw = isTrunc ? err.raw : (err.cause?.raw ?? extractRawFromMessage(err.message));
+    status.innerHTML = errorCard({
+      title: "Composition failed",
+      message: err.message ?? String(err),
+      ...(raw ? { raw } : {}),
+      actions: `<button id="retry" class="btn btn--accent">Try again</button>`,
+    });
+    document.getElementById("retry")?.addEventListener("click", () => compose());
   }
+}
+
+/** Some older error paths embed the raw text inside the message; pull it out. */
+function extractRawFromMessage(msg: string | undefined): string | undefined {
+  if (!msg) return undefined;
+  const m = msg.match(/--- raw ---\n([\s\S]+)$/);
+  return m?.[1];
 }
 
 /* -------------------------------------------------------------------------- */

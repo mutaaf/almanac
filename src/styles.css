@@ -406,6 +406,71 @@ body {
 
 .foot .colophon { font-style: italic; text-transform: none; letter-spacing: 0.02em; font-family: var(--display); }
 
+/* ---- error card (composition / extraction failures) -------------------- */
+.error-card {
+  border: 1px solid var(--oxblood);
+  border-left-width: 3px;
+  background: rgba(122,31,43,0.04);
+  padding: 1rem 1.2rem;
+  margin-top: 1.2rem;
+  font-family: var(--body);
+  color: var(--ink);
+  font-style: normal;          /* override .quiet */
+}
+.error-card__title {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.74rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  margin-bottom: 0.4rem;
+}
+.error-card__msg {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--ink);
+  margin: 0 0 0.7rem;
+}
+.error-card details {
+  margin-top: 0.6rem;
+}
+.error-card details summary {
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  padding: 0.2rem 0;
+  list-style: none;
+}
+.error-card details summary::-webkit-details-marker { display: none; }
+.error-card details summary::before {
+  content: "▸ ";
+  color: var(--ink-faint);
+}
+.error-card details[open] summary::before { content: "▾ "; }
+.error-card pre {
+  margin-top: 0.6rem;
+  max-height: 24rem;
+  overflow: auto;
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  padding: 0.8rem;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.error-card__actions {
+  display: flex; gap: 0.6rem; flex-wrap: wrap;
+  margin-top: 0.8rem;
+}
+
 /* ---- empty / loading states --------------------------------------------- */
 .quiet {
   font-family: var(--display);
