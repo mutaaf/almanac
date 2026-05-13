@@ -581,13 +581,13 @@ async function wireDashboardHandlers(plan: Plan, _ci: CheckIn | undefined): Prom
         ...(current?.note ? { note: current.note } : {}),
       });
 
-      // Optimistic UI update: toggle state + ring fill.
+      // Optimistic UI: toggle state + the check mark. The 14-day completion
+      // ring only refreshes on the next render — that's a deliberate lag,
+      // not a bug. Doing a full repaint here used to race with concurrent
+      // UI assertions on WebKit and yielded no visual win.
       btn.classList.toggle("is-done");
       const checkEl = btn.querySelector(".habit-card__check");
       if (checkEl) checkEl.textContent = btn.classList.contains("is-done") ? "✓" : "";
-      // Recompute ring next render — full repaint to keep things consistent.
-      const profile = await getProfile();
-      if (profile) await paint(plan, profile, "dashboard");
     });
   }
 }

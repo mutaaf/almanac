@@ -1,0 +1,47 @@
+{
+  "snapshot": "Your total cholesterol and triglycerides sit above functional range across this draw, while vitamin D and ferritin are below their functional floors. The lipid picture is the biggest single lever; D and ferritin both have meaningful food-first paths.\n\nFasting glucose is in functional range, hemoglobin and WBC look fine. The plan below focuses on food moves that hit cholesterol, triglycerides, vitamin D, and iron stores at once.",
+
+  "insights": [
+    { "markerKey": "total_cholesterol", "title": "Total cholesterol above functional range", "detail": "244 mg/dL sits well above the functional ceiling of 200. Soluble fiber, plant sterols, and reducing saturated fat are the highest-leverage food moves.", "priority": "high" },
+    { "markerKey": "triglycerides",     "title": "Triglycerides elevated",                   "detail": "165 mg/dL is above the functional ceiling of 80. Strongly diet-driven; carbohydrate quality is the lever.", "priority": "high" },
+    { "markerKey": "vit_d_25oh",        "title": "Vitamin D in low-normal range",            "detail": "32 ng/mL is at the bottom of lab normal and well below the functional 50-80. Sun exposure plus dietary D will move it.", "priority": "medium" },
+    { "markerKey": "ferritin_m",        "title": "Iron stores at functional floor",          "detail": "65 ng/mL is below the male functional minimum of 70. Heme-iron foods are the lever.", "priority": "medium" }
+  ],
+
+  "eatList": [
+    { "id": "fatty-fish",   "food": "Fatty fish (salmon, sardines, mackerel)", "frequency": "3x per week", "portion": "~4 oz cooked, palm-sized", "why": "Brings omega-3s for the lipid profile; also a real vitamin D source.", "markerKeys": ["triglycerides","vit_d_25oh"], "examples": ["wild salmon","canned sardines in olive oil","smoked mackerel"] },
+    { "id": "soluble-fiber","food": "Soluble fiber (oats, beans, psyllium)",   "frequency": "daily",       "portion": "1/2 cup oats OR 1 cup cooked beans OR 1 tbsp psyllium", "why": "Pulls cholesterol out via bile-acid binding — the most direct dietary lever.", "markerKeys": ["total_cholesterol","ldl_c"], "examples": ["steel-cut oats","lentil dal","black beans"] },
+    { "id": "leafy-greens", "food": "Cooked leafy greens (chard, kale, spinach)", "frequency": "4x per week", "portion": "2 packed cups cooked", "why": "Folate + magnesium + plant nitrates support cardiovascular and methylation pathways.", "markerKeys": ["folate_rbc"], "examples": ["Swiss chard","lacinato kale","mature spinach"] },
+    { "id": "red-meat",     "food": "Lean red meat (grass-fed beef, lamb)",   "frequency": "2x per week", "portion": "4-5 oz cooked", "why": "Most absorbable form of iron; addresses ferritin directly.", "markerKeys": ["ferritin_m"], "examples": ["grass-fed sirloin","lamb shoulder","beef liver (once monthly)"] }
+  ],
+
+  "avoidList": [
+    { "id": "refined-seed-oils", "food": "Industrial seed oils (soybean, corn, sunflower)", "why": "Pro-inflammatory and tied to higher cardiovascular risk markers.", "swap": "Olive oil, avocado oil, or ghee" },
+    { "id": "refined-grains",    "food": "Refined grains (white bread, white pasta, pastries)", "why": "Drive triglyceride elevation through rapid glucose spikes.", "swap": "Whole oats, intact grains, or legumes" }
+  ],
+
+  "lifestyle": [
+    { "id": "post-meal-walk", "title": "10-minute walk after dinner", "why": "Improves post-meal glucose and triglyceride disposal.", "how": "Right after eating, around the block or up and down the stairs.", "tier": "easy", "expectedImpact": "Lower fasting triglycerides over 8-12 weeks." },
+    { "id": "morning-sun",    "title": "10 minutes morning sun on skin",                  "why": "Endogenous vitamin D synthesis is the most efficient route.", "how": "Within an hour of waking; arms + face, no sunscreen for that window.", "tier": "easy" }
+  ],
+
+  "supplements": [
+    { "id": "vit-d3", "title": "Vitamin D3 + K2", "why": "Vitamin D at 32 ng/mL needs replenishment beyond what food provides; K2 directs calcium correctly.", "how": "2000 IU D3 + 100 mcg K2 (MK-7) with the largest fat-containing meal.", "tier": "easy", "caution": "Retest D in 12 weeks. Stop if you start anticoagulants — discuss with clinician.", "expectedImpact": "+15-25 ng/mL over 12 weeks." }
+  ],
+
+  "habitStack": {
+    "intro": "Five small actions that compound across the week.",
+    "habits": [
+      { "id": "h-oats",  "title": "1/2 cup oats with breakfast",     "cue": "First thing, on the stove or microwave", "why": "Soluble fiber pulls cholesterol out via bile-acid binding." },
+      { "id": "h-walk",  "title": "10-min walk after dinner",         "cue": "Right after the last bite",            "why": "Lowers post-meal triglycerides." },
+      { "id": "h-sun",   "title": "10-min morning sun",                "cue": "Within an hour of waking",             "why": "Endogenous vitamin D synthesis." },
+      { "id": "h-d3",    "title": "Vitamin D3 + K2 with biggest meal", "cue": "Lunch or dinner, whichever has fat",   "why": "Brings vitamin D into functional range." },
+      { "id": "h-water", "title": "16 oz water on rising",            "cue": "Before coffee",                        "why": "Hydration improves daily energy and supports kidney clearance." }
+    ]
+  },
+
+  "retest": [
+    { "markerKeys": ["total_cholesterol","triglycerides","ldl_c","hdl_c"], "whenWeeks": 12, "reason": "Lipid response to food + walking shows up at 12 weeks." },
+    { "markerKeys": ["vit_d_25oh"], "whenWeeks": 12, "reason": "D3 supplementation moves measurably in 12 weeks." }
+  ]
+}

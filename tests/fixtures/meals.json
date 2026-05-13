@@ -1,0 +1,59 @@
+{
+  "days": [
+    {
+      "day": "__DAY_0__",
+      "breakfast": { "id": "d0-b", "title": "Steel-cut oats with berries + walnuts", "description": "Slow-cooked oats topped with mixed berries and a small handful of walnuts.", "effort": "assembly", "timeMinutes": 8, "servings": 1, "ingredients": ["1/2 cup steel-cut oats","1 cup mixed berries","2 tbsp walnuts","cinnamon"], "hits": ["total_cholesterol","ldl_c"], "cuisine": "Mediterranean", "tags": ["high-fiber"] },
+      "lunch":     { "id": "d0-l", "title": "Lentil dal with brown rice + greens", "description": "Toor dal tempered with cumin and ginger, served over brown rice with sautéed spinach.", "effort": "weeknight", "timeMinutes": 30, "servings": 4, "ingredients": ["1 cup toor dal","1 cup brown rice","2 cups spinach","cumin","ginger","turmeric"], "hits": ["total_cholesterol","folate_rbc"], "cuisine": "South Asian" },
+      "dinner":    { "id": "d0-d", "title": "Roasted salmon with lemon + chard", "description": "Wild salmon roasted with lemon and olive oil, side of sautéed Swiss chard.", "effort": "weeknight", "timeMinutes": 25, "servings": 2, "ingredients": ["12 oz wild salmon","1 lemon","1 bunch Swiss chard","olive oil","garlic"], "hits": ["triglycerides","vit_d_25oh","folate_rbc"], "cuisine": "Mediterranean" }
+    },
+    { "day": "__DAY_1__", "breakfast": { "id": "d1-b", "title": "Greek yogurt with chia + berries", "description": "Full-fat Greek yogurt, chia seeds, frozen berries.", "effort": "assembly", "timeMinutes": 3, "servings": 1, "ingredients": ["1 cup Greek yogurt","2 tbsp chia","1 cup frozen berries"], "hits": ["total_cholesterol"], "cuisine": "Mediterranean" }, "lunch": { "id": "d1-l", "title": "Chickpea + kale salad", "description": "Chickpeas, lacinato kale, lemon, tahini, olive oil.", "effort": "assembly", "timeMinutes": 10, "servings": 1, "ingredients": ["1 can chickpeas","1 bunch kale","2 tbsp tahini","lemon"], "hits": ["folate_rbc"], "cuisine": "Mediterranean" }, "dinner": { "id": "d1-d", "title": "Grass-fed beef + sweet potato", "description": "Pan-seared sirloin with roasted sweet potato.", "effort": "weeknight", "timeMinutes": 30, "servings": 2, "ingredients": ["8 oz grass-fed sirloin","2 sweet potatoes","olive oil","rosemary"], "hits": ["ferritin_m"], "cuisine": "Western" } },
+    { "day": "__DAY_2__", "breakfast": { "id": "d2-b", "title": "Vegetable masala omelet", "description": "Three-egg omelet with onion, tomato, spinach, turmeric.", "effort": "weeknight", "timeMinutes": 15, "servings": 1, "ingredients": ["3 eggs","1/2 onion","1 tomato","handful spinach","turmeric"], "hits": ["folate_rbc"], "cuisine": "South Asian" }, "lunch": { "id": "d2-l", "title": "Sardines on whole-grain toast", "description": "Tinned sardines mashed with lemon on whole-grain toast.", "effort": "assembly", "timeMinutes": 5, "servings": 1, "ingredients": ["1 can sardines","2 slices whole-grain bread","lemon","arugula"], "hits": ["triglycerides","vit_d_25oh"], "cuisine": "Mediterranean" }, "dinner": { "id": "d2-d", "title": "Chana masala with brown rice", "description": "Chickpea curry with onion, tomato, and warming spices.", "effort": "weeknight", "timeMinutes": 35, "servings": 4, "ingredients": ["1 can chickpeas","1 onion","2 tomatoes","ginger","garam masala"], "hits": ["total_cholesterol"], "cuisine": "South Asian" } },
+    { "day": "__DAY_3__", "breakfast": { "id": "d3-b", "title": "Overnight oats with chia", "description": "Steel-cut oats soaked overnight with chia and almond milk.", "effort": "batch", "timeMinutes": 5, "servings": 1, "ingredients": ["1/2 cup oats","2 tbsp chia","1 cup almond milk"], "hits": ["total_cholesterol"], "cuisine": "Mediterranean" }, "lunch": { "id": "d3-l", "title": "Mackerel salad bowl", "description": "Smoked mackerel over mixed greens with olive oil and lemon.", "effort": "assembly", "timeMinutes": 8, "servings": 1, "ingredients": ["6 oz smoked mackerel","4 cups mixed greens","olive oil","lemon"], "hits": ["triglycerides","vit_d_25oh"], "cuisine": "Mediterranean" }, "dinner": { "id": "d3-d", "title": "Lamb keema with peas", "description": "Ground lamb with peas, onion, and garam masala.", "effort": "weeknight", "timeMinutes": 30, "servings": 4, "ingredients": ["1 lb ground lamb","1 cup peas","1 onion","garam masala"], "hits": ["ferritin_m"], "cuisine": "South Asian" } },
+    { "day": "__DAY_4__", "breakfast": { "id": "d4-b", "title": "Avocado + egg on rye", "description": "Sliced avocado and a poached egg on rye toast.", "effort": "assembly", "timeMinutes": 8, "servings": 1, "ingredients": ["1 avocado","2 eggs","2 slices rye"], "hits": ["hdl_c"], "cuisine": "Mediterranean" }, "lunch": { "id": "d4-l", "title": "Lentil soup + greens", "description": "Hearty lentil soup with sautéed chard.", "effort": "batch", "timeMinutes": 10, "servings": 1, "ingredients": ["1 cup leftover lentil soup","1 bunch chard"], "hits": ["folate_rbc","total_cholesterol"], "cuisine": "Mediterranean" }, "dinner": { "id": "d4-d", "title": "Salmon with quinoa + roasted vegetables", "description": "Wild salmon, quinoa, and a tray of roasted vegetables.", "effort": "weeknight", "timeMinutes": 35, "servings": 2, "ingredients": ["12 oz wild salmon","1 cup quinoa","1 zucchini","1 bell pepper","olive oil"], "hits": ["triglycerides","vit_d_25oh"], "cuisine": "Mediterranean" } },
+    { "day": "__DAY_5__", "breakfast": { "id": "d5-b", "title": "Yogurt parfait with oats + walnuts", "description": "Greek yogurt layered with rolled oats and walnuts.", "effort": "assembly", "timeMinutes": 5, "servings": 1, "ingredients": ["1 cup Greek yogurt","1/4 cup oats","2 tbsp walnuts"], "hits": ["total_cholesterol"], "cuisine": "Mediterranean" }, "lunch": { "id": "d5-l", "title": "Saag paneer with brown rice", "description": "Spinach curry with paneer, lightly spiced.", "effort": "weeknight", "timeMinutes": 35, "servings": 2, "ingredients": ["1 bag spinach","8 oz paneer","cumin","ginger"], "hits": ["folate_rbc"], "cuisine": "South Asian" }, "dinner": { "id": "d5-d", "title": "Slow-cooked beef stew with vegetables", "description": "Grass-fed beef stew with carrots, onion, and potatoes — Saturday batch.", "effort": "weekend", "timeMinutes": 90, "servings": 6, "ingredients": ["2 lb grass-fed stew beef","4 carrots","1 onion","3 potatoes","beef stock"], "hits": ["ferritin_m"], "cuisine": "Western" } },
+    { "day": "__DAY_6__", "breakfast": { "id": "d6-b", "title": "Smoked salmon + avocado bowl", "description": "Smoked salmon, avocado, capers, lemon.", "effort": "assembly", "timeMinutes": 5, "servings": 1, "ingredients": ["4 oz smoked salmon","1 avocado","capers","lemon"], "hits": ["vit_d_25oh","hdl_c"], "cuisine": "Mediterranean" }, "lunch": { "id": "d6-l", "title": "Leftover beef stew", "description": "Sunday's stew reheated.", "effort": "assembly", "timeMinutes": 5, "servings": 1, "ingredients": ["1 bowl beef stew"], "hits": ["ferritin_m"], "cuisine": "Western" }, "dinner": { "id": "d6-d", "title": "Mediterranean fish stew", "description": "White fish, tomatoes, fennel, saffron.", "effort": "weekend", "timeMinutes": 50, "servings": 4, "ingredients": ["1 lb white fish","2 cans tomatoes","1 fennel bulb","saffron","olive oil"], "hits": ["triglycerides"], "cuisine": "Mediterranean" } }
+  ],
+
+  "grocery": [
+    { "name": "Protein", "items": [
+      { "name": "wild salmon, frozen", "quantity": "2 lb" },
+      { "name": "grass-fed sirloin", "quantity": "8 oz" },
+      { "name": "stew beef, grass-fed", "quantity": "2 lb" },
+      { "name": "ground lamb", "quantity": "1 lb" },
+      { "name": "smoked mackerel", "quantity": "6 oz" },
+      { "name": "smoked salmon", "quantity": "4 oz" },
+      { "name": "white fish, fillets", "quantity": "1 lb" },
+      { "name": "canned sardines in olive oil", "quantity": "1 tin" },
+      { "name": "eggs", "quantity": "1 dozen" },
+      { "name": "paneer", "quantity": "8 oz" }
+    ]},
+    { "name": "Produce", "items": [
+      { "name": "mixed berries", "quantity": "2 lb" },
+      { "name": "spinach", "quantity": "2 bags" },
+      { "name": "Swiss chard", "quantity": "1 bunch" },
+      { "name": "lacinato kale", "quantity": "1 bunch" },
+      { "name": "avocados", "quantity": "3" },
+      { "name": "lemons", "quantity": "4" },
+      { "name": "onions", "quantity": "3" },
+      { "name": "tomatoes", "quantity": "2" },
+      { "name": "sweet potatoes", "quantity": "2" },
+      { "name": "carrots", "quantity": "4" },
+      { "name": "fennel", "quantity": "1 bulb" }
+    ]},
+    { "name": "Pantry", "items": [
+      { "name": "steel-cut oats", "quantity": "1 bag" },
+      { "name": "brown rice", "quantity": "1 bag" },
+      { "name": "quinoa", "quantity": "1 cup" },
+      { "name": "chickpeas, canned", "quantity": "2 cans" },
+      { "name": "toor dal", "quantity": "1 cup" },
+      { "name": "chia seeds", "quantity": "1/4 cup" },
+      { "name": "walnuts", "quantity": "1/2 cup" },
+      { "name": "tahini", "quantity": "1 jar" },
+      { "name": "olive oil, extra virgin", "quantity": "1 bottle" }
+    ]},
+    { "name": "Dairy", "items": [
+      { "name": "Greek yogurt, full-fat", "quantity": "32 oz" },
+      { "name": "almond milk, unsweetened", "quantity": "1 carton" }
+    ]}
+  ]
+}

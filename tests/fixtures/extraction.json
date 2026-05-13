@@ -1,0 +1,14 @@
+{
+  "drawnAt": "2026-05-01",
+  "labName": "Test Lab",
+  "results": [
+    { "rawName": "Hemoglobin",        "value": 14.8, "unit": "g/dL",   "labRange": { "low": 13.5, "high": 17.5 } },
+    { "rawName": "WBC",               "value": 6.3,  "unit": "10*3/uL","labRange": { "low": 4.0,  "high": 11.0 } },
+    { "rawName": "Cholesterol, Total","value": 244,  "unit": "mg/dL",  "labRange": { "high": 200 } },
+    { "rawName": "HDL",               "value": 45,   "unit": "mg/dL",  "labRange": { "low": 40 } },
+    { "rawName": "Triglycerides",     "value": 165,  "unit": "mg/dL",  "labRange": { "high": 150 } },
+    { "rawName": "Vitamin D, 25-Hydroxy", "value": 32, "unit": "ng/mL","labRange": { "low": 30, "high": 100 } },
+    { "rawName": "Fasting Glucose",   "value": 96,   "unit": "mg/dL",  "labRange": { "low": 70, "high": 99 } },
+    { "rawName": "Ferritin",          "value": 65,   "unit": "ng/mL",  "labRange": { "low": 30, "high": 400 } }
+  ]
+}

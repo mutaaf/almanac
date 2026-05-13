@@ -56,6 +56,29 @@ There is no server. There is no cloud. There is no telemetry.
 | Functional ranges | Built-in DB of ~40 common markers (`src/data/markers.ts`) — extend as needed |
 | Aesthetic | Editorial / private-press: Cormorant Garamond + Inter Tight, cream + ink + a single oxblood accent |
 
+## Testing & CI
+
+Every feature is E2E-tested with Playwright. The contract is **no regressions allowed** — both the typecheck and the chromium test suite must be green before any merge.
+
+```bash
+npm run typecheck       # tsc --noEmit
+npm run build           # tsc + vite build
+npm test                # full E2E suite (chromium + mobile-webkit)
+npm run test:ui         # interactive Playwright UI
+npm run test:headed     # watch the browser drive itself
+npm run ci              # typecheck + build + tests — what CI runs
+```
+
+Test infrastructure:
+- **Specs**: `tests/e2e/*.spec.ts` — one per route + a `privacy.spec.ts` that enforces the network-egress allow-list.
+- **Anthropic mock**: `tests/helpers/mocks.ts` intercepts every call to `api.anthropic.com` via `page.route()` and serves JSON fixtures (`tests/fixtures/`). CI never makes real billable calls.
+- **Shared flows**: `tests/helpers/flows.ts` exports `acknowledgeConsent`, `onboard`, `addManualPanel`, `composePlan` so specs don't repeat click sequences.
+- **Browsers**: chromium (desktop) and mobile-webkit (iPhone 15) projects on every spec.
+
+GitHub Actions runs typecheck → build → E2E on every push and PR. **Chromium is the gating check**; mobile-webkit runs as a non-blocking signal until the WebKit-specific timing flakes documented in `AGENTS.md` are resolved.
+
+See `AGENTS.md` at the repo root for the full contributor contract: where things live, how to add a feature, what NEVER to do.
+
 ## Deploy to Vercel
 
 Almanac is a static SPA — no backend, no environment variables, no secrets to manage on the host. Deployment takes about a minute.
