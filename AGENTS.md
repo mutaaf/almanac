@@ -13,6 +13,29 @@ These are not opinions, they're the product:
 5. **No new dependencies without a justification.** Every new npm package widens the supply-chain surface. Anchor every dep to a real product need (Dexie: IndexedDB ergonomics; Anthropic SDK: API client; Playwright: E2E). Reject "but it's just X kb" as a reason.
 6. **The voice spec is editorial, not chatty.** Banned words across UI copy and AI prompts: "journey", "amazing", "exciting", "great", emoji-heavy headings. The aesthetic is a printed almanac, not a kanban board.
 
+## Two agents, one backlog
+
+Almanac is built by two specialized subagents working through a single backlog:
+
+| Agent | Role | Lives at | Touches |
+|---|---|---|---|
+| **GTM & Innovation** | Product owner + stakeholder + user + growth lead in one voice. Generates and grooms feature tickets. | `.claude/agents/gtm-innovation.md` | `docs/backlog/` only — **never** `src/` or `tests/` |
+| **Implementation Developer** | Test-first executor. Picks the top ticket, writes the failing E2E, implements, ships through CI, opens a PR. | `.claude/agents/implementation-dev.md` | Everything — but always via a feature branch + PR, never direct to `main` |
+
+The backlog at `docs/backlog/` is the single source of truth for what gets built next. Each ticket is a self-contained markdown file (`NNNN-kebab-title.md`) with frontmatter (id, status, priority, area, owner) and a body that includes user story, four-lens "Why now" (PO / Stakeholder / User / Growth), acceptance criteria mapped to test scenarios, out-of-scope, and engineering notes. See `docs/backlog/README.md` for the full conventions.
+
+**Slash commands:**
+- `/ideate [focus area]` — fires the GTM agent to add new tickets. Optional `$ARGUMENTS` like "growth", "moat", "mobile retention".
+- `/groom` — fires the GTM agent to re-prioritize and prune existing tickets without adding new ones.
+- `/ship [ticket-id]` — fires the Dev agent to execute the top-priority groomed ticket (or a specific id if you pass one).
+- `/backlog` — read-only summary of the current backlog state.
+
+**The handoff discipline:**
+- GTM writes specs. Dev writes code. Neither does the other's job.
+- If a spec is ambiguous, the Dev pushes back through the ticket body, not by improvising.
+- If a feature would violate this contract (`AGENTS.md`), the GTM finds a different solution rather than weakening the contract.
+- Every ticket is shippable on its own. No "phase 1 / phase 2" multi-ticket plans.
+
 ## Architecture, in one paragraph
 
 Almanac is a single-page Vite + vanilla TypeScript app. All persistence is in IndexedDB via Dexie. The user's profile, lab panels, generated plans, weekly meal plans, daily check-ins, and a small extraction-cache all live in one local DB. Three kinds of Anthropic API calls run directly from the browser using the user's BYOK key: **extraction** (PDF/image → structured Results), **plan generation** (panels + adherence → structured Plan with eatList/avoidList/insights/habits/retest), and **meal generation** (Plan + dietary pattern → 7 days × breakfast/lunch/dinner + grocery list). A **deterministic cross-marker insight engine** runs in pure TypeScript before each plan generation; its output is injected into the prompt as authoritative findings.
@@ -24,6 +47,20 @@ almanac/
 ├── AGENTS.md                ← you are here
 ├── README.md                ← user-facing docs, deploy, run
 ├── CLAUDE.md                ← Claude-Code-specific notes (if present)
+├── .claude/
+│   ├── agents/
+│   │   ├── gtm-innovation.md        ← the product/growth subagent
+│   │   └── implementation-dev.md    ← the test-first dev subagent
+│   └── commands/
+│       ├── ideate.md        ← /ideate — GTM adds tickets
+│       ├── groom.md         ← /groom — GTM re-prioritizes
+│       ├── ship.md          ← /ship — Dev executes top ticket
+│       └── backlog.md       ← /backlog — read-only summary
+├── docs/
+│   └── backlog/
+│       ├── README.md        ← backlog conventions + index
+│       ├── _template.md     ← copy this when writing a new ticket
+│       └── NNNN-*.md        ← one file per ticket
 ├── package.json
 ├── playwright.config.ts     ← E2E config (chromium + mobile-webkit)
 ├── vercel.json              ← deploy config (SPA rewrites + security headers)
@@ -64,17 +101,25 @@ almanac/
 
 ## How to add a feature (the canonical loop)
 
-1. **Open `tests/e2e/<route>.spec.ts`** for the route you're touching. Write the new test FIRST. Describe the user behavior, not the implementation.
-2. **Run `npm run test -- --headed`** locally. It will fail.
-3. **Open the right file in `src/`.** If you're not sure where, see "Where things live" below.
-4. **Write the minimum code to pass the test.** No more.
-5. **Run `npm run ci`** locally — typecheck, build, every test on every project. Must be green.
-6. **Commit with a message** that names the user-facing behavior. Include this trailer exactly:
+**If you're a human** — pick a ticket from `docs/backlog/`, branch, and follow the loop below. Or invoke `/ship <ticket-id>` to delegate to the Implementation Developer subagent.
+
+**If you're the Implementation Developer subagent** — your full execution loop is in `.claude/agents/implementation-dev.md`. The condensed version:
+
+1. **Pick the ticket.** Top-priority `groomed` (or `proposed` if none groomed). Read it in full.
+2. **Branch.** `git checkout -b feat/<ticket-id>-<slug>`.
+3. **Mark in-progress.** Update the ticket's frontmatter + commit.
+4. **Write the failing E2E test FIRST.** Map every acceptance-criteria checkbox to a test or expectation.
+5. **Run `npm run test -- --headed`** locally. Confirm it fails for the right reason.
+6. **Write the minimum code to pass the test.** Match surrounding style.
+7. **Run `npm run ci`** locally — typecheck, build, chromium suite. All green.
+8. **Commit.** Message names the user-facing behavior. Trailer:
    ```
    Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
    ```
-   (Or your own attribution if you're a different agent.)
-7. **Push.** If CI is green, merge. If red, do not merge.
+9. **Push the branch + open a PR.** `git push -u origin HEAD && gh pr create --fill`.
+10. **Watch CI.** `gh pr checks --watch`. Green = update ticket to `shipped`, push the status update. Red = fix, push, repeat.
+
+Never push to `main` directly. Never bypass branch protection. Never disable a passing test to ship.
 
 ## Where things live
 
