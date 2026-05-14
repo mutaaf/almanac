@@ -24,11 +24,17 @@ Almanac is built by two specialized subagents working through a single backlog:
 
 The backlog at `docs/backlog/` is the single source of truth for what gets built next. Each ticket is a self-contained markdown file (`NNNN-kebab-title.md`) with frontmatter (id, status, priority, area, owner) and a body that includes user story, four-lens "Why now" (PO / Stakeholder / User / Growth), acceptance criteria mapped to test scenarios, out-of-scope, and engineering notes. See `docs/backlog/README.md` for the full conventions.
 
-**Slash commands:**
+**Slash commands** (manual, interactive — you drive):
 - `/ideate [focus area]` — fires the GTM agent to add new tickets. Optional `$ARGUMENTS` like "growth", "moat", "mobile retention".
 - `/groom` — fires the GTM agent to re-prioritize and prune existing tickets without adding new ones.
 - `/ship [ticket-id]` — fires the Dev agent to execute the top-priority groomed ticket (or a specific id if you pass one).
 - `/backlog` — read-only summary of the current backlog state.
+
+**Autonomous local schedule** (launchd jobs, no human required — see `scripts/README.md`):
+- `agent-ship.sh` — fires every hour at :41 local. Picks the top groomed/proposed ticket, runs the full Dev loop, opens a PR through CI. Single-PR-at-a-time gated.
+- `agent-groom.sh` — fires every 6 hours at :17 local. Runs the GTM agent to re-prioritize + add 2-4 fresh tickets focused on acquisition/retention/moat. Self-gates when there are already 3+ groomed P0/P1.
+- Install: `bash scripts/install-agents.sh` once on a Mac. Uninstall: `bash scripts/uninstall-agents.sh`. Logs at `~/.cache/almanac-agent/logs/`.
+- Both have a self-cancel date baked in (2026-05-28) to bound autonomous spend; edit the scripts to extend.
 
 **The handoff discipline:**
 - GTM writes specs. Dev writes code. Neither does the other's job.
