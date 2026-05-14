@@ -1,5 +1,7 @@
 # Almanac
 
+[![CI](https://github.com/mutaaf/almanac/actions/workflows/ci.yml/badge.svg)](https://github.com/mutaaf/almanac/actions/workflows/ci.yml)
+
 > *Your biology, translated into a plan you can keep.*
 
 A local-first precision-health protocol that's **food-first**. You upload your lab reports — PDFs or photos — and Almanac extracts every marker, reconciles it against **functional / optimal** ranges (not just the lab's "in-range"), and composes:
