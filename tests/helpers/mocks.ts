@@ -120,10 +120,22 @@ export async function installMocks(page: Page): Promise<MockStats> {
       if (sys.includes("extracting structured biomarker")) {
         stats.extractCalls++;
         const cached = stats.extractCalls > 1;
+        // The extractor includes the staged file names in its user text
+        // instruction (so Claude can attribute pages to draw dates). We
+        // sniff that text for a `multi-date` filename marker and swap in
+        // the multi-panel fixture when present — the simplest possible
+        // E2E hook into the auto-split branch.
+        const userText = (body.messages?.[0]?.content as any[] | undefined)
+          ?.filter((b) => b?.type === "text")
+          ?.map((b) => b.text as string)
+          ?.join("\n") ?? "";
+        const fixture = /multi-date/i.test(userText)
+          ? "extraction-multi-date.json"
+          : "extraction.json";
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(buildResponse(body.model, readFixture("extraction.json"), {
+          body: JSON.stringify(buildResponse(body.model, readFixture(fixture), {
             cacheRead: cached ? 800 : 0, cacheCreate: cached ? 0 : 400,
           })),
         });
