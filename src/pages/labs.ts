@@ -315,9 +315,11 @@ async function extractStaged(): Promise<void> {
       sessionStorage.setItem(`unmatched-${id}`, JSON.stringify(unmatched));
     }
     staged = [];
-    // Same WebKit-timing fix as plan.ts compose(): write the hash AND
-    // drive the next render through the router so the post-write read
-    // happens after Dexie has committed, not in a fire-and-forget paint.
+    // Same WebKit-timing fix as plan.ts compose(): poll past WebKit's IDB
+    // read-after-write delay before re-rendering. The panel detail page
+    // reads `getPanel(id)` directly; without the wait it can see undefined
+    // and redirect back to `#/labs`.
+    await waitForPanelCommit(id);
     location.hash = `#/labs?id=${id}`;
     await route();
   } catch (err: any) {
@@ -706,9 +708,24 @@ async function renderManualEntry(): Promise<void> {
       results,
     });
     // See plan.ts compose() — same fix.
+    await waitForPanelCommit(id);
     location.hash = `#/labs?id=${id}`;
     await route();
   });
+}
+
+/**
+ * Poll `getPanel(id)` until the row we just saved is visible. WebKit's
+ * IndexedDB on iOS Safari and headless Linux occasionally lags the indexed
+ * read behind the resolved write; bounded to 2s so a real failure surfaces.
+ */
+async function waitForPanelCommit(id: number, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const p = await getPanel(id);
+    if (p) return;
+    await new Promise(r => setTimeout(r, 20));
+  }
 }
 
 void updatePanel;

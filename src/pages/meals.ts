@@ -109,14 +109,16 @@ async function compose(planId: number): Promise<void> {
       ...(previous && previous.planId === plan.id ? { previousMealPlan: previous } : {}),
     });
 
-    await saveMealPlan({
+    const savedId = await saveMealPlan({
       ...mealPlan,
       planId,
       generatedAt: Date.now(),
       model,
     });
 
-    // See plan.ts compose() — same fix.
+    // See plan.ts compose() — same fix. Poll past WebKit's IDB read-after-
+    // write delay before re-rendering.
+    await waitForMealPlanCommit(savedId);
     location.hash = "#/meals";
     await route();
   } catch (err: any) {
@@ -138,6 +140,20 @@ function extractRawFromMessage(msg: string | undefined): string | undefined {
   if (!msg) return undefined;
   const m = msg.match(/--- raw ---\n([\s\S]+)$/);
   return m?.[1];
+}
+
+/**
+ * Poll `latestMealPlan()` until the row we just saved is visible. WebKit's
+ * IndexedDB on iOS Safari and headless Linux occasionally lags the indexed
+ * read behind the resolved write; bounded to 2s so a real failure surfaces.
+ */
+async function waitForMealPlanCommit(id: number, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const m = await latestMealPlan();
+    if (m && m.id === id) return;
+    await new Promise(r => setTimeout(r, 20));
+  }
 }
 
 /* -------------------------------------------------------------------------- */

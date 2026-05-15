@@ -91,6 +91,9 @@ export async function addManualPanel(page: Page): Promise<void> {
   await page.locator(".manual-row__input[data-key='vit_d_25oh']").fill("32");
   await page.getByRole("button", { name: /^save panel$/i }).click();
   await expect(page).toHaveURL(/#\/labs\?id=\d+$/);
+  // Wait for the panel detail to actually paint — the URL change beats the
+  // render under Mobile WebKit load.
+  await expect(page.locator(".result__name").first()).toBeVisible();
 }
 
 /**

@@ -49,6 +49,10 @@ test.describe("Labs — multi-file upload", () => {
 
   test("pasting an image stages it exactly once", async ({ page }) => {
     await page.goto("/#/labs");
+    // Wait for the labs page to finish painting — the paste listener is
+    // attached at the end of renderLabs(), and on Mobile WebKit the
+    // dispatch can race the bootstrap if we don't wait for the dropzone.
+    await page.locator(".dropzone").waitFor();
     // Synthesize a clipboard paste event with a single image file.
     await page.evaluate(async () => {
       const png = new Blob(
@@ -67,6 +71,7 @@ test.describe("Labs — multi-file upload", () => {
 
   test("filename truncation keeps × button inside the chip border", async ({ page }) => {
     await page.goto("/#/labs");
+    await page.locator(".dropzone").waitFor();
     // Stage a file with a very long name.
     await page.evaluate(async () => {
       const png = new Blob(
@@ -96,6 +101,7 @@ test.describe("Labs — multi-file upload", () => {
 
   test("extract button reads cleanly without phantom letter-spaced gaps", async ({ page }) => {
     await page.goto("/#/labs");
+    await page.locator(".dropzone").waitFor();
     await page.evaluate(() => {
       const png = new Blob(
         [Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="), c => c.charCodeAt(0))],
