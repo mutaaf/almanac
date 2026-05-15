@@ -10,6 +10,7 @@ import {
   getProfile, latestPlan, latestMealPlan, allPanels, saveMealPlan, today,
 } from "../db";
 import { ClaudeClient, TruncatedResponseError } from "../claude";
+import { route } from "../main";
 import type { MealPlan, Meal, DayMeals, Effort } from "../types";
 
 export async function renderMeals(): Promise<void> {
@@ -115,8 +116,9 @@ async function compose(planId: number): Promise<void> {
       model,
     });
 
+    // See plan.ts compose() — same fix.
     location.hash = "#/meals";
-    void renderMeals();
+    await route();
   } catch (err: any) {
     if (!status) return;
     status.style.display = "block";

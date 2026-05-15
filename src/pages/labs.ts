@@ -13,6 +13,7 @@ import {
 } from "../db";
 import { panelFromFiles, type ExtractedRow } from "../extractor";
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
+import { route } from "../main";
 import type { Panel, Result } from "../types";
 
 /* The staging set lives outside render so paste handlers can mutate it
@@ -102,7 +103,7 @@ function panelRow(p: Panel, idx: number): string {
     counts.suboptimal  ? `${counts.suboptimal} suboptimal`   : "",
     counts.low + counts.high ? `${counts.low + counts.high} out of range` : "",
   ].filter(Boolean).join(" · ");
-  const pageCount = p.fileBlobs?.length ?? (p.source === "manual" ? 0 : 1);
+  const pageCount = p.fileNames?.length ?? p.fileBlobs?.length ?? (p.source === "manual" ? 0 : 1);
   return `
     <a class="entry-row" href="#/labs?id=${p.id}">
       <div class="date">${esc(p.drawnAt)}</div>
@@ -314,7 +315,11 @@ async function extractStaged(): Promise<void> {
       sessionStorage.setItem(`unmatched-${id}`, JSON.stringify(unmatched));
     }
     staged = [];
+    // Same WebKit-timing fix as plan.ts compose(): write the hash AND
+    // drive the next render through the router so the post-write read
+    // happens after Dexie has committed, not in a fire-and-forget paint.
     location.hash = `#/labs?id=${id}`;
+    await route();
   } catch (err: any) {
     if (!status) return;
     status.style.display = "block";
@@ -365,7 +370,7 @@ async function renderPanelDetail(id: number): Promise<void> {
 
   const unmatchedHtml = unmatched.length ? renderUnmatchedSection(unmatched, profile?.sex) : "";
 
-  const pageCount = panel.fileBlobs?.length ?? 0;
+  const pageCount = panel.fileNames?.length ?? panel.fileBlobs?.length ?? 0;
   const sourceLabel = panel.source === "manual"
     ? "Manual entry"
     : pageCount > 1 ? `${pageCount} pages (${panel.source})` : panel.source;
@@ -700,7 +705,9 @@ async function renderManualEntry(): Promise<void> {
       source: "manual",
       results,
     });
+    // See plan.ts compose() — same fix.
     location.hash = `#/labs?id=${id}`;
+    await route();
   });
 }
 

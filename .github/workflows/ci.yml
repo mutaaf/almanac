@@ -52,7 +52,12 @@ jobs:
 
       - run: npm ci
 
-      # Cache Playwright browser binaries between runs.
+      # Cache Playwright browser binaries between runs. Keyed on the
+      # @playwright/test version pulled in by package-lock.json so a Playwright
+      # bump always re-installs. (We previously only ran `install` on a cache
+      # MISS, which meant a stale-cache run skipped the browser install and
+      # left the webkit binary missing; promoting mobile-webkit to gating
+      # exposes that.)
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: pw-cache
@@ -60,13 +65,10 @@ jobs:
           path: ~/.cache/ms-playwright
           key: pw-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
+      # Always run `install` — it's a no-op if the binary is already on disk,
+      # and a genuine install otherwise. `install-deps` covers the OS libs.
       - name: Install Playwright browsers
-        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps ${{ matrix.project == 'mobile-webkit' && 'webkit' || matrix.project }}
-
-      - name: Install system deps (cached browsers)
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps ${{ matrix.project == 'mobile-webkit' && 'webkit' || matrix.project }}
 
       - name: Run tests
         run: npx playwright test --project=${{ matrix.project }} --reporter=github,html
