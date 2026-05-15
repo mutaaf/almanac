@@ -1,7 +1,7 @@
 ---
 id: 0002
 title: User-extensible marker database
-status: in-progress
+status: shipped
 priority: P1
 area: labs
 created: 2026-05-14
@@ -28,15 +28,15 @@ This is the feature that lets specialty-medicine users (Wild Health, Function He
 
 ## Acceptance criteria
 
-- [ ] On the panel detail's "Unrecognized rows" section, each row exposes a **"Define this marker"** action alongside the existing "match to existing" affordances.
-- [ ] The define-marker form captures: canonical name, short name (optional), category (dropdown from the existing enum), unit, lab range low/high (optional), functional range low/high (optional, but at least one of lab or functional must be present), description (textarea), sex restriction (optional).
-- [ ] On save, the new marker is persisted to a `userMarkers` table in IndexedDB, then the matching unrecognized rows on the current panel are immediately bound to it (flag computed).
-- [ ] User markers appear in the full marker dropdown for future match-unrecognized actions, distinguishable from built-ins with a small "yours" pill.
-- [ ] `findBestMatches`, `matchMarker`, and `findMarker` all transparently consider user markers (seed + user, with user winning on conflicts).
-- [ ] Plan + Meal generators include user markers in the Marker Reference block; LLM treats them as authoritative ranges.
-- [ ] Export/import round-trip preserves user markers.
-- [ ] Privacy E2E still passes.
-- [ ] Tests in `tests/e2e/labs.spec.ts` for define + persistence + dropdown surfacing.
+- [x] On the panel detail's "Unrecognized rows" section, each row exposes a **"Define this marker"** action alongside the existing "match to existing" affordances.
+- [x] The define-marker form captures: canonical name, short name (optional), category (dropdown from the existing enum), unit, lab range low/high (optional), functional range low/high (optional, but at least one of lab or functional must be present), description (textarea), sex restriction (optional).
+- [x] On save, the new marker is persisted to a `userMarkers` table in IndexedDB, then the matching unrecognized rows on the current panel are immediately bound to it (flag computed).
+- [x] User markers appear in the full marker dropdown for future match-unrecognized actions, distinguishable from built-ins with a small "yours" pill.
+- [x] `findBestMatches`, `matchMarker`, and `findMarker` all transparently consider user markers (seed + user, with user winning on conflicts).
+- [x] Plan + Meal generators include user markers in the Marker Reference block; LLM treats them as authoritative ranges.
+- [x] Export/import round-trip preserves user markers.
+- [x] Privacy E2E still passes.
+- [x] Tests in `tests/e2e/labs.spec.ts` for define + persistence + dropdown surfacing.
 
 ## Out of scope
 
@@ -64,3 +64,27 @@ This is the feature that lets specialty-medicine users (Wild Health, Function He
   binds matching rows on save. Settings gains a "Your markers" subsection. Export bumps
   to v4 and includes `userMarkers`. Plan + Meal generators await `getAllMarkers()` before
   composing the Marker Reference block.
+- 2026-05-15 — Shipped via PR #4. CI all-green: Typecheck + build (14s), E2E chromium
+  (1m43s), E2E mobile-webkit (3m42s), Vercel preview deployed. 7 new specs in
+  `tests/e2e/labs.spec.ts` cover define + persist + immediate bind + dropdown surfacing
+  (with "yours" pill + option label) + form validation + Settings list + delete + plan
+  prompt injection + export round-trip.
+
+  Notable implementation details:
+  - The form pre-fills unit and lab range from the extracted row, so the common case is
+    two clicks: open form, save.
+  - User keys are deterministic and prefixed `user_` (slug of the canonical name) so
+    they can't collide with seed keys by accident; to override a seed default the user
+    saves a same-keyed entry (the matcher pool suppresses seed entries whose key
+    matches an extras entry).
+  - The `matchRowsByName` callsite in `labs.ts` was updated to consider user markers
+    too — needed for the "Match selected" path when the user picks their own marker
+    from the dropdown.
+  - The Marker Reference block in `claude.ts` flags user-defined entries as
+    "(user-defined; treat these ranges as authoritative)" so the model uses their
+    ranges rather than inventing functional opinions on specialty markers.
+
+  Files: `src/db.ts`, `src/data/markers.ts`, `src/data/userMarkers.ts` (new),
+  `src/extractor.ts`, `src/pages/labs.ts`, `src/pages/settings.ts`, `src/claude.ts`,
+  `src/styles.css`, `tests/e2e/labs.spec.ts`,
+  `tests/fixtures/extraction-with-unrecognized.json` (new), `tests/helpers/mocks.ts`.
