@@ -1,0 +1,31 @@
+{
+  "panels": [
+    {
+      "drawnAt": "2024-03-12",
+      "labName": "Quest Diagnostics",
+      "results": [
+        { "rawName": "Cholesterol, Total", "value": 252, "unit": "mg/dL", "labRange": { "high": 200 } },
+        { "rawName": "HDL",                "value": 42,  "unit": "mg/dL", "labRange": { "low": 40 } },
+        { "rawName": "Triglycerides",      "value": 178, "unit": "mg/dL", "labRange": { "high": 150 } }
+      ]
+    },
+    {
+      "drawnAt": "2025-01-18",
+      "labName": "Quest Diagnostics",
+      "results": [
+        { "rawName": "Cholesterol, Total", "value": 238, "unit": "mg/dL", "labRange": { "high": 200 } },
+        { "rawName": "HDL",                "value": 46,  "unit": "mg/dL", "labRange": { "low": 40 } },
+        { "rawName": "Triglycerides",      "value": 161, "unit": "mg/dL", "labRange": { "high": 150 } }
+      ]
+    },
+    {
+      "drawnAt": "2026-04-03",
+      "labName": "Quest Diagnostics",
+      "results": [
+        { "rawName": "Cholesterol, Total", "value": 221, "unit": "mg/dL", "labRange": { "high": 200 } },
+        { "rawName": "HDL",                "value": 51,  "unit": "mg/dL", "labRange": { "low": 40 } },
+        { "rawName": "Triglycerides",      "value": 142, "unit": "mg/dL", "labRange": { "high": 150 } }
+      ]
+    }
+  ]
+}

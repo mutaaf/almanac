@@ -3,7 +3,7 @@
 
 import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
-import { onboard, addManualPanel } from "../helpers/flows";
+import { onboard, addManualPanel, waitForDb } from "../helpers/flows";
 
 test.describe("Labs — manual entry", () => {
   test.beforeEach(async ({ context, page }) => {
@@ -143,6 +143,85 @@ test.describe("Labs — extraction + caching", () => {
 
     // Fixture has Total Cholesterol = 244 mg/dL.
     await expect(page.locator(".result__num").filter({ hasText: "244" })).toBeVisible();
+  });
+
+  test("multi-date payload splits into one panel per draw date", async ({ page }) => {
+    // The mock returns the multi-date fixture when any staged filename
+    // includes "multi-date" — three distinct draw dates across one upload.
+    // Acceptance criteria 1: N > 1 distinct drawnAt → N panels.
+    // Acceptance criteria 4: user lands on the labs index, not a panel detail.
+    // Acceptance criteria 6: panels persisted in drawnAt order (oldest first
+    // in DB; newest first in the UI list).
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    await page.goto("/#/labs");
+    await page.locator(".dropzone").waitFor();
+    await page.locator("input#file").setInputFiles([
+      { name: "multi-date-page-1.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") },
+      { name: "multi-date-page-2.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") },
+      { name: "multi-date-page-3.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") },
+    ]);
+    await expect(page.locator(".staged__chip")).toHaveCount(3);
+    await page.locator("#extract").click();
+
+    // Lands on the labs index — NOT a single panel detail.
+    await expect(page).toHaveURL(/#\/labs$/, { timeout: 20_000 });
+
+    // Three rows persisted, one per draw date.
+    await waitForDb(page, "panels", (n) => n >= 3, { timeoutMs: 20_000 });
+
+    // The archive shows all three dates in the rendered list.
+    const dates = await page.locator(".entry-row .date").allTextContents();
+    expect(dates).toEqual(expect.arrayContaining(["2024-03-12", "2025-01-18", "2026-04-03"]));
+    // Section header advertises three panels.
+    await expect(page.locator(".section-mark", { hasText: /All panels · 3/ })).toBeVisible();
+  });
+
+  test("single-date payload still creates exactly one panel (regression)", async ({ page }) => {
+    // Acceptance criteria 2: when the extractor returns a single drawnAt the
+    // existing single-panel behavior is preserved — lands on the panel detail.
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    await page.goto("/#/labs");
+    await page.locator(".dropzone").waitFor();
+    await page.locator("input#file").setInputFiles({
+      name: "single-draw.png", mimeType: "image/png", buffer: Buffer.from(png, "base64"),
+    });
+    await expect(page.locator(".staged__chip")).toHaveCount(1);
+    await page.locator("#extract").click();
+
+    await expect(page).toHaveURL(/#\/labs\?id=\d+$/, { timeout: 20_000 });
+    await waitForDb(page, "panels", (n) => n === 1, { timeoutMs: 10_000 });
+  });
+
+  test("re-uploading the multi-date set replays from cache (one panel split, no new API call)", async ({ page }) => {
+    // Acceptance criteria 5: re-pasting the same file-set hash re-uses the
+    // prior split — three rows still in DB, no fresh extractCalls.
+    const stats = await installMocks(page);
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
+    await page.goto("/#/labs");
+    await page.locator(".dropzone").waitFor();
+    await page.locator("input#file").setInputFiles([
+      { name: "multi-date-a.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") },
+      { name: "multi-date-b.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") },
+    ]);
+    await page.locator("#extract").click();
+    await expect(page).toHaveURL(/#\/labs$/, { timeout: 20_000 });
+    await waitForDb(page, "panels", (n) => n >= 3, { timeoutMs: 20_000 });
+    const firstCallCount = stats.extractCalls;
+    expect(firstCallCount).toBe(1);
+
+    // Re-upload the exact same set — cache replay produces the same split
+    // (three more panels added) and crucially the API is NOT called again.
+    await page.goto("/#/labs");
+    await page.locator(".dropzone").waitFor();
+    await page.locator("input#file").setInputFiles([
+      { name: "multi-date-a.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") },
+      { name: "multi-date-b.png", mimeType: "image/png", buffer: Buffer.from(png, "base64") },
+    ]);
+    await page.locator("#extract").click();
+    await expect(page).toHaveURL(/#\/labs$/, { timeout: 20_000 });
+    expect(stats.extractCalls).toBe(firstCallCount);
+    await waitForDb(page, "panels", (n) => n >= 6, { timeoutMs: 10_000 });
   });
 
   test("re-uploading the same file replays from cache (no second API call)", async ({ page }) => {

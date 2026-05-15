@@ -11,7 +11,7 @@ import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
 } from "../db";
-import { panelFromFiles, type ExtractedRow } from "../extractor";
+import { panelsFromFiles, type ExtractedRow } from "../extractor";
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import { route } from "../main";
 import type { Panel, Result } from "../types";
@@ -306,21 +306,41 @@ async function extractStaged(): Promise<void> {
   try {
     setStatus(`Extracting from ${staged.length} page${staged.length === 1 ? "" : "s"}…`);
     const files = staged.slice();
-    const { panel, unmatched } = await panelFromFiles(files, profile);
+    const { panels, unmatched } = await panelsFromFiles(files, profile);
 
-    setStatus("Saving…");
-    const id = await addPanel(panel);
+    setStatus(panels.length === 1 ? "Saving…" : `Saving ${panels.length} panels…`);
+    const ids: number[] = [];
+    for (const p of panels) {
+      ids.push(await addPanel(p));
+    }
+    const newestId = ids[ids.length - 1];
+    if (newestId == null) {
+      // Defensive — `panelsFromFiles` already throws when extraction
+      // yielded zero panels, but TS strict can't see that and a future
+      // change shouldn't silently strand the user.
+      throw new Error("Extraction returned no panels.");
+    }
 
+    // Unmatched rows from the WHOLE upload session land on the newest
+    // (last-saved) panel's review screen — the one the user is most
+    // likely to come back to.
     if (unmatched.length) {
-      sessionStorage.setItem(`unmatched-${id}`, JSON.stringify(unmatched));
+      sessionStorage.setItem(`unmatched-${newestId}`, JSON.stringify(unmatched));
     }
     staged = [];
+
     // Same WebKit-timing fix as plan.ts compose(): poll past WebKit's IDB
-    // read-after-write delay before re-rendering. The panel detail page
-    // reads `getPanel(id)` directly; without the wait it can see undefined
-    // and redirect back to `#/labs`.
-    await waitForPanelCommit(id);
-    location.hash = `#/labs?id=${id}`;
+    // read-after-write delay before re-rendering.
+    await waitForPanelCommit(newestId);
+
+    if (ids.length === 1) {
+      // Single-panel upload — keep the existing "land on detail" behavior.
+      location.hash = `#/labs?id=${newestId}`;
+    } else {
+      // Multi-panel split — land on the labs index so the user sees all
+      // N new panels at the top, dated.
+      location.hash = "#/labs";
+    }
     await route();
   } catch (err: any) {
     if (!status) return;

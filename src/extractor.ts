@@ -15,38 +15,49 @@ import { getCachedExtraction, cacheExtraction } from "./db";
 
 const EXTRACTION_PROMPT = `
 You are extracting structured biomarker results from a clinical lab report.
-The inputs may be MULTIPLE pages of the same draw — PDFs and/or images.
-Aggregate results across all pages and deduplicate any marker that appears
-on more than one page (keep the most complete row).
+The inputs may be MULTIPLE pages — PDFs and/or images — and may span MULTIPLE
+distinct draw dates (e.g. a user pasted a stack of historical reports). Group
+the rows by draw date and return one panel per distinct date. Within a panel,
+deduplicate any marker that appears on more than one page (keep the most
+complete row).
 
-For each numeric marker, return:
+For each numeric marker in a panel, return:
   - "rawName":   the marker name exactly as printed on the report
   - "value":     the numeric result (number, no units in this field)
   - "unit":      the unit as printed (e.g. "mg/dL", "ng/mL", "uIU/mL", "%")
   - "labRange":  { "low": number?, "high": number? }   the lab's reference
                  range as printed; omit a side if it's one-sided
 
-Top-level fields:
-  - "drawnAt":   YYYY-MM-DD if visible anywhere on the report; else null
-  - "labName":   laboratory's name if visible; else null
+Per-panel fields:
+  - "drawnAt":   YYYY-MM-DD for that panel's draw; null only if no date is
+                 visible anywhere on the contributing pages
+  - "labName":   laboratory's name if visible on the contributing pages; else null
 
 Return ONLY a JSON object, no prose, no code fences:
 
 {
-  "drawnAt": "YYYY-MM-DD" | null,
-  "labName": string | null,
-  "results": [
+  "panels": [
     {
-      "rawName": string,
-      "value": number,
-      "unit": string,
-      "labRange": { "low": number?, "high": number? } | null
+      "drawnAt": "YYYY-MM-DD" | null,
+      "labName": string | null,
+      "results": [
+        {
+          "rawName": string,
+          "value": number,
+          "unit": string,
+          "labRange": { "low": number?, "high": number? } | null
+        },
+        ...
+      ]
     },
     ...
   ]
 }
 
 Rules:
+  - If every page is from the same draw, return exactly one panel.
+  - If you see multiple distinct draw dates, return one panel per date,
+    with each panel containing ONLY the rows from pages of that date.
   - Skip qualitative-only results (e.g. "Negative", "Positive", "Not Detected").
   - Skip ratios and calculated indices unless the report explicitly numbers them.
   - If a value is reported as "<5" or ">30", use the bound as the value
@@ -62,10 +73,16 @@ export interface ExtractedRow {
   labRange?: { low?: number; high?: number };
 }
 
-export interface ExtractionResult {
+/** One panel's worth of extracted rows + its draw context. */
+export interface ExtractedPanel {
   drawnAt?: string;
   labName?: string;
   rows: ExtractedRow[];
+}
+
+/** The full extraction return: one or more panels, split by draw date. */
+export interface ExtractionResult {
+  panels: ExtractedPanel[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -146,6 +163,9 @@ export async function extractFromFiles(files: File[], profile: Profile): Promise
   });
 
   // Build one content block per file, then a single text instruction.
+  // We include the file names (in upload order) so Claude can attribute
+  // pages to draw dates when filenames carry date hints — and so the test
+  // mock has a deterministic hook into the multi-date branch.
   const blocks: Anthropic.ContentBlockParam[] = [];
   for (const file of files) {
     const b64 = await fileToBase64(file);
@@ -154,9 +174,15 @@ export async function extractFromFiles(files: File[], profile: Profile): Promise
       ? { type: "document", source: { type: "base64", media_type: "application/pdf", data: b64 } } as any
       : { type: "image",    source: { type: "base64", media_type: mt.mt,           data: b64 } });
   }
+  const namesList = files.map((f, i) => `  ${i + 1}. ${f.name}`).join("\n");
   blocks.push({
     type: "text",
-    text: `${files.length} ${files.length === 1 ? "page/file" : "pages/files"} above. Extract every biomarker per the schema; deduplicate across pages. Return JSON only.`,
+    text:
+      `${files.length} ${files.length === 1 ? "page/file" : "pages/files"} above, in this order:\n` +
+      `${namesList}\n\n` +
+      `Extract every biomarker per the schema. Group rows by draw date — ` +
+      `if the pages span multiple distinct draws, return one panel per date. ` +
+      `Deduplicate any marker that repeats within the same panel. Return JSON only.`,
   });
 
   const model = profile.model || "claude-sonnet-4-6";
@@ -183,11 +209,26 @@ export async function extractFromFiles(files: File[], profile: Profile): Promise
     .map(b => b.text).join("\n").trim();
 
   const parsed = parseJson(raw);
-  const result: ExtractionResult = {
-    ...(parsed.drawnAt ? { drawnAt: String(parsed.drawnAt) } : {}),
-    ...(parsed.labName ? { labName: String(parsed.labName) } : {}),
-    rows: Array.isArray(parsed.results) ? (parsed.results as ExtractedRow[]) : [],
-  };
+  const rawPanels = Array.isArray((parsed as any).panels)
+    ? ((parsed as any).panels as Array<Record<string, unknown>>)
+    : [];
+
+  const panels: ExtractedPanel[] = rawPanels.map(p => ({
+    ...(p.drawnAt ? { drawnAt: String(p.drawnAt) } : {}),
+    ...(p.labName ? { labName: String(p.labName) } : {}),
+    rows: Array.isArray(p.results) ? (p.results as ExtractedRow[]) : [],
+  }));
+
+  // Guard against empty/garbage payloads — surface a clear error rather
+  // than silently writing zero panels.
+  if (!panels.length) {
+    throw new Error(
+      `Extraction returned no panels — the model couldn't read any biomarkers ` +
+      `from the upload. Try a clearer photo, or use Manual entry.`,
+    );
+  }
+
+  const result: ExtractionResult = { panels };
   // Persist the extraction so re-pastes don't re-bill.
   await cacheExtraction(hash, result);
   return result;
@@ -236,35 +277,57 @@ export function reconcile(rows: ExtractedRow[], profile: Profile): {
 }
 
 /**
- * Build a Panel from a set of files + extraction + reconcile pass.
+ * Build one or more Panels from a set of files + extraction + reconcile pass.
+ *
+ * When the user uploads a stack of pages spanning multiple distinct draw
+ * dates, the extractor groups rows by date and returns N panels. We pass
+ * each panel's rows through `reconcile` independently so flag computation
+ * uses that panel's own lab ranges. File-name attribution is best-effort:
+ * if the extractor surfaces no per-page mapping (the v1 schema doesn't),
+ * we attach the full file list to the latest (newest-`drawnAt`) panel —
+ * the only one a user is likely to come back and re-inspect — and leave
+ * older split panels with an empty `fileNames`.
  */
-export async function panelFromFiles(files: File[], profile: Profile): Promise<{
-  panel: Omit<Panel, "id" | "createdAt">;
+export async function panelsFromFiles(files: File[], profile: Profile): Promise<{
+  panels: Omit<Panel, "id" | "createdAt">[];
   unmatched: ExtractedRow[];
 }> {
   const ext = await extractFromFiles(files, profile);
-  const { results, unmatched } = reconcile(ext.rows, profile);
 
   // Determine source kind: pdf-only / image-only / mixed.
   const kinds = new Set(files.map(f => mediaTypeOf(f).kind));
   const source: Panel["source"] =
     kinds.size === 1 ? (kinds.has("pdf") ? "pdf" : "image") : "mixed";
 
-  const panel: Omit<Panel, "id" | "createdAt"> = {
-    drawnAt: ext.drawnAt && /^\d{4}-\d{2}-\d{2}$/.test(ext.drawnAt) ? ext.drawnAt : todayIso(),
-    ...(ext.labName ? { labName: ext.labName } : {}),
-    source,
-    fileNames: files.map(f => f.name),
-    // fileBlobs intentionally NOT persisted: Mobile WebKit's IndexedDB
-    // refuses to clone File/Blob entries reliably ("Error preparing Blob/File
-    // data to be stored in object store"), and the originals are never read
-    // back for display — only `fileNames.length` is used as a page count.
-    // Keeping them on-device gave no user-visible benefit and broke the
-    // upload flow on iOS Safari.
-    results,
-  };
+  // Sort panels by drawnAt ascending so "latest" is the last one.
+  const sorted = ext.panels.slice().sort((a, b) => {
+    const da = a.drawnAt ?? "";
+    const db = b.drawnAt ?? "";
+    return da.localeCompare(db);
+  });
+  const latestIdx = sorted.length - 1;
 
-  return { panel, unmatched };
+  const allUnmatched: ExtractedRow[] = [];
+  const panels: Omit<Panel, "id" | "createdAt">[] = sorted.map((ep, i) => {
+    const { results, unmatched } = reconcile(ep.rows, profile);
+    allUnmatched.push(...unmatched);
+    // Best-effort attribution: the latest panel gets the file names list;
+    // older split panels list none. (Per ticket engineering notes: if we
+    // can't attribute pages to dates, attach all pages to the latest panel.)
+    // fileBlobs intentionally NOT persisted — Mobile WebKit's IndexedDB
+    // refuses to clone File/Blob entries reliably, and the originals are
+    // never read back for display.
+    const fileNames = i === latestIdx ? files.map(f => f.name) : [];
+    return {
+      drawnAt: ep.drawnAt && /^\d{4}-\d{2}-\d{2}$/.test(ep.drawnAt) ? ep.drawnAt : todayIso(),
+      ...(ep.labName ? { labName: ep.labName } : {}),
+      source,
+      fileNames,
+      results,
+    };
+  });
+
+  return { panels, unmatched: allUnmatched };
 }
 
 function todayIso(): string {
