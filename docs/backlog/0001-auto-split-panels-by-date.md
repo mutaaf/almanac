@@ -1,7 +1,7 @@
 ---
 id: 0001
 title: Auto-split panels by drawn date
-status: groomed
+status: in-progress
 priority: P1
 area: labs
 created: 2026-05-14
@@ -53,4 +53,4 @@ The screenshot a friend wants to see is the Progress page with 12 months of tren
 
 ## Implementation log
 
-(empty — pick up via `/ship 0001`)
+- 2026-05-15 — Implementation-Dev agent picked this up. Branch `feat/0001-auto-split-panels`. Plan: rework `extractor.ts` to return `{ panels: [...] }`, rename `panelFromFiles` → `panelsFromFiles`, loop `addPanel` in `pages/labs.ts`, and route to labs index when N > 1. Failing E2E first in `tests/e2e/labs.spec.ts` using a `multi-date.png` marker filename in the Anthropic mock.
