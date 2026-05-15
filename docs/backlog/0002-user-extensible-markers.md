@@ -1,7 +1,7 @@
 ---
 id: 0002
 title: User-extensible marker database
-status: in-progress
+status: shipped
 priority: P1
 area: labs
 created: 2026-05-14
@@ -64,3 +64,27 @@ This is the feature that lets specialty-medicine users (Wild Health, Function He
   binds matching rows on save. Settings gains a "Your markers" subsection. Export bumps
   to v4 and includes `userMarkers`. Plan + Meal generators await `getAllMarkers()` before
   composing the Marker Reference block.
+- 2026-05-15 — Shipped via PR #4. CI all-green: Typecheck + build (14s), E2E chromium
+  (1m43s), E2E mobile-webkit (3m42s), Vercel preview. 7 new specs in
+  `tests/e2e/labs.spec.ts` cover define + persist + immediate bind + dropdown surfacing
+  (with "yours" pill + option label) + form validation + Settings list + delete + plan
+  prompt injection + export round-trip.
+
+  Notable implementation details:
+  - The form pre-fills unit and lab range from the extracted row, so the common case is
+    two clicks: open form, save.
+  - User keys are deterministic and prefixed `user_` (slug of the canonical name) so
+    they can't collide with seed keys by accident; to override a seed default the user
+    saves a same-keyed entry (the matcher pool suppresses seed entries whose key
+    matches an extras entry).
+  - The `matchRowsByName` callsite in `labs.ts` was updated to consider user markers
+    too — needed for the "Match selected" path when the user picks their own marker
+    from the dropdown.
+  - The Marker Reference block in `claude.ts` flags user-defined entries as
+    "(user-defined; treat these ranges as authoritative)" so the model uses their
+    ranges rather than inventing functional opinions on specialty markers.
+
+  Files: `src/db.ts`, `src/data/markers.ts`, `src/data/userMarkers.ts` (new),
+  `src/extractor.ts`, `src/pages/labs.ts`, `src/pages/settings.ts`, `src/claude.ts`,
+  `src/styles.css`, `tests/e2e/labs.spec.ts`,
+  `tests/fixtures/extraction-with-unrecognized.json` (new), `tests/helpers/mocks.ts`.
