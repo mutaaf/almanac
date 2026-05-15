@@ -13,8 +13,9 @@ import {
 } from "../db";
 import { panelsFromFiles, type ExtractedRow } from "../extractor";
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
+import { listUserMarkers, addUserMarker, getAllMarkers } from "../data/userMarkers";
 import { route } from "../main";
-import type { Panel, Result } from "../types";
+import type { MarkerCategory, MarkerDef, Panel, Result } from "../types";
 
 /* The staging set lives outside render so paste handlers can mutate it
    without re-running the whole component. */
@@ -375,9 +376,14 @@ async function renderPanelDetail(id: number): Promise<void> {
   const unmatched: ExtractedRow[] =
     JSON.parse(sessionStorage.getItem(`unmatched-${id}`) || "[]");
 
+  // Fetch user-defined markers up front; we need them to look up grouping
+  // categories AND to surface them in the unrecognized-row dropdown.
+  const userMarkers = await listUserMarkers();
+  const extras: MarkerDef[] = userMarkers;
+
   const grouped = new Map<string, Result[]>();
   for (const r of panel.results) {
-    const m = findMarker(r.markerKey);
+    const m = findMarker(r.markerKey, extras);
     const cat = m?.category ?? "other";
     if (!grouped.has(cat)) grouped.set(cat, []);
     grouped.get(cat)!.push(r);
@@ -386,11 +392,14 @@ async function renderPanelDetail(id: number): Promise<void> {
   const groupsHtml = Array.from(grouped.entries()).map(([cat, rows]) => `
     <section style="margin-top: 2.4rem;">
       <div class="section-mark">${esc(cat)}</div>
-      <div class="results">${rows.map(resultRow).join("")}</div>
+      <div class="results">${rows.map(r => resultRow(r, extras)).join("")}</div>
     </section>
   `).join("");
 
-  const unmatchedHtml = unmatched.length ? renderUnmatchedSection(unmatched, profile?.sex) : "";
+  const userMarkerKeys = new Set(extras.map(m => m.key));
+  const unmatchedHtml = unmatched.length
+    ? renderUnmatchedSection(unmatched, profile?.sex, extras, userMarkerKeys)
+    : "";
 
   const pageCount = panel.fileNames?.length ?? panel.fileBlobs?.length ?? 0;
   const sourceLabel = panel.source === "manual"
@@ -435,7 +444,12 @@ async function renderPanelDetail(id: number): Promise<void> {
 /*  Unrecognized-rows UI: show top suggestions + full picker per group        */
 /* -------------------------------------------------------------------------- */
 
-function renderUnmatchedSection(unmatched: ExtractedRow[], sex?: string): string {
+function renderUnmatchedSection(
+  unmatched: ExtractedRow[],
+  sex: string | undefined,
+  extras: MarkerDef[],
+  userMarkerKeys: Set<string>,
+): string {
   // Group rows by rawName so a 4-page report with 4 'RBC' rows shows ONE
   // card with a "Match all 4" action, not four separate cards.
   const groups = new Map<string, ExtractedRow[]>();
@@ -446,7 +460,7 @@ function renderUnmatchedSection(unmatched: ExtractedRow[], sex?: string): string
   }
 
   const items = Array.from(groups.entries()).map(([rawName, rows]) => {
-    const matches = findBestMatches(rawName, sex, 3);
+    const matches = findBestMatches(rawName, sex, 3, extras);
 
     const valuesPreview = rows.map(r =>
       `<span class="unmatched__val">${esc(r.value)} ${esc(r.unit ?? "")}</span>`,
@@ -455,25 +469,36 @@ function renderUnmatchedSection(unmatched: ExtractedRow[], sex?: string): string
     const suggestionsHtml = matches.length === 0
       ? `<div class="unmatched__nomatch">No close matches in the database.</div>`
       : `<div class="unmatched__suggests">
-          ${matches.map((m, i) => `
-            <button class="unmatched__suggest ${i === 0 ? "is-best" : ""}"
-                    data-action="match"
-                    data-rawname="${esc(rawName)}"
-                    data-key="${esc(m.marker.key)}">
-              <span class="unmatched__name">${esc(m.marker.shortName ?? m.marker.name)}</span>
-              <span class="unmatched__score">${Math.round(m.score * 100)}%</span>
-            </button>
-          `).join("")}
+          ${matches.map((m, i) => {
+            const isYours = userMarkerKeys.has(m.marker.key);
+            return `
+              <button class="unmatched__suggest ${i === 0 ? "is-best" : ""}"
+                      data-action="match"
+                      data-rawname="${esc(rawName)}"
+                      data-key="${esc(m.marker.key)}">
+                <span class="unmatched__name">${esc(m.marker.shortName ?? m.marker.name)}</span>
+                ${isYours ? `<span class="unmatched__pill">yours</span>` : ""}
+                <span class="unmatched__score">${Math.round(m.score * 100)}%</span>
+              </button>
+            `;
+          }).join("")}
         </div>`;
 
-    // Full marker picker — for the rare case the top 3 are wrong.
-    // We exclude markers from the wrong sex.
-    const visible = MARKERS.filter(m => !m.sex || !sex || sex === "unspecified" || m.sex === sex);
+    // Full marker picker — for the rare case the top 3 are wrong. User
+    // markers appear first (prepended) and carry a (yours) label so the
+    // user can tell them apart from the seed catalog.
+    const seedVisible = MARKERS.filter(m => !m.sex || !sex || sex === "unspecified" || m.sex === sex);
+    const userVisible = extras.filter(m => !m.sex || !sex || sex === "unspecified" || m.sex === sex);
     const pickerHtml = `
       <div class="unmatched__picker">
         <select class="unmatched__select" data-rawname="${esc(rawName)}">
           <option value="">— pick a different marker —</option>
-          ${visible.map(m => `<option value="${esc(m.key)}">${esc(m.shortName ?? m.name)} · ${esc(m.unit)}</option>`).join("")}
+          ${userVisible.map(m =>
+            `<option value="${esc(m.key)}">${esc(m.shortName ?? m.name)} · ${esc(m.unit)} (yours)</option>`,
+          ).join("")}
+          ${seedVisible.map(m =>
+            `<option value="${esc(m.key)}">${esc(m.shortName ?? m.name)} · ${esc(m.unit)}</option>`,
+          ).join("")}
         </select>
         <button class="btn btn--ghost unmatched__pick-btn"
                 data-action="pick"
@@ -492,11 +517,15 @@ function renderUnmatchedSection(unmatched: ExtractedRow[], sex?: string): string
         </header>
         ${suggestionsHtml}
         ${pickerHtml}
-        <div class="unmatched__skip">
+        <div class="unmatched__actions">
+          <button class="unmatched__define-btn"
+                  data-action="define"
+                  data-rawname="${esc(rawName)}">Define this marker</button>
           <button class="unmatched__skip-btn" data-action="skip" data-rawname="${esc(rawName)}">
             Skip ${rows.length === 1 ? "this row" : `all ${rows.length}`}
           </button>
         </div>
+        <div class="define-marker-slot" data-rawname="${esc(rawName)}"></div>
       </article>
     `;
   }).join("");
@@ -505,7 +534,7 @@ function renderUnmatchedSection(unmatched: ExtractedRow[], sex?: string): string
     <section style="margin-top: 2.6rem;">
       <div class="section-mark" style="color: var(--ink-faint);">Unrecognized rows · ${unmatched.length}</div>
       <p class="hint" style="max-width: 64ch; margin-bottom: 1.2rem;">
-        These appeared on the report but didn't auto-match. Pick a marker and they'll be folded into your results — the plan generator only sees matched rows.
+        These appeared on the report but didn't auto-match. Pick a marker — or define a new one if the report uses a specialty marker we don't ship with — and the rows will fold into your results.
       </p>
       <div class="unmatched-list">${items}</div>
     </section>
@@ -515,7 +544,9 @@ function renderUnmatchedSection(unmatched: ExtractedRow[], sex?: string): string
 /**
  * Wire the unmatched-section actions: tap a top-3 button to match all rows
  * with that rawName to the chosen marker; or pick from the dropdown then
- * "Match selected"; or "Skip" to drop the rows entirely.
+ * "Match selected"; or "Skip" to drop the rows entirely; or "Define this
+ * marker" to spawn the inline form that captures a brand-new MarkerDef
+ * and immediately binds matching rows on save.
  */
 function wireUnmatchedHandlers(panelId: number): void {
   const root = document.querySelector(".unmatched-list");
@@ -540,13 +571,205 @@ function wireUnmatchedHandlers(panelId: number): void {
       await matchRowsByName(panelId, rawName, key);
     } else if (action === "skip") {
       await skipRowsByName(panelId, rawName);
+    } else if (action === "define") {
+      openDefineForm(rawName);
+    } else if (action === "cancel-define") {
+      closeDefineForm(rawName);
     }
   });
 }
 
-/** Match every unmatched row whose rawName equals `rawName` to `markerKey`. */
+/** The categories the form lets a user assign — kept tight to the existing
+ *  enum so seed and user markers behave identically downstream. */
+const CATEGORIES: MarkerCategory[] = [
+  "metabolic", "lipids", "thyroid", "hormones",
+  "vitamins", "minerals", "inflammation", "kidney",
+  "liver", "blood", "iron", "cardio", "other",
+];
+
+/**
+ * Render the inline define-marker form into the slot for `rawName`. Pre-fills
+ * the canonical name and unit from the extracted row so a "save without
+ * editing" path is two clicks. Wires the form's submit to actually persist.
+ */
+function openDefineForm(rawName: string): void {
+  const card = document.querySelector(`.unmatched-card[data-rawname="${cssEscape(rawName)}"]`);
+  const slot = card?.querySelector<HTMLElement>(`.define-marker-slot`);
+  if (!slot) return;
+  // If already open, do nothing.
+  if (slot.querySelector(".define-marker-form")) return;
+
+  // Pull the first row for this rawName to pre-fill unit + lab range.
+  const params = new URLSearchParams(location.hash.split("?")[1] ?? "");
+  const panelIdStr = params.get("id");
+  const panelId = panelIdStr ? Number(panelIdStr) : NaN;
+  const stored: ExtractedRow[] = Number.isFinite(panelId)
+    ? JSON.parse(sessionStorage.getItem(`unmatched-${panelId}`) || "[]")
+    : [];
+  const first = stored.find(r => r.rawName === rawName);
+  const prefillUnit  = first?.unit ?? "";
+  const prefillLow   = first?.labRange?.low  ?? "";
+  const prefillHigh  = first?.labRange?.high ?? "";
+
+  slot.innerHTML = `
+    <form class="define-marker-form" data-rawname="${esc(rawName)}">
+      <div class="define-form__title">Define <em>${esc(rawName)}</em></div>
+
+      <div class="define-form__grid">
+        <label class="define-form__field define-form__field--wide">
+          <span class="define-form__label">Canonical name</span>
+          <input name="name" type="text" required value="${esc(rawName)}" />
+        </label>
+        <label class="define-form__field">
+          <span class="define-form__label">Short name (optional)</span>
+          <input name="shortName" type="text" />
+        </label>
+        <label class="define-form__field">
+          <span class="define-form__label">Category</span>
+          <select name="category" required>
+            ${CATEGORIES.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join("")}
+          </select>
+        </label>
+        <label class="define-form__field">
+          <span class="define-form__label">Unit</span>
+          <input name="unit" type="text" required value="${esc(prefillUnit)}" />
+        </label>
+        <label class="define-form__field">
+          <span class="define-form__label">Sex (optional)</span>
+          <select name="sex">
+            <option value="">— any —</option>
+            <option value="male">male</option>
+            <option value="female">female</option>
+            <option value="intersex">intersex</option>
+          </select>
+        </label>
+        <label class="define-form__field">
+          <span class="define-form__label">Lab range low</span>
+          <input name="labLow" type="number" step="any" value="${esc(String(prefillLow))}" />
+        </label>
+        <label class="define-form__field">
+          <span class="define-form__label">Lab range high</span>
+          <input name="labHigh" type="number" step="any" value="${esc(String(prefillHigh))}" />
+        </label>
+        <label class="define-form__field">
+          <span class="define-form__label">Functional low</span>
+          <input name="optimalLow" type="number" step="any" />
+        </label>
+        <label class="define-form__field">
+          <span class="define-form__label">Functional high</span>
+          <input name="optimalHigh" type="number" step="any" />
+        </label>
+        <label class="define-form__field define-form__field--wide">
+          <span class="define-form__label">Description</span>
+          <textarea name="description" rows="2" required></textarea>
+        </label>
+      </div>
+
+      <div class="define-form__actions">
+        <button type="submit" class="btn btn--accent">Save marker &amp; bind rows</button>
+        <button type="button" class="btn btn--ghost" data-action="cancel-define" data-rawname="${esc(rawName)}">Cancel</button>
+      </div>
+      <div class="define-form__hint">
+        At least one of lab range or functional range must be filled — that's what makes the in-range / out-of-range flag meaningful.
+      </div>
+    </form>
+  `;
+
+  const form = slot.querySelector<HTMLFormElement>(".define-marker-form");
+  if (form) wireDefineFormSubmit(form);
+  // Scroll the form into view on slow viewports.
+  slot.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function closeDefineForm(rawName: string): void {
+  const card = document.querySelector(`.unmatched-card[data-rawname="${cssEscape(rawName)}"]`);
+  const slot = card?.querySelector<HTMLElement>(`.define-marker-slot`);
+  if (slot) slot.innerHTML = "";
+}
+
+/** Submit-handler that turns the form fields into a UserMarker and binds
+ *  matching unrecognized rows on the current panel to it. */
+function wireDefineFormSubmit(form: HTMLFormElement): void {
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const rawName = form.dataset.rawname ?? "";
+
+    const fd = new FormData(form);
+    const name = String(fd.get("name") ?? "").trim();
+    const shortName = String(fd.get("shortName") ?? "").trim() || undefined;
+    const category = String(fd.get("category") ?? "other") as MarkerCategory;
+    const unit = String(fd.get("unit") ?? "").trim();
+    const sexRaw = String(fd.get("sex") ?? "").trim();
+    const description = String(fd.get("description") ?? "").trim();
+
+    const labLow      = numOrUndef(fd.get("labLow"));
+    const labHigh     = numOrUndef(fd.get("labHigh"));
+    const optimalLow  = numOrUndef(fd.get("optimalLow"));
+    const optimalHigh = numOrUndef(fd.get("optimalHigh"));
+
+    if (!name || !unit || !description) {
+      alert("Name, unit, and description are required.");
+      return;
+    }
+    const hasLab     = labLow !== undefined || labHigh !== undefined;
+    const hasOptimal = optimalLow !== undefined || optimalHigh !== undefined;
+    if (!hasLab && !hasOptimal) {
+      alert("Fill at least one of lab range or functional range so we can flag in-range / out-of-range correctly.");
+      return;
+    }
+
+    // Canonical key: deterministic snake_case slug, prefixed `user_` to
+    // sidestep accidental collisions with seed keys.
+    const key = `user_${slugify(name)}`;
+
+    const marker: MarkerDef = {
+      key,
+      name,
+      ...(shortName ? { shortName } : {}),
+      category,
+      unit,
+      aliases: [rawName].filter(Boolean),
+      description,
+      ...(hasLab     ? { labRange:     { ...(labLow     !== undefined ? { low: labLow }     : {}), ...(labHigh     !== undefined ? { high: labHigh }     : {}) } } : {}),
+      optimalRange:
+        hasOptimal
+          ? { ...(optimalLow  !== undefined ? { low: optimalLow }  : {}), ...(optimalHigh  !== undefined ? { high: optimalHigh }  : {}) }
+          // If the user supplied only lab range, mirror it as optimal so the
+          // flag computation has SOMETHING to score against. The plan
+          // generator still presents lab-vs-functional honestly.
+          : { ...(labLow      !== undefined ? { low: labLow }      : {}), ...(labHigh      !== undefined ? { high: labHigh }      : {}) },
+      ...(sexRaw === "male" || sexRaw === "female" || sexRaw === "intersex"
+        ? { sex: sexRaw }
+        : {}),
+    };
+
+    await addUserMarker(marker);
+
+    // Immediately bind matching rows on this panel — the ticket calls this
+    // out explicitly. The user shouldn't have to re-trigger matching.
+    const params = new URLSearchParams(location.hash.split("?")[1] ?? "");
+    const panelId = Number(params.get("id") ?? "");
+    if (Number.isFinite(panelId)) {
+      await matchRowsByName(panelId, rawName, key);
+    }
+  });
+}
+
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+}
+
+function numOrUndef(v: FormDataEntryValue | null): number | undefined {
+  if (v == null || v === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Match every unmatched row whose rawName equals `rawName` to `markerKey`.
+ *  Considers user markers (seed + user; user wins on conflicts). */
 async function matchRowsByName(panelId: number, rawName: string, markerKey: string): Promise<void> {
-  const m = findMarker(markerKey);
+  const extras = await listUserMarkers();
+  const m = findMarker(markerKey, extras);
   if (!m) return;
 
   const panel = await getPanel(panelId);
@@ -604,8 +827,8 @@ function cssEscape(s: string): string {
   return s.replace(/["'\\\]\[]/g, "\\$&");
 }
 
-function resultRow(r: Result): string {
-  const m = findMarker(r.markerKey);
+function resultRow(r: Result, extras: MarkerDef[] = []): string {
+  const m = findMarker(r.markerKey, extras);
   const name = m?.shortName ?? m?.name ?? r.markerKey;
   const lab     = r.labRange     ? rangeStr(r.labRange,     r.unit) : "—";
   const optimal = r.optimalRange ? rangeStr(r.optimalRange, r.unit) : "—";

@@ -3,14 +3,16 @@
 import { mount, h, esc } from "../ui";
 import { masthead, foot } from "../chrome";
 import { getProfile, saveProfile, exportAll, importAll, wipeAll, clearExtractCache } from "../db";
-import type { AlmanacExport } from "../db";
+import type { AlmanacExport, UserMarker } from "../db";
 import type { Sex } from "../types";
+import { listUserMarkers, deleteUserMarker } from "../data/userMarkers";
 import { list as listCalls, aggregate as aggregateCalls, clear as clearTelemetry } from "../telemetry";
 
 export async function renderSettings(): Promise<void> {
   const p = await getProfile();
   if (!p) { location.hash = "#/onboarding"; return; }
   const masth = await masthead("#/settings");
+  const userMarkers = await listUserMarkers();
 
   const frag = h(`
     <div class="reveal">
@@ -105,6 +107,8 @@ export async function renderSettings(): Promise<void> {
           </p>
         </div>
 
+        ${renderUserMarkersSection(userMarkers)}
+
         ${renderTelemetry()}
 
         <div style="margin-top: 3rem;">
@@ -190,6 +194,60 @@ export async function renderSettings(): Promise<void> {
     clearTelemetry();
     void renderSettings();
   });
+
+  // "Your markers" — delete buttons. The list is small (rarely >10) so a
+  // re-render-on-delete is fine and keeps the UI honest.
+  for (const btn of document.querySelectorAll<HTMLElement>("[data-action='delete-user-marker']")) {
+    btn.addEventListener("click", async () => {
+      const key = btn.dataset.key ?? "";
+      if (!key) return;
+      if (!confirm("Delete this marker definition? Existing panel results bound to it remain, but future matching will fall back to seed only.")) return;
+      await deleteUserMarker(key);
+      void renderSettings();
+    });
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  User markers — list + delete affordance                                   */
+/* -------------------------------------------------------------------------- */
+
+function renderUserMarkersSection(userMarkers: UserMarker[]): string {
+  if (!userMarkers.length) {
+    return `
+      <div class="user-markers" style="margin-top: 3.6rem;">
+        <div class="section-mark">Your markers</div>
+        <p class="hint" style="max-width: 60ch;">
+          When a lab report includes a marker we don't ship with, you can define it from the panel detail's "Define this marker" affordance. Your definitions appear here, and are folded into future panel matching automatically.
+        </p>
+      </div>
+    `;
+  }
+  return `
+    <div class="user-markers" style="margin-top: 3.6rem;">
+      <div class="section-mark">Your markers · ${userMarkers.length}</div>
+      <p class="hint" style="max-width: 60ch;">
+        Markers you defined locally. Your definitions take precedence over our seed when keys collide, and the plan generator treats your ranges as authoritative.
+      </p>
+      <div class="user-markers__list">
+        ${userMarkers.map(m => `
+          <div class="user-markers__row" data-key="${esc(m.key)}">
+            <div class="user-markers__main">
+              <div class="user-markers__name">${esc(m.shortName ?? m.name)}</div>
+              <div class="user-markers__meta">${esc(m.category)} · ${esc(m.unit)}${m.sex ? ` · ${esc(m.sex)}` : ""}</div>
+              <div class="user-markers__desc">${esc(m.description)}</div>
+            </div>
+            <button class="btn btn--ghost user-markers__delete"
+                    data-action="delete-user-marker"
+                    data-key="${esc(m.key)}"
+                    style="border-color: var(--oxblood); color: var(--oxblood);">
+              Delete
+            </button>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 /* -------------------------------------------------------------------------- */

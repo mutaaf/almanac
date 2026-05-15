@@ -10,9 +10,10 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type {
-  Profile, Panel, Plan, CheckIn, Result, MealPlan, Day,
+  Profile, Panel, Plan, CheckIn, Result, MealPlan, Day, MarkerDef,
 } from "./types";
 import { findMarker } from "./data/markers";
+import { getAllMarkers } from "./data/userMarkers";
 import { age, addDays } from "./db";
 import { computeInsights, formatInsightsForPrompt } from "./insights";
 import { recordCall } from "./telemetry";
@@ -236,11 +237,16 @@ export class ClaudeClient {
       { type: "text", text: PLAN_VOICE, cache_control: { type: "ephemeral" } },
     ];
 
+    // Fetch user-defined markers — they're authoritative ranges for any
+    // marker the user has defined locally and must appear in the Marker
+    // Reference block alongside seed entries.
+    const catalog = await getAllMarkers();
+
     const profileBlock = formatProfile(input.profile);
-    const markerRef    = formatMarkerReference(input.panels);
+    const markerRef    = formatMarkerReference(input.panels, catalog);
     const preamble = [profileBlock, markerRef].join("\n\n");
 
-    const panelsBlock = formatPanels(input.panels);
+    const panelsBlock = formatPanels(input.panels, catalog);
     const adherence   = formatAdherence(input.recentCheckIns, input.previousPlan);
     const priorPlan   = input.previousPlan ? formatPriorPlan(input.previousPlan) : "";
 
@@ -299,8 +305,12 @@ export class ClaudeClient {
       { type: "text", text: MEAL_VOICE, cache_control: { type: "ephemeral" } },
     ];
 
+    // Same as plan generation — user-defined markers count as authoritative
+    // ranges for the meal generator too.
+    const catalog = await getAllMarkers();
+
     const profileBlock = formatProfile(input.profile);
-    const markerRef    = formatMarkerReference(input.panels);
+    const markerRef    = formatMarkerReference(input.panels, catalog);
     const eatAvoid     = formatEatAvoid(input.plan);
 
     const preamble = [profileBlock, markerRef, eatAvoid].join("\n\n");
@@ -403,35 +413,45 @@ function formatProfile(p: Profile): string {
   ].filter(Boolean).join("\n");
 }
 
-function formatMarkerReference(panels: Panel[]): string {
+function formatMarkerReference(panels: Panel[], catalog: MarkerDef[]): string {
   const keys = new Set<string>();
   for (const p of panels) for (const r of p.results) keys.add(r.markerKey);
   if (keys.size === 0) return `# Marker Reference\n(no markers on file yet)`;
 
+  // Separate user-defined entries from seed entries — the prompt flags the
+  // user ones as authoritative so the model treats their ranges as given
+  // rather than inventing functional opinions about specialty markers.
+  const userKeys = new Set(
+    catalog
+      .filter(m => m.key.startsWith("user_"))
+      .map(m => m.key),
+  );
+
   const lines = [`# Marker Reference (functional ranges + descriptions)`];
   for (const k of keys) {
-    const m = findMarker(k);
+    const m = findMarker(k, catalog);
     if (!m) continue;
     const lab     = m.labRange     ? rangeStr(m.labRange,     m.unit) : "—";
     const optimal = rangeStr(m.optimalRange, m.unit);
-    lines.push(`- ${m.name} [${m.key}] · unit ${m.unit} · lab ${lab} · functional ${optimal} — ${m.description}`);
+    const yours = userKeys.has(m.key) ? " (user-defined; treat these ranges as authoritative)" : "";
+    lines.push(`- ${m.name} [${m.key}] · unit ${m.unit} · lab ${lab} · functional ${optimal}${yours} — ${m.description}`);
   }
   return lines.join("\n");
 }
 
-function formatPanels(panels: Panel[]): string {
+function formatPanels(panels: Panel[], catalog: MarkerDef[]): string {
   if (!panels.length) return `# Panels\n(no labs entered yet)`;
   const lines = [`# Panels (newest first)`];
   for (const p of panels) {
     lines.push(`\n## ${p.drawnAt}${p.labName ? ` · ${p.labName}` : ""} (${p.source})`);
-    for (const r of p.results) lines.push(`  - ${formatResult(r)}`);
+    for (const r of p.results) lines.push(`  - ${formatResult(r, catalog)}`);
     if (p.notes) lines.push(`  notes: ${p.notes}`);
   }
   return lines.join("\n");
 }
 
-function formatResult(r: Result): string {
-  const m = findMarker(r.markerKey);
+function formatResult(r: Result, catalog: MarkerDef[] = []): string {
+  const m = findMarker(r.markerKey, catalog);
   const name = m?.shortName ?? m?.name ?? r.markerKey;
   const lab     = r.labRange     ? rangeStr(r.labRange,     r.unit) : "—";
   const optimal = r.optimalRange ? rangeStr(r.optimalRange, r.unit) : "—";

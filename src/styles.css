@@ -1382,6 +1382,12 @@ body {
 .unmatched__skip {
   display: flex; justify-content: flex-end;
 }
+.unmatched__actions {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 0.6rem; flex-wrap: wrap;
+  border-top: 1px solid var(--paper-edge);
+  padding-top: 0.6rem;
+}
 .unmatched__skip-btn {
   background: none; border: 0;
   font-family: var(--body);
@@ -1393,6 +1399,127 @@ body {
   padding: 0.3rem 0.4rem;
 }
 .unmatched__skip-btn:hover { color: var(--oxblood); }
+
+.unmatched__define-btn {
+  background: none;
+  border: 1px solid var(--oxblood);
+  color: var(--oxblood);
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.45rem 0.8rem;
+  cursor: pointer;
+  transition: background 180ms var(--ease), color 180ms var(--ease);
+}
+.unmatched__define-btn:hover { background: var(--oxblood); color: var(--paper); }
+
+.unmatched__pill {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--paper);
+  background: var(--oxblood);
+  padding: 0.1rem 0.45rem;
+}
+
+/* ---- define-marker form (inline) -------------------------------------- */
+.define-marker-slot { width: 100%; }
+.define-marker-form {
+  margin-top: 0.8rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1rem;
+  display: flex; flex-direction: column;
+  gap: 0.8rem;
+}
+.define-form__title {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+.define-form__title em { color: var(--oxblood); font-style: italic; }
+
+.define-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem 0.8rem;
+}
+.define-form__field {
+  display: flex; flex-direction: column; gap: 0.2rem;
+  min-width: 0;
+}
+.define-form__field--wide { grid-column: 1 / -1; }
+.define-form__label {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.define-form__field input,
+.define-form__field select,
+.define-form__field textarea {
+  font-family: var(--body);
+  font-size: 0.88rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  width: 100%;
+  min-width: 0;
+}
+.define-form__field input:focus,
+.define-form__field select:focus,
+.define-form__field textarea:focus {
+  border-color: var(--oxblood);
+  outline: 0;
+}
+.define-form__actions {
+  display: flex; gap: 0.6rem; flex-wrap: wrap;
+}
+.define-form__hint {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+
+/* ---- your markers (settings) ------------------------------------------ */
+.user-markers__list {
+  margin-top: 0.6rem;
+  display: flex; flex-direction: column;
+  border-top: 1px solid var(--paper-edge);
+}
+.user-markers__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.8rem;
+  align-items: start;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--paper-edge);
+}
+.user-markers__name {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+.user-markers__meta {
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  margin-top: 0.1rem;
+}
+.user-markers__desc {
+  font-family: var(--body);
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  margin-top: 0.3rem;
+  max-width: 60ch;
+}
+.user-markers__delete {
+  align-self: center;
+}
 
 /* ---- manual entry grid -------------------------------------------------- */
 .manual-grid {

@@ -776,18 +776,24 @@ export const MARKERS: MarkerDef[] = [
 ];
 
 /**
- * Look up a marker by canonical key.
+ * Look up a marker by canonical key. The optional `extras` lets a caller
+ * fold user-defined markers into the search (user wins on key collision).
  */
-export function findMarker(key: string): MarkerDef | undefined {
+export function findMarker(key: string, extras: MarkerDef[] = []): MarkerDef | undefined {
+  const user = extras.find(m => m.key === key);
+  if (user) return user;
   return MARKERS.find(m => m.key === key);
 }
 
 /**
  * Match a free-form lab name (from a report) to one of our marker keys.
  * Used by the extractor to normalize "25-OH Vit D" / "Vitamin D, 25-Hydroxy" / etc.
+ *
+ * `extras` lets a caller pass user-defined markers into the scoring; on a
+ * score tie, the user entry wins because it appears first in the scored set.
  */
-export function matchMarker(rawName: string, sex?: string): MarkerDef | undefined {
-  const top = findBestMatches(rawName, sex, 1);
+export function matchMarker(rawName: string, sex?: string, extras: MarkerDef[] = []): MarkerDef | undefined {
+  const top = findBestMatches(rawName, sex, 1, extras);
   return top[0]?.marker;
 }
 
@@ -798,8 +804,13 @@ export function matchMarker(rawName: string, sex?: string): MarkerDef | undefine
  *
  * Sex-restricted markers are filtered out unless the caller's sex matches
  * (`unspecified` is treated as "show all").
+ *
+ * `extras` is prepended to the seed list so user markers participate in
+ * scoring; on a strict tie the user entry wins because it's encountered
+ * first by the stable sort. Any seed entry whose key matches an extras
+ * entry is suppressed (the user's definition overrides ours).
  */
-export function findBestMatches(rawName: string, sex?: string, n = 3): {
+export function findBestMatches(rawName: string, sex?: string, n = 3, extras: MarkerDef[] = []): {
   marker: MarkerDef; score: number; via: string;
 }[] {
   const norm = normalize(rawName);
@@ -808,7 +819,13 @@ export function findBestMatches(rawName: string, sex?: string, n = 3): {
   type Hit = { marker: MarkerDef; score: number; via: string };
   const hits: Hit[] = [];
 
-  for (const m of MARKERS) {
+  const overriddenKeys = new Set(extras.map(e => e.key));
+  const pool: MarkerDef[] = [
+    ...extras,
+    ...MARKERS.filter(m => !overriddenKeys.has(m.key)),
+  ];
+
+  for (const m of pool) {
     if (m.sex && sex && sex !== "unspecified" && m.sex !== sex) continue;
 
     // Build the candidate label set: name, shortName, every alias.
@@ -843,6 +860,8 @@ export function findBestMatches(rawName: string, sex?: string, n = 3): {
     }
   }
 
+  // Stable sort: higher score first, but ties keep input order (user entries
+  // prepended, so user wins on tie).
   hits.sort((a, b) => b.score - a.score);
   return hits.slice(0, n);
 }
