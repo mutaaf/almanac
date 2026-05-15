@@ -91,30 +91,81 @@ export async function addManualPanel(page: Page): Promise<void> {
   await page.locator(".manual-row__input[data-key='vit_d_25oh']").fill("32");
   await page.getByRole("button", { name: /^save panel$/i }).click();
   await expect(page).toHaveURL(/#\/labs\?id=\d+$/);
+  // Wait for the panel detail to actually paint — the URL change beats the
+  // render under Mobile WebKit load.
+  await expect(page.locator(".result__name").first()).toBeVisible();
+}
+
+/**
+ * Poll an IndexedDB store inside the page until a predicate passes (or the
+ * timeout expires). WebKit on iOS occasionally delays the commit of a Dexie
+ * write past the resolution of the awaiting promise; tests that expect a row
+ * immediately after the write would otherwise read empty.
+ *
+ * `pred` lets a caller assert "at least 2 rows" or "row with planId X"
+ * instead of just "anything"; default is "at least one row exists".
+ */
+export async function waitForDb(
+  page: Page,
+  store: "plans" | "mealPlans" | "panels" | "checkins",
+  pred: (rowCount: number) => boolean = (n) => n > 0,
+  opts: { timeoutMs?: number; intervalMs?: number } = {},
+): Promise<void> {
+  const timeoutMs  = opts.timeoutMs  ?? 10_000;
+  const intervalMs = opts.intervalMs ?? 50;
+  const deadline = Date.now() + timeoutMs;
+
+  // Read by opening a fresh connection to "almanac" — the same database the
+  // SPA's Dexie instance uses, so we see the same rows once they've committed.
+  while (Date.now() < deadline) {
+    const count = await page.evaluate<number, string>((storeName) => {
+      return new Promise<number>((resolve) => {
+        const req = indexedDB.open("almanac");
+        req.onerror   = () => resolve(0);
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(storeName)) { db.close(); resolve(0); return; }
+          const tx = db.transaction(storeName, "readonly");
+          const c  = tx.objectStore(storeName).count();
+          c.onerror   = () => { db.close(); resolve(0); };
+          c.onsuccess = () => { db.close(); resolve(c.result as number); };
+        };
+      });
+    }, store);
+
+    if (pred(count)) return;
+    await page.waitForTimeout(intervalMs);
+  }
+  throw new Error(`waitForDb timed out after ${timeoutMs}ms waiting on "${store}"`);
 }
 
 /**
  * Compose the plan. Mocks must already be installed. Leaves the page on /plan.
  *
- * After clicking Compose, we wait for the spinner to clear and then RELOAD —
- * this dodges a WebKit-only race where setting location.hash to the same
- * value the page is already on doesn't fire `hashchange`, so the explicit
- * `renderPlan()` re-run in the compose handler can race with the in-flight
- * paint. A reload reads from IndexedDB cleanly.
+ * The previous version of this helper had a `page.reload()` to dodge a
+ * WebKit-only race where the post-compose render read latestPlan() before
+ * IndexedDB had committed. The real fix lives in src/pages/plan.ts
+ * (compose() now polls `latestPlan()` after the save and `await route()`s
+ * the re-render). This helper waits for the page to settle into one of two
+ * shapes — empty state with the Compose button, or dashboard with a plan —
+ * before deciding what to do. `isVisible()` is an instantaneous snapshot
+ * and would race the page's initial render on Mobile WebKit, which is why
+ * this used to swallow the click on a slow boot.
  */
 export async function composePlan(page: Page): Promise<void> {
   await page.goto("/#/plan");
-  const composeBtn = page.getByRole("button", { name: /^compose the plan$/i });
+  // Wait for the plan page to actually paint into one of its two shapes.
+  // On Mobile WebKit the bootstrap can lag behind Playwright's `load` event
+  // by 200–400ms; without this wait the next `isVisible()` is a coin flip.
+  await page.locator(".dash-snapshot, .prose, #compose").first().waitFor();
+
+  const composeBtn = page.locator("#compose");
   if (await composeBtn.isVisible().catch(() => false)) {
     await composeBtn.click();
-    // Wait until the spinner is gone or the dashboard is up.
-    await page.waitForFunction(() => {
-      const status = document.getElementById("status");
-      const stillLoading = !!status?.querySelector(".spinner");
-      const rendered = !!document.querySelector(".dash-snapshot, .prose");
-      return !stillLoading || rendered;
-    }, undefined, { timeout: 30_000 });
-    await page.reload();
+    // The save has to complete (1 row in `plans`) before the dashboard
+    // can paint. Polling the row count is robust to Mobile Safari's
+    // slightly-delayed commit visibility under parallel load.
+    await waitForDb(page, "plans", (n) => n >= 1, { timeoutMs: 30_000 });
   }
   await expect(page.locator(".dash-snapshot, .prose").first()).toBeVisible({ timeout: 20_000 });
 }

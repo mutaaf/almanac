@@ -192,7 +192,10 @@ If a test fails, `playwright-report/index.html` has a video, a trace timeline, a
 
 ## Known issues
 
-- **Mobile-WebKit post-compose flakes.** A handful of tests that compose a Plan and then assert on subsequent screens (Today, dashboard re-renders, habit-tap persistence) flake on Mobile Safari but pass on Chromium. The pattern: writes to IndexedDB aren't immediately readable on the next page render in some WebKit versions. CI runs the WebKit project with `continue-on-error: true` so these don't block merge; Chromium is the gating check. **Fix priority: high.** Likely fixes: synchronous `Promise.resolve().then(reload)` patterns, or explicit `waitForFunction` polling IndexedDB before assertions in the helpers.
+(none right now — keep this section as a parking spot for partial fixes and
+documented quirks. Closed since 2026-05-15: Mobile-WebKit post-compose flakes,
+fixed in ticket 0005 by route-awaiting in `plan.ts compose()` and adding the
+`waitForDb` polling helper.)
 
 ## When things go wrong
 

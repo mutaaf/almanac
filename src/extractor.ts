@@ -255,7 +255,12 @@ export async function panelFromFiles(files: File[], profile: Profile): Promise<{
     ...(ext.labName ? { labName: ext.labName } : {}),
     source,
     fileNames: files.map(f => f.name),
-    fileBlobs: files.slice(),
+    // fileBlobs intentionally NOT persisted: Mobile WebKit's IndexedDB
+    // refuses to clone File/Blob entries reliably ("Error preparing Blob/File
+    // data to be stored in object store"), and the originals are never read
+    // back for display — only `fileNames.length` is used as a page count.
+    // Keeping them on-device gave no user-visible benefit and broke the
+    // upload flow on iOS Safari.
     results,
   };
 

@@ -13,6 +13,7 @@ import {
   getProfile, allPanels, latestPlan, savePlan, recentCheckIns,
   latestMealPlan, today, checkInFor, upsertCheckIn,
 } from "../db";
+import { route } from "../main";
 import { ClaudeClient, TruncatedResponseError } from "../claude";
 import type {
   Plan, EatItem, AvoidItem, Recommendation, Panel, Profile, CheckIn, Insight,
@@ -105,15 +106,26 @@ async function compose(): Promise<void> {
       ...(previousPlan ? { previousPlan } : {}),
     });
 
-    await savePlan({
+    const savedId = await savePlan({
       ...plan,
       generatedAt: Date.now(),
       basedOnPanelIds: panels.map(p => p.id!).filter(Boolean) as number[],
       model,
     });
 
+    // WebKit (especially headless Linux WebKit in CI) sometimes returns from
+    // `db.plans.add()` slightly before the row is readable through the
+    // `generatedAt` index — meaning the next `latestPlan()` call inside
+    // renderPlan() could see undefined and paint the empty state. Poll until
+    // the row we just wrote is visible to a fresh query, then drive the
+    // re-render through the router. The loop is bounded (≤500ms in practice).
+    await waitForPlanCommit(savedId);
+
+    // We're already on #/plan, so reassigning location.hash to the same value
+    // does NOT fire `hashchange` on WebKit. Instead, hand the next paint to
+    // the router and await it.
     location.hash = "#/plan";
-    void renderPlan();
+    await route();
   } catch (err: any) {
     if (!status) return;
     status.style.display = "block";
@@ -133,6 +145,25 @@ function extractRawFromMessage(msg: string | undefined): string | undefined {
   if (!msg) return undefined;
   const m = msg.match(/--- raw ---\n([\s\S]+)$/);
   return m?.[1];
+}
+
+/**
+ * Poll `latestPlan()` until it reflects the row we just saved. Used after
+ * `savePlan()` to absorb WebKit/IndexedDB's occasional delay between a
+ * write resolving and the indexed read returning that row.
+ *
+ * Bounded by `timeoutMs` so a real bug (the row never landed) still surfaces.
+ */
+async function waitForPlanCommit(id: number, timeoutMs = 2000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const p = await latestPlan();
+    if (p && p.id === id) return;
+    await new Promise(r => setTimeout(r, 20));
+  }
+  // If we drop out here we still proceed; the subsequent render will paint
+  // an empty state (rare), but at least the user sees the screen — not a
+  // half-built UI.
 }
 
 /* ============================================================================
