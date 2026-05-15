@@ -1,7 +1,7 @@
 ---
 id: 0001
 title: Auto-split panels by drawn date
-status: in-progress
+status: shipped
 priority: P1
 area: labs
 created: 2026-05-14
@@ -54,3 +54,4 @@ The screenshot a friend wants to see is the Progress page with 12 months of tren
 ## Implementation log
 
 - 2026-05-15 — Implementation-Dev agent picked this up. Branch `feat/0001-auto-split-panels`. Plan: rework `extractor.ts` to return `{ panels: [...] }`, rename `panelFromFiles` → `panelsFromFiles`, loop `addPanel` in `pages/labs.ts`, and route to labs index when N > 1. Failing E2E first in `tests/e2e/labs.spec.ts` using a `multi-date.png` marker filename in the Anthropic mock.
+- 2026-05-15 — Shipped via PR #2 (https://github.com/mutaaf/almanac/pull/2). Files touched: `src/extractor.ts` (new `ExtractedPanel`, new `panels`-shaped return; `panelFromFiles` → `panelsFromFiles`; `EXTRACTION_PROMPT` tightened to instruct multi-panel-by-date; user text now lists file names so attribution has a hint), `src/pages/labs.ts` (loops `addPanel` over the returned panels; routes to `#/labs` when N > 1, retains `#/labs?id=N` for N == 1), `tests/helpers/mocks.ts` (sniffs user text for `multi-date` and serves the new fixture), `tests/fixtures/extraction-multi-date.json` (3 panels: 2024-03-12, 2025-01-18, 2026-04-03), `tests/fixtures/extraction.json` (rewrapped under `panels: [...]`), `tests/e2e/labs.spec.ts` (3 new scenarios covering split, regression-single, and cache-replay-of-the-split). CI green on both chromium and mobile-webkit. Vercel preview deployed.
