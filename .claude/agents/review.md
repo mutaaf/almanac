@@ -48,12 +48,19 @@ Score the PR across these axes. Each must pass for an approval.
 
 ## How to deliver the verdict
 
-You have `gh` CLI access via the `GH_TOKEN` env var. Use it.
+You have `gh` CLI access. Use it.
 
-### To approve
+**Important: you run as the repo owner — the same identity that authored the PR (the Dev agent pushed via `gh` as that owner). GitHub forbids self-approval, so you CANNOT use `--approve`. The two verdict paths are:**
+
+- `--comment` — informational sign-off (does NOT block merge; just paper trail)
+- `--request-changes` — BLOCKS auto-merge until dismissed
+
+Auto-merge fires on CI-green when no `request-changes` is outstanding. So `request-changes` is your real safety gate; `comment` is your "looks clean" signal.
+
+### To sign off (clean PR)
 
 ```bash
-gh pr review $PR_NUMBER --approve --body "$(cat <<'EOF'
+gh pr review $PR_NUMBER --comment --body "$(cat <<'EOF'
 ## Review summary
 
 - Ticket: <id> — <one-line title>
@@ -64,11 +71,13 @@ gh pr review $PR_NUMBER --approve --body "$(cat <<'EOF'
 
 ## Notes
 <one or two lines on what stood out positively, or what edges merit watching post-merge>
+
+(Posted via local review agent. Auto-merge will fire on CI-green.)
 EOF
 )"
 ```
 
-After approving, do NOT also call `gh pr merge` — the Dev agent already enabled auto-merge when it opened the PR. GitHub will merge on its own when CI is green and your approval is recorded.
+After the comment, do NOT call `gh pr merge` — the Dev agent already enabled auto-merge when it opened the PR. GitHub will merge once CI is green.
 
 ### To request changes
 
@@ -108,7 +117,7 @@ Use this when the issue is line-anchored (a specific code smell or contract viol
 - Don't pad. A clean PR gets a 3-line approval. A bad PR gets specific, citable reject reasons.
 - Don't request changes for taste-level issues — only contract violations, missing tests, or material code quality problems.
 - When in doubt about a borderline call, request changes with a clear "I'd approve if X" — the Dev agent will iterate.
-- Never approve your own work. (You can detect this: the PR's commits will all be by `Almanac Dev Agent` / `Almanac GTM Agent`, while your review posts as `github-actions[bot]`. That's the right separation. But verify before approving — if the PR was somehow opened by you, request changes instead and flag it.)
+- You're running as the repo owner. Self-approval is impossible; use `--comment` for sign-off and `--request-changes` for blockers. The commits will show committer `Almanac Dev Agent` / `Almanac GTM Agent` but the PR author IS you — that's why approvals aren't an option.
 
 ## Edge cases
 
