@@ -145,13 +145,21 @@ export async function waitForDb(
  * The previous version of this helper had a `page.reload()` to dodge a
  * WebKit-only race where the post-compose render read latestPlan() before
  * IndexedDB had committed. The real fix lives in src/pages/plan.ts
- * (compose() now `await route()`s the re-render), and this helper now uses
- * `waitForDb` to make the write visible to subsequent assertions before
- * returning — without an extra reload that just papered over the race.
+ * (compose() now polls `latestPlan()` after the save and `await route()`s
+ * the re-render). This helper waits for the page to settle into one of two
+ * shapes — empty state with the Compose button, or dashboard with a plan —
+ * before deciding what to do. `isVisible()` is an instantaneous snapshot
+ * and would race the page's initial render on Mobile WebKit, which is why
+ * this used to swallow the click on a slow boot.
  */
 export async function composePlan(page: Page): Promise<void> {
   await page.goto("/#/plan");
-  const composeBtn = page.getByRole("button", { name: /^compose the plan$/i });
+  // Wait for the plan page to actually paint into one of its two shapes.
+  // On Mobile WebKit the bootstrap can lag behind Playwright's `load` event
+  // by 200–400ms; without this wait the next `isVisible()` is a coin flip.
+  await page.locator(".dash-snapshot, .prose, #compose").first().waitFor();
+
+  const composeBtn = page.locator("#compose");
   if (await composeBtn.isVisible().catch(() => false)) {
     await composeBtn.click();
     // The save has to complete (1 row in `plans`) before the dashboard
