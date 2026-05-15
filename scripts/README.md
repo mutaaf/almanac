@@ -6,10 +6,11 @@ Two launchd jobs that run the GTM and Implementation-Dev agents against this rep
 
 | File | Role |
 |---|---|
-| `agent-ship.sh` | Fired hourly at :41 local. Picks the top groomed/proposed ticket, invokes the `implementation-dev` subagent, opens a PR through CI. Single-PR-at-a-time gated. |
-| `agent-groom.sh` | Fired every 6 hours at :17 local. Invokes the `gtm-innovation` subagent to re-prioritize the backlog and add 2-4 new tickets, opens a PR. Self-gates when there are already 3+ groomed P0/P1 tickets. |
-| `install-agents.sh` | Generates `~/Library/LaunchAgents/com.almanac.agent-{ship,groom}.plist` and loads them into launchd. Idempotent. |
-| `uninstall-agents.sh` | Unloads both jobs and removes the plists. Keeps logs. |
+| `agent-ship.sh` | Fired hourly at :41 local. Picks the top groomed/proposed ticket, invokes the `implementation-dev` subagent, opens a PR with auto-merge enabled. Single-PR-at-a-time gated. |
+| `agent-groom.sh` | Fired every 6 hours at :17 local. Invokes the `gtm-innovation` subagent to re-prioritize the backlog and add 2-4 new tickets. Self-gates when there are already 3+ groomed P0/P1 tickets. |
+| `agent-review.sh` | Polls every 5 minutes for open agent PRs lacking a review from the repo owner. For each: invokes the `review` subagent which grades against AGENTS.md + the ticket and posts `--comment` (sign-off) or `--request-changes` (blocking). Self-gates silently when nothing to review. |
+| `install-agents.sh` | Generates `~/Library/LaunchAgents/com.almanac.agent-{ship,groom,review}.plist` and loads them into launchd. Idempotent. |
+| `uninstall-agents.sh` | Unloads all three jobs and removes the plists. Keeps logs. |
 
 ## Quickstart
 

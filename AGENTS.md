@@ -20,9 +20,27 @@ Almanac is built by two specialized subagents working through a single backlog:
 | Agent | Role | Lives at | Touches |
 |---|---|---|---|
 | **GTM & Innovation** | Product owner + stakeholder + user + growth lead in one voice. Generates and grooms feature tickets. | `.claude/agents/gtm-innovation.md` | `docs/backlog/` only — **never** `src/` or `tests/` |
-| **Implementation Developer** | Test-first executor. Picks the top ticket, writes the failing E2E, implements, ships through CI, opens a PR. | `.claude/agents/implementation-dev.md` | Everything — but always via a feature branch + PR, never direct to `main` |
+| **Implementation Developer** | Test-first executor. Picks the top ticket, writes the failing E2E, implements, ships through CI, opens a PR with auto-merge enabled. | `.claude/agents/implementation-dev.md` | Everything — but always via a feature branch + PR, never direct to `main` |
+| **Review** | Grades the PR against AGENTS.md + the ticket's acceptance criteria. Posts an approve (which unblocks auto-merge) or request-changes (with line-anchored comments). | `.claude/agents/review.md` | Read-only on the diff. Only writes via `gh pr review`. |
 
 The backlog at `docs/backlog/` is the single source of truth for what gets built next. Each ticket is a self-contained markdown file (`NNNN-kebab-title.md`) with frontmatter (id, status, priority, area, owner) and a body that includes user story, four-lens "Why now" (PO / Stakeholder / User / Growth), acceptance criteria mapped to test scenarios, out-of-scope, and engineering notes. See `docs/backlog/README.md` for the full conventions.
+
+**The full autonomous loop:**
+
+```
+GTM agent ──► Dev agent ──► Review agent ──► auto-merge ──► auto-deploy
+(launchd     (launchd       (launchd polls    (GitHub when    (Vercel on
+ every 6h)    every 1h)      every 5 min)      CI green +      push to main)
+                                                no blocking
+                                                review)
+```
+
+All three agents run **locally** via your `claude` CLI, so they run against your Claude Max subscription (free under your plan, no separate API charges). The only cost in the loop is your Claude usage, which is the same whether you ran these prompts manually or autonomously.
+
+Each handoff is gated:
+- **Dev → Review**: Dev opens the PR with `gh pr merge --auto --squash`. GitHub holds the merge.
+- **Review → merge**: branch protection requires (a) Typecheck + build green, (b) E2E (chromium) green. The local review agent posts a `--comment` sign-off (informational) or a `--request-changes` review which **blocks** the auto-merge. Since the review agent runs as the repo owner (same identity as the PR author), GitHub forbids self-approval — so we use the request-changes path as the blocker instead of approval as the unblocker.
+- **merge → deploy**: Vercel watches the GitHub repo; every push to `main` triggers a production deploy automatically.
 
 **Slash commands** (manual, interactive — you drive):
 - `/ideate [focus area]` — fires the GTM agent to add new tickets. Optional `$ARGUMENTS` like "growth", "moat", "mobile retention".
@@ -31,10 +49,11 @@ The backlog at `docs/backlog/` is the single source of truth for what gets built
 - `/backlog` — read-only summary of the current backlog state.
 
 **Autonomous local schedule** (launchd jobs, no human required — see `scripts/README.md`):
-- `agent-ship.sh` — fires every hour at :41 local. Picks the top groomed/proposed ticket, runs the full Dev loop, opens a PR through CI. Single-PR-at-a-time gated.
+- `agent-ship.sh` — fires every hour at :41 local. Picks the top groomed/proposed ticket, runs the full Dev loop, opens a PR with auto-merge enabled. Single-PR-at-a-time gated.
 - `agent-groom.sh` — fires every 6 hours at :17 local. Runs the GTM agent to re-prioritize + add 2-4 fresh tickets focused on acquisition/retention/moat. Self-gates when there are already 3+ groomed P0/P1.
+- `agent-review.sh` — polls every 5 minutes for open agent PRs with no review yet. Posts a `--comment` sign-off if clean, `--request-changes` if blocking. Self-gates silently when there's nothing to review.
 - Install: `bash scripts/install-agents.sh` once on a Mac. Uninstall: `bash scripts/uninstall-agents.sh`. Logs at `~/.cache/almanac-agent/logs/`.
-- Both have a self-cancel date baked in (2026-05-28) to bound autonomous spend; edit the scripts to extend.
+- All three have a self-cancel date baked in (2026-05-28) to bound autonomous spend; edit the scripts to extend.
 
 **The handoff discipline:**
 - GTM writes specs. Dev writes code. Neither does the other's job.

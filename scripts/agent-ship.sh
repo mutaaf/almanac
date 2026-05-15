@@ -95,10 +95,13 @@ Step 3 — execute the implementation-dev loop.
           Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
     7.  git push -u origin HEAD
     8.  gh pr create --fill --base main
-    9.  gh pr checks --watch  (wait up to 18 min)
-   10.  On green CI: update the ticket frontmatter to status: shipped + append
-        to Implementation log; commit and push.
-   11.  On red CI: leave the ticket as in-progress and the PR open. Add a PR
+    9.  gh pr merge --auto --squash    # enable auto-merge; GitHub will merge
+                                       # once required checks + review pass
+   10.  gh pr checks --watch  (wait up to 18 min)
+   11.  On green CI: update the ticket frontmatter to status: shipped + append
+        to Implementation log; commit and push to the branch (auto-merge will
+        pick up the new commit). The review agent runs concurrently in GHA.
+   12.  On red CI: leave the ticket as in-progress and the PR open. Add a PR
         comment with the exact failure.
 
 HARD NOS — these fail the run:

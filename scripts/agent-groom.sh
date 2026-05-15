@@ -96,6 +96,9 @@ Otherwise, do the work:
          --title "GTM: backlog update YYYY-MM-DD HH:MM UTC" \
          --body "Autonomous backlog refresh.\n\n## Tickets added/changed\n<one bulleted line per ticket id + title + status>"
 
+  8. Enable auto-merge so the PR ships as soon as the review agent approves:
+       gh pr merge --auto --squash
+
 NEVER push to main directly. NEVER edit src/ or tests/. NEVER force-push.
 
 End with a one-line summary: "<N> tickets touched, PR <url>".

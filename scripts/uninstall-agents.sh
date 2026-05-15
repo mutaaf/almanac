@@ -7,13 +7,13 @@ DOMAIN="gui/$UID"
 AGENTS_DIR="$HOME/Library/LaunchAgents"
 INSTALL_DIR="$HOME/.local/share/almanac-agent/bin"
 
-for LABEL in com.almanac.agent-ship com.almanac.agent-groom; do
+for LABEL in com.almanac.agent-ship com.almanac.agent-groom com.almanac.agent-review; do
   launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
   rm -f "$AGENTS_DIR/$LABEL.plist"
   echo "removed $LABEL"
 done
 
-rm -f "$INSTALL_DIR/agent-ship.sh" "$INSTALL_DIR/agent-groom.sh"
+rm -f "$INSTALL_DIR"/agent-*.sh
 rmdir "$INSTALL_DIR" 2>/dev/null || true
 
 echo
