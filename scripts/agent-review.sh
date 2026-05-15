@@ -78,9 +78,23 @@ for PR in $UNREVIEWED; do
   echo
   echo "--- reviewing PR #$PR ---"
 
-  # Check out the PR head so the agent reads the actual committed code.
-  if ! gh pr checkout "$PR" --repo "$REPO" --force 2>&1; then
-    echo "couldn't check out PR #$PR; skipping"
+  # Check out the PR head via FETCH_HEAD. We deliberately avoid
+  # `gh pr checkout` which tries to create a local tracking branch and
+  # fails in our shallow checkout ("starting point ... is not a branch").
+  # The detached HEAD is fine — the agent only reads files; nothing
+  # commits back from this working tree.
+  PR_SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid 2>/dev/null)
+  if [ -z "$PR_SHA" ]; then
+    echo "couldn't resolve head SHA for PR #$PR; skipping"
+    continue
+  fi
+  if ! git fetch origin "pull/$PR/head" --depth=20 --quiet 2>&1; then
+    echo "couldn't fetch PR #$PR head; skipping"
+    continue
+  fi
+  git checkout --detach FETCH_HEAD --quiet
+  if [ "$(git rev-parse HEAD)" != "$PR_SHA" ]; then
+    echo "checked-out SHA $(git rev-parse HEAD) != expected $PR_SHA; skipping"
     continue
   fi
 
@@ -142,11 +156,14 @@ End the session immediately after the gh pr review call. Do not add
 labels, do not post extra comments.
 PROMPT
 
-  # Back to main for the next PR.
+  # Back to main for the next PR (we were on detached HEAD).
   cd "$WORKDIR"
   git checkout main --quiet
   git reset --hard origin/main --quiet
 done
+
+# Wipe the working tree state on exit so the next tick starts clean.
+git checkout main --quiet 2>/dev/null || true
 
 echo
 echo "=== almanac-review complete $(date -u) ==="
