@@ -13,6 +13,7 @@ import {
   getProfile, allPanels, latestPlan, savePlan, recentCheckIns,
   latestMealPlan, today, checkInFor, upsertCheckIn,
 } from "../db";
+import { route } from "../main";
 import { ClaudeClient, TruncatedResponseError } from "../claude";
 import type {
   Plan, EatItem, AvoidItem, Recommendation, Panel, Profile, CheckIn, Insight,
@@ -112,8 +113,14 @@ async function compose(): Promise<void> {
       model,
     });
 
+    // We're already on #/plan, so reassigning location.hash to the same value
+    // does NOT fire `hashchange` on WebKit — which used to mean the only
+    // re-paint was a fire-and-forget `renderPlan()` that occasionally raced
+    // the Dexie commit on Mobile Safari. Instead, hand the next paint to the
+    // router and await it: route() resolves only after renderPlan() returns,
+    // which itself awaits latestPlan(). Deterministic on every browser.
     location.hash = "#/plan";
-    void renderPlan();
+    await route();
   } catch (err: any) {
     if (!status) return;
     status.style.display = "block";

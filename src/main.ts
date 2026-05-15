@@ -17,7 +17,7 @@ import { renderLabs }       from "./pages/labs";
 import { renderProgress }   from "./pages/progress";
 import { renderSettings }   from "./pages/settings";
 
-async function route(): Promise<void> {
+export async function route(): Promise<void> {
   const hash = location.hash || "#/today";
   const path = hash.split("?")[0] ?? hash;
 

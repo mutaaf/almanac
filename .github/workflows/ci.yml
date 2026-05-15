@@ -29,14 +29,15 @@ jobs:
       - run: npm run build
 
   e2e:
-    # chromium is the GATING check (blocks merge); mobile-webkit runs as a
-    # non-blocking signal until the remaining WebKit-specific timing issues
-    # tracked in AGENTS.md are resolved.
+    # Both chromium and mobile-webkit are GATING checks. The WebKit-specific
+    # timing issues that previously forced `continue-on-error: true` on the
+    # mobile-webkit job were closed by ticket 0005 (compose() route-awaits +
+    # the waitForDb helper). Mobile Safari is where most users actually open
+    # the app — its tests block merge too.
     name: E2E (${{ matrix.project }})
     runs-on: ubuntu-latest
     needs: typecheck-build
     timeout-minutes: 25
-    continue-on-error: ${{ matrix.project == 'mobile-webkit' }}
     strategy:
       fail-fast: false
       matrix:
