@@ -1,7 +1,7 @@
 ---
 id: 0005
 title: Mobile-WebKit timing hardening — promote to gating CI check
-status: groomed
+status: in-progress
 priority: P0
 area: infra
 created: 2026-05-14
@@ -52,4 +52,4 @@ Mobile is where users actually live. If we ship a feature that works on chromium
 
 ## Implementation log
 
-(empty — pick up via `/ship 0005`)
+- 2026-05-15 — Picked up via `/ship 0005`. Branch `feat/0005-mobile-webkit-hardening`. Plan: (1) replace the `location.hash + void renderPlan()` race in `pages/plan.ts compose()` with a direct `await` of the imported `route()`; (2) add a `waitForDb` helper in `tests/helpers/flows.ts` that polls IndexedDB via `page.evaluate` until the expected plan/meal row is readable; (3) drop the reload-trick from `composePlan`; (4) lock the fix in with a new `tests/e2e/webkit-hardening.spec.ts`; (5) drop `continue-on-error: true` from the mobile-webkit job in `.github/workflows/ci.yml`; (6) remove the AGENTS.md Known-issues entry. Will gate landing on 3 consecutive clean mobile-webkit runs locally.
