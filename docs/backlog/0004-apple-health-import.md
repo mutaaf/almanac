@@ -28,14 +28,17 @@ This is the moment we stop being "the lab app" and become "the health app you do
 
 ## Acceptance criteria
 
-- [ ] New Settings action: "Import Apple Health." Accepts `.zip` (Apple's export format) or `export.xml` directly.
-- [ ] Parsing happens entirely **on-device** via a Web Worker — no network egress (privacy E2E enforces).
-- [ ] Parser extracts these record types initially: HRV (HKQuantityTypeIdentifierHeartRateVariabilitySDNN), Resting HR (HKQuantityTypeIdentifierRestingHeartRate), Sleep Analysis (HKCategoryTypeIdentifierSleepAnalysis, aggregated into hours per night), Body Mass (HKQuantityTypeIdentifierBodyMass), Glucose (HKQuantityTypeIdentifierBloodGlucose).
-- [ ] Each day's import becomes / updates the `CheckIn` row for that day. Manual entries are NEVER overwritten — if the user already logged today's mood, it stays.
-- [ ] Progress page gains a new section "Continuous signals" with sparklines for HRV / RHR / sleep over the last 90 days when data exists.
-- [ ] Import is idempotent — re-running with the same file doesn't duplicate.
+- [ ] Settings exposes an **"Import Apple Health"** file input that accepts `.zip` and `.xml`. The privacy E2E asserts no new hostnames during the entire import.
+- [ ] Parsing runs in a `Worker` (`src/health/apple.worker.ts`); UI thread stays responsive (test: a click on the masthead nav during import is handled within 200ms).
+- [ ] Parser extracts these `HK*` record types: `HeartRateVariabilitySDNN`, `RestingHeartRate`, `SleepAnalysis` (aggregated per night into hours), `BodyMass`, `BloodGlucose`. Other record types are ignored without error.
+- [ ] After import, a results banner names exact counts: "Imported N days of HRV, M nights of sleep, K weights, L RHR readings, G glucose readings." Asserted against the synthetic fixture's known counts.
+- [ ] Each imported day updates / inserts a `CheckIn` row. If the user previously logged `signals.mood` or `signals.energy` for a given day, the import does NOT overwrite those fields — only sets the new continuous signals. Regression scenario in the spec.
+- [ ] Progress page gains a "Continuous signals" section with HRV / RHR / sleep sparklines over the last 90 days when any imported data exists; section is omitted entirely when no data.
+- [ ] Re-running the import with the same file is idempotent: counts banner shows the same numbers, no duplicate `CheckIn` rows (asserted via `recentCheckIns(90).length` before and after second import).
+- [ ] A malformed XML produces an `errorCard()` with a recoverable message; the app does not throw to console.
 - [ ] Privacy E2E still passes (allow-list unchanged).
-- [ ] Test in a new `tests/e2e/health-import.spec.ts` using a synthetic minimal export.xml fixture (10 days of data).
+- [ ] New `tests/e2e/health-import.spec.ts` covers happy path + idempotency + manual-entry-preservation + malformed-file using a synthetic 10-day `tests/fixtures/health-export.xml` checked into the repo.
+- [ ] All scenarios pass on chromium; mobile-webkit is in-scope (Apple users will run this on their phones).
 
 ## Out of scope
 

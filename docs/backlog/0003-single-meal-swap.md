@@ -1,7 +1,7 @@
 ---
 id: 0003
 title: Single-meal swap with constraint preservation
-status: proposed
+status: groomed
 priority: P1
 area: meals
 created: 2026-05-14
@@ -28,15 +28,16 @@ The swap UX is the single screenshot that demonstrates "this app actually thinks
 
 ## Acceptance criteria
 
-- [ ] In the meal-detail view (`/meals?day=YYYY-MM-DD`), each Meal has a **"Swap"** button.
-- [ ] Tapping Swap fires a new Anthropic call (a third generator: `generateMealSwap`) that returns ONE Meal honoring: eat list, avoid list, dietary pattern, household size, effort budget *of the original meal* (or looser, but not heavier).
-- [ ] The mock fixture exercises the swap path; CI verifies the path is hit and the response is parsed.
-- [ ] The new meal replaces the original in the persisted MealPlan; other days/meals are unchanged.
-- [ ] The grocery list is **recomputed automatically** from the new week (deletions of orphaned ingredients, additions for new ones).
-- [ ] Telemetry records the swap as its own kind (`swap`) — visible in Settings.
-- [ ] Cache stats: the swap call should show a high `cache_read` because the system prompt + eat/avoid + profile are reused; only the "this single meal" instruction is fresh.
-- [ ] Test in `tests/e2e/meals.spec.ts` covering tap → mock returns → meal replaced → grocery updated.
-- [ ] Privacy E2E still passes.
+- [ ] In the meal-detail view (`#/meals?day=YYYY-MM-DD`), each `Meal` card renders a **"Swap"** button distinct from the existing "Re-roll the week" action.
+- [ ] Tapping **Swap** fires exactly one `POST https://api.anthropic.com/v1/messages` and the mock can distinguish it from `plan` / `meals` / `extract` calls by sniffing the system-prompt sentinel `SWAP_VOICE`.
+- [ ] The mock fixture (`tests/fixtures/swap.json`) returns a single `Meal` JSON; the test asserts that the returned meal's `id` reuses the original meal's id (so its slot in `DayMeals.breakfast | lunch | dinner` is unambiguous).
+- [ ] After the response is parsed, `latestMealPlan()` returns a `MealPlan` where: (a) the swapped meal slot now holds the new title/description/ingredients, (b) every other `DayMeals` entry across all 7 days is byte-identical to before the swap.
+- [ ] The persisted `MealPlan.grocery` is recomputed: an ingredient that was unique to the swapped meal is removed from grocery; an ingredient unique to the new meal is added (assert against fixture-specific ingredient strings).
+- [ ] A new `CallRecord` row appears in Settings → Telemetry with `kind: "swap"`.
+- [ ] The swap call's recorded `cacheReadTokens` is greater than its `inputTokens` (proves the static prefix — `SWAP_VOICE` + eat/avoid + profile — is being read from cache). Assert via the telemetry surface, not the wire.
+- [ ] Tapping Swap with no network reachable surfaces the same `errorCard()` pattern the plan generator uses — no silent failure, original meal stays intact.
+- [ ] All scenarios above pass on both `chromium` and `mobile-webkit` Playwright projects.
+- [ ] Privacy E2E still passes (no new hostnames).
 
 ## Out of scope
 
@@ -46,12 +47,16 @@ The swap UX is the single screenshot that demonstrates "this app actually thinks
 
 ## Engineering notes
 
-- New method `ClaudeClient.generateMealSwap(plan, mealId, profile, panels, prevMealPlan)` in `src/claude.ts`.
-- New `SWAP_VOICE` system prompt that's a tight 1-meal variant of `MEAL_VOICE`.
-- Re-use `cache_control: ephemeral` blocks; only the volatile part changes (the single meal id + its slot).
-- Grocery rebuild: a function `recomputeGrocery(plan, meals)` that aggregates ingredients across all 7 days. Keep grouped sections by re-grouping with the same logic Claude used originally — or, simpler, just regenerate the grocery JSON via a tiny LLM call too. Choose whichever is cheaper.
-- New telemetry kind: extend `CallRecord["kind"]` to include `"swap"`.
-- `tests/fixtures/swap.json` — single Meal JSON.
+- `src/claude.ts` — add `ClaudeClient.generateMealSwap(plan, mealId, profile, panels, prevMealPlan)` returning a single `Meal`. Add a tight `SWAP_VOICE` system prompt (1-meal variant of `MEAL_VOICE`). Reuse `cache_control: ephemeral` on the static prefix (system + eat list + avoid list + dietary pattern + marker reference) so the only fresh input is the one meal being replaced and its constraints.
+- `src/telemetry.ts` — extend `CallRecord["kind"]` union to `"plan" | "meals" | "extract" | "swap"`. Settings already iterates `kind`, so the new row appears for free.
+- `src/pages/meals.ts` — in the day-detail view (`paint()` with `focusDay` set), each `Meal` card gains a Swap button. Handler awaits the swap, persists via `saveMealPlan` with the new days array and recomputed grocery, then re-renders via the imported `route()` (NOT `location.hash = ...`; that's the WebKit race ticket 0005 just closed). The Meal id is preserved so its slot is unambiguous.
+- Grocery rebuild: prefer the deterministic path — a new pure function `recomputeGrocery(days: DayMeals[]): GrocerySection[]` in a new `src/meals/grocery.ts` that aggregates ingredient lines, groups by simple category heuristics (Produce / Protein / Pantry / Dairy / Other), and keeps the original section ordering. Avoids a second LLM call and keeps the swap snappy.
+- `tests/helpers/mocks.ts` — sniff `SWAP_VOICE` in the system prompt and serve `tests/fixtures/swap.json`. Bump cache_read tokens in the fixture's `usage` to satisfy the cache-hit assertion.
+- `tests/fixtures/swap.json` — one `Meal` JSON matching the day-meal slot the test taps.
+- `tests/e2e/meals.spec.ts` — add the swap scenarios listed in acceptance criteria. Reuse `composePlan` and the existing `meals` fixture for setup.
+- Schema migration: **no** — `MealPlan` shape is unchanged.
+- Egress allow-list change: **no**.
+- New deps: **no**.
 
 ## Implementation log
 

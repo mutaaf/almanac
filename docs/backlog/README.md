@@ -55,15 +55,20 @@ owner: gtm-innovation
 ## Index (top of the stack, by priority)
 
 > Updated by `/groom`. This table is the truth about ordering; ignore filesystem ordering.
+> Sorted by status (in-progress > groomed > proposed > needs-discovery > shipped > rejected), then priority (P0 > P1 > P2 > P3), then id ascending.
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
-| 0002 | User-extensible marker database | P1 | groomed | labs |
-| 0003 | Single-meal swap with constraint preservation | P1 | proposed | meals |
+| 0003 | Single-meal swap with constraint preservation | P1 | groomed | meals |
+| 0006 | Per-marker "Why is this a problem?" expansion | P1 | groomed | plan |
+| 0007 | First plan from intake alone (no labs required) | P0 | proposed | onboarding |
+| 0008 | Weekly recap — "this week in your protocol" | P1 | proposed | today |
+| 0009 | Side-by-side draw comparison with shared-marker deltas | P1 | proposed | progress |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | proposed | infra |
-| 0005 | Mobile-WebKit timing hardening | P0 | groomed | infra |
-| 0006 | Per-marker "Why is this a problem?" expansion | P2 | proposed | plan |
+| 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | proposed | plan |
+| 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
+| 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
+| 0002 | User-extensible marker database | P1 | shipped | labs |
 
 ## Hand-off discipline
 
