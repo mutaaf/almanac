@@ -1,11 +1,20 @@
 // Local-first storage. All persistence lives here.
 
 import Dexie, { type Table } from "dexie";
-import type { Profile, Panel, Plan, MealPlan, CheckIn, Day } from "./types";
+import type { Profile, Panel, Plan, MealPlan, CheckIn, Day, MarkerDef } from "./types";
 
 export interface ExtractCacheEntry {
   hash: string;            // SHA-256 of the staged files (in order)
   result: unknown;         // ExtractionResult — typed at the call site
+  createdAt: number;
+}
+
+/**
+ * A user-defined marker. Same shape as the built-in seed (see `MarkerDef` in
+ * `types.ts`) plus a `createdAt` timestamp so we can list them in order.
+ * Stored in the `userMarkers` Dexie table (v5).
+ */
+export interface UserMarker extends MarkerDef {
   createdAt: number;
 }
 
@@ -16,6 +25,7 @@ class AlmanacDB extends Dexie {
   mealPlans!:     Table<MealPlan,          number>;
   checkins!:      Table<CheckIn,           number>;
   extractCache!:  Table<ExtractCacheEntry, string>;
+  userMarkers!:   Table<UserMarker,        string>;
 
   constructor() {
     super("almanac");
@@ -53,6 +63,20 @@ class AlmanacDB extends Dexie {
       mealPlans:    "++id, planId, weekStart, generatedAt",
       checkins:     "++id, &day, createdAt",
       extractCache: "hash, createdAt",
+    });
+
+    // v5 — adds the user-extensible marker table. Specialty panels (Lp-PLA2,
+    // ceruloplasmin, hs-troponin, etc.) that aren't in our curated seed can
+    // be defined by the user once and reused across panels. User entries
+    // win over seed entries when keys collide. Additive over v4.
+    this.version(5).stores({
+      profile:      "id",
+      panels:       "++id, drawnAt, createdAt",
+      plans:        "++id, generatedAt",
+      mealPlans:    "++id, planId, weekStart, generatedAt",
+      checkins:     "++id, &day, createdAt",
+      extractCache: "hash, createdAt",
+      userMarkers:  "&key, createdAt",
     });
   }
 }
@@ -194,22 +218,24 @@ export async function clearExtractCache(): Promise<void> {
 /* -------------------------------------------------------------------------- */
 
 export interface AlmanacExport {
-  version: 3;
+  version: 4;
   exportedAt: number;
   profile?: Profile;
   panels: Panel[];
   plans: Plan[];
   mealPlans: MealPlan[];
   checkins: CheckIn[];
+  userMarkers: UserMarker[];
 }
 
 export async function exportAll(): Promise<AlmanacExport> {
-  const [profile, panels, plans, mealPlans, checkins] = await Promise.all([
+  const [profile, panels, plans, mealPlans, checkins, userMarkers] = await Promise.all([
     getProfile(),
     db.panels.orderBy("drawnAt").toArray(),
     db.plans.orderBy("generatedAt").toArray(),
     db.mealPlans.orderBy("generatedAt").toArray(),
     db.checkins.orderBy("day").toArray(),
+    db.userMarkers.orderBy("createdAt").toArray(),
   ]);
   // Strip blobs from export by default — they balloon the file. Source PDFs
   // / images stay on this device; the JSON has every extracted result.
@@ -218,25 +244,35 @@ export async function exportAll(): Promise<AlmanacExport> {
     return rest;
   });
   return {
-    version: 3, exportedAt: Date.now(),
+    version: 4, exportedAt: Date.now(),
     ...(profile ? { profile } : {}),
-    panels: lean, plans, mealPlans, checkins,
+    panels: lean, plans, mealPlans, checkins, userMarkers,
   };
 }
 
 export async function importAll(data: AlmanacExport, mode: "replace" | "merge" = "merge"): Promise<void> {
-  if (data.version !== 3 && (data as any).version !== 2) {
-    throw new Error(`Unsupported export version: ${(data as any).version}`);
+  const v = (data as any).version;
+  if (v !== 4 && v !== 3 && v !== 2) {
+    throw new Error(`Unsupported export version: ${v}`);
   }
-  await db.transaction("rw", [db.profile, db.panels, db.plans, db.mealPlans, db.checkins], async () => {
+  await db.transaction("rw", [db.profile, db.panels, db.plans, db.mealPlans, db.checkins, db.userMarkers], async () => {
     if (mode === "replace") {
-      await Promise.all([db.panels.clear(), db.plans.clear(), db.mealPlans.clear(), db.checkins.clear()]);
+      await Promise.all([
+        db.panels.clear(), db.plans.clear(), db.mealPlans.clear(),
+        db.checkins.clear(), db.userMarkers.clear(),
+      ]);
     }
     if (data.profile) await db.profile.put(data.profile);
     if (data.panels?.length)    await db.panels.bulkAdd(data.panels.map(stripId));
     if (data.plans?.length)     await db.plans.bulkAdd(data.plans.map(stripId));
     if (data.mealPlans?.length) await db.mealPlans.bulkAdd(data.mealPlans.map(stripId));
     if (data.checkins?.length)  await db.checkins.bulkAdd(data.checkins.map(stripId));
+    // v3 exports don't carry userMarkers; defend against that branch.
+    if (Array.isArray(data.userMarkers) && data.userMarkers.length) {
+      // bulkPut: on key collision, the imported row wins (matches "user wins"
+      // semantics elsewhere). Doesn't need stripId — the key IS the id.
+      await db.userMarkers.bulkPut(data.userMarkers);
+    }
   });
 }
 
@@ -245,10 +281,10 @@ function stripId<T extends { id?: number }>(row: T): Omit<T, "id"> {
 }
 
 export async function wipeAll(): Promise<void> {
-  await db.transaction("rw", [db.profile, db.panels, db.plans, db.mealPlans, db.checkins], async () => {
+  await db.transaction("rw", [db.profile, db.panels, db.plans, db.mealPlans, db.checkins, db.userMarkers], async () => {
     await Promise.all([
       db.profile.clear(), db.panels.clear(), db.plans.clear(),
-      db.mealPlans.clear(), db.checkins.clear(),
+      db.mealPlans.clear(), db.checkins.clear(), db.userMarkers.clear(),
     ]);
   });
 }

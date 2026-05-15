@@ -1,0 +1,15 @@
+{
+  "panels": [
+    {
+      "drawnAt": "2026-05-02",
+      "labName": "Specialty Lab",
+      "results": [
+        { "rawName": "Hemoglobin",        "value": 14.8, "unit": "g/dL",   "labRange": { "low": 13.5, "high": 17.5 } },
+        { "rawName": "Cholesterol, Total","value": 244,  "unit": "mg/dL",  "labRange": { "high": 200 } },
+        { "rawName": "Triglycerides",     "value": 165,  "unit": "mg/dL",  "labRange": { "high": 150 } },
+        { "rawName": "Lp-PLA2 Activity",  "value": 220,  "unit": "nmol/min/mL", "labRange": { "high": 225 } },
+        { "rawName": "Ceruloplasmin",     "value": 12,   "unit": "mg/dL",  "labRange": { "low": 20, "high": 60 } }
+      ]
+    }
+  ]
+}

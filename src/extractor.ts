@@ -8,8 +8,9 @@
 // api.anthropic.com via BYOK.
 
 import Anthropic from "@anthropic-ai/sdk";
-import type { Profile, Result, Panel } from "./types";
+import type { Profile, Result, Panel, MarkerDef } from "./types";
 import { matchMarker, flagFor, findMarker } from "./data/markers";
+import { listUserMarkers } from "./data/userMarkers";
 import { recordCall } from "./telemetry";
 import { getCachedExtraction, cacheExtraction } from "./db";
 
@@ -236,8 +237,13 @@ export async function extractFromFiles(files: File[], profile: Profile): Promise
 
 /**
  * Reconcile extraction rows against the marker DB and produce Result[].
+ *
+ * `extras` lets a caller pass user-defined markers into the match scoring so
+ * specialty rows (Lp-PLA2, ceruloplasmin, …) the user has already defined
+ * fold into results automatically on future panels instead of going through
+ * the unrecognized-row UI a second time.
  */
-export function reconcile(rows: ExtractedRow[], profile: Profile): {
+export function reconcile(rows: ExtractedRow[], profile: Profile, extras: MarkerDef[] = []): {
   results: Result[];
   unmatched: ExtractedRow[];
 } {
@@ -245,7 +251,7 @@ export function reconcile(rows: ExtractedRow[], profile: Profile): {
   const unmatched: ExtractedRow[] = [];
 
   for (const row of rows) {
-    const marker = matchMarker(row.rawName, profile.sex);
+    const marker = matchMarker(row.rawName, profile.sex, extras);
     if (!marker) { unmatched.push(row); continue; }
 
     let value = row.value;
@@ -307,9 +313,13 @@ export async function panelsFromFiles(files: File[], profile: Profile): Promise<
   });
   const latestIdx = sorted.length - 1;
 
+  // Fold any user-defined markers into the match scoring — once a user has
+  // defined Lp-PLA2 the next panel that mentions it should auto-match.
+  const extras = await listUserMarkers();
+
   const allUnmatched: ExtractedRow[] = [];
   const panels: Omit<Panel, "id" | "createdAt">[] = sorted.map((ep, i) => {
-    const { results, unmatched } = reconcile(ep.rows, profile);
+    const { results, unmatched } = reconcile(ep.rows, profile, extras);
     allUnmatched.push(...unmatched);
     // Best-effort attribution: the latest panel gets the file names list;
     // older split panels list none. (Per ticket engineering notes: if we

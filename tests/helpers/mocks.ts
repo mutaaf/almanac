@@ -131,7 +131,9 @@ export async function installMocks(page: Page): Promise<MockStats> {
           ?.join("\n") ?? "";
         const fixture = /multi-date/i.test(userText)
           ? "extraction-multi-date.json"
-          : "extraction.json";
+          : /with-unrecognized/i.test(userText)
+            ? "extraction-with-unrecognized.json"
+            : "extraction.json";
         await route.fulfill({
           status: 200,
           contentType: "application/json",
