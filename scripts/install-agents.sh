@@ -1,20 +1,29 @@
 #!/bin/bash
 # One-time installer for the local launchd agents.
 #
-# Generates two .plist files in ~/Library/LaunchAgents/ pointing at the
-# scripts in this repo, then loads them. Idempotent — re-run to refresh
-# after editing the scripts (it will re-load).
+# macOS TCC (Privacy controls) refuses to let launchd-launched processes
+# execute scripts under ~/Desktop, ~/Documents, ~/Downloads, etc. — they
+# need explicit Full Disk Access to bash, which is more friction than
+# we want. So we COPY the scripts to a TCC-safe location and point
+# launchd there. The repo remains the source of truth; re-run this
+# installer after editing the scripts in scripts/ to refresh.
 
 set -euo pipefail
 
 REPO_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
-SHIP_SCRIPT="$REPO_ROOT/scripts/agent-ship.sh"
-GROOM_SCRIPT="$REPO_ROOT/scripts/agent-groom.sh"
+INSTALL_DIR="$HOME/.local/share/almanac-agent/bin"
 LOG_DIR="$HOME/.cache/almanac-agent/logs"
 AGENTS_DIR="$HOME/Library/LaunchAgents"
 
-mkdir -p "$LOG_DIR" "$AGENTS_DIR"
-chmod +x "$SHIP_SCRIPT" "$GROOM_SCRIPT"
+mkdir -p "$INSTALL_DIR" "$LOG_DIR" "$AGENTS_DIR"
+
+# Copy the runner scripts to the TCC-safe install dir. /bin/cp -f overwrites.
+/bin/cp -f "$REPO_ROOT/scripts/agent-ship.sh"  "$INSTALL_DIR/agent-ship.sh"
+/bin/cp -f "$REPO_ROOT/scripts/agent-groom.sh" "$INSTALL_DIR/agent-groom.sh"
+chmod +x "$INSTALL_DIR/agent-ship.sh" "$INSTALL_DIR/agent-groom.sh"
+
+SHIP_SCRIPT="$INSTALL_DIR/agent-ship.sh"
+GROOM_SCRIPT="$INSTALL_DIR/agent-groom.sh"
 
 # --- ship (every hour at minute :41 local time) ----------------------------
 SHIP_PLIST="$AGENTS_DIR/com.almanac.agent-ship.plist"
@@ -88,17 +97,17 @@ launchctl bootout "$DOMAIN/com.almanac.agent-groom" 2>/dev/null || true
 launchctl bootstrap "$DOMAIN" "$SHIP_PLIST"
 launchctl bootstrap "$DOMAIN" "$GROOM_PLIST"
 
-# Set a sane nice level so the agents don't fight foreground work.
 launchctl enable "$DOMAIN/com.almanac.agent-ship"
 launchctl enable "$DOMAIN/com.almanac.agent-groom"
 
 echo
-echo "✓ installed two launchd agents:"
+echo "✓ installed launchd agents:"
 echo "    com.almanac.agent-ship   — every hour at :41 local"
 echo "    com.almanac.agent-groom  — every 6h at :17 local (00:17 / 06:17 / 12:17 / 18:17)"
 echo
-echo "Logs:        $LOG_DIR/"
-echo "Run now:     launchctl kickstart -k $DOMAIN/com.almanac.agent-ship"
-echo "             launchctl kickstart -k $DOMAIN/com.almanac.agent-groom"
-echo "Uninstall:   bash $REPO_ROOT/scripts/uninstall-agents.sh"
-echo "Status:      launchctl print $DOMAIN/com.almanac.agent-ship"
+echo "Scripts installed at: $INSTALL_DIR  (TCC-safe; not under ~/Desktop)"
+echo "Logs:                 $LOG_DIR/"
+echo "Run now:              launchctl kickstart -k $DOMAIN/com.almanac.agent-ship"
+echo "                      launchctl kickstart -k $DOMAIN/com.almanac.agent-groom"
+echo "Uninstall:            bash $REPO_ROOT/scripts/uninstall-agents.sh"
+echo "Status:               launchctl print $DOMAIN/com.almanac.agent-ship"
