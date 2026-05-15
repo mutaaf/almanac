@@ -1,7 +1,7 @@
 ---
 id: 0002
 title: User-extensible marker database
-status: groomed
+status: in-progress
 priority: P1
 area: labs
 created: 2026-05-14
@@ -56,4 +56,11 @@ This is the feature that lets specialty-medicine users (Wild Health, Function He
 
 ## Implementation log
 
-(empty — pick up via `/ship 0002`)
+- 2026-05-15 — Picked up via `/ship 0002`. Branched `feat/0002-user-extensible-markers`. Plan:
+  schema v5 adds `userMarkers` table (additive); `src/data/userMarkers.ts` exposes
+  `listUserMarkers`/`addUserMarker`/`deleteUserMarker`/`getAllMarkers`; matchers in
+  `src/data/markers.ts` accept an optional `extras` and prepend (user wins). Labs panel
+  detail grows a "Define this marker" affordance per unrecognized group that immediately
+  binds matching rows on save. Settings gains a "Your markers" subsection. Export bumps
+  to v4 and includes `userMarkers`. Plan + Meal generators await `getAllMarkers()` before
+  composing the Marker Reference block.
