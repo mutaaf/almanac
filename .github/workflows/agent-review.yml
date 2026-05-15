@@ -1,0 +1,112 @@
+name: Agent review
+
+# Runs the Review agent against PRs from feat/* and chore/gtm-* branches.
+# Posts an approve or request-changes review. Pairs with auto-merge (enabled
+# at the repo level + invoked by the Dev agent when it opens the PR).
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+# Don't review PRs from forks (we don't trust their secrets) and skip
+# Dependabot or other bot PRs.
+jobs:
+  review:
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      (startsWith(github.head_ref, 'feat/') || startsWith(github.head_ref, 'chore/gtm-'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Check out the PR head, not the merge ref, so the agent reads the
+          # actual code the author committed.
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Gather PR context
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p /tmp/review
+          gh pr view ${{ github.event.pull_request.number }} \
+            --json title,body,headRefName,baseRefName,additions,deletions,changedFiles,files,labels,author \
+            > /tmp/review/meta.json
+          gh pr diff ${{ github.event.pull_request.number }} > /tmp/review/diff.patch
+
+          echo "PR: #${{ github.event.pull_request.number }} on branch ${{ github.head_ref }}"
+          echo "Diff size: $(wc -l < /tmp/review/diff.patch) lines"
+
+      - name: Run review agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BRANCH: ${{ github.head_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          claude --print --dangerously-skip-permissions <<PROMPT
+          You are the autonomous Review subagent for the Almanac repo.
+
+          The PR is #$PR_NUMBER on branch $PR_BRANCH. You have:
+            - The repo checked out at the PR head
+            - /tmp/review/meta.json (PR metadata as JSON)
+            - /tmp/review/diff.patch (the PR diff)
+            - gh CLI authenticated as github-actions[bot]
+
+          Read these files first, in order:
+            1. AGENTS.md (the contract)
+            2. /tmp/review/meta.json (PR title, body, files)
+            3. /tmp/review/diff.patch (the actual changes)
+            4. docs/backlog/README.md
+            5. The specific ticket referenced in the PR body — typically
+               "Implements: docs/backlog/NNNN-..." or matched from the branch
+               name. If you can't find one, request changes and stop.
+
+          Then grade the PR against AGENTS.md compliance + ticket-fit +
+          test-first discipline + code quality, per the system prompt
+          conventions in .claude/agents/review.md.
+
+          Deliver your verdict by calling gh pr review:
+            - Approve:          gh pr review \$PR_NUMBER --approve --body "..."
+            - Request changes:  gh pr review \$PR_NUMBER --request-changes --body "..."
+
+          The Dev agent already enabled auto-merge on this PR when it opened.
+          Do NOT call gh pr merge yourself. GitHub merges automatically once
+          your approval + CI green are both in place.
+
+          For any line-anchored issues, use the GitHub Reviews API to add
+          inline comments alongside the verdict body.
+
+          End your session immediately after the gh pr review call. Do not
+          add labels, do not comment outside the review.
+          PROMPT
+
+      - name: Surface review outcome
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh pr view ${{ github.event.pull_request.number }} \
+            --json reviewDecision,reviews \
+            --jq '{
+              decision: .reviewDecision,
+              latest_review: (.reviews | last | {author: .author.login, state: .state, submitted: .submittedAt})
+            }'
