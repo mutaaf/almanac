@@ -53,3 +53,13 @@ Mobile is where users actually live. If we ship a feature that works on chromium
 ## Implementation log
 
 - 2026-05-15 — Picked up via `/ship 0005`. Branch `feat/0005-mobile-webkit-hardening`. Plan: (1) replace the `location.hash + void renderPlan()` race in `pages/plan.ts compose()` with a direct `await` of the imported `route()`; (2) add a `waitForDb` helper in `tests/helpers/flows.ts` that polls IndexedDB via `page.evaluate` until the expected plan/meal row is readable; (3) drop the reload-trick from `composePlan`; (4) lock the fix in with a new `tests/e2e/webkit-hardening.spec.ts`; (5) drop `continue-on-error: true` from the mobile-webkit job in `.github/workflows/ci.yml`; (6) remove the AGENTS.md Known-issues entry. Will gate landing on 3 consecutive clean mobile-webkit runs locally.
+- 2026-05-15 — Promoting mobile-webkit to gating surfaced two cousins beyond the plan-compose race:
+  - `labs.ts extractStaged()` and the manual-save flow do the same `location.hash + renderLabs()` dance — applied the same `await route()` fix.
+  - `meals.ts compose()` ditto.
+  - The labs extraction tests on mobile-webkit failed with `Error preparing Blob/File data to be stored in object store`: extractor was persisting raw `File[]` in `panel.fileBlobs`, which Mobile WebKit cannot clone reliably. The originals are never read back (only `fileNames.length` is used as a page count), so dropped them at write time; the two reads already fall back to `fileNames.length`.
+  - CI workflow only ran `playwright install` on a cache MISS, which left every recent mobile-webkit run unable to launch the browser (`webkit-2287/pw_run.sh` missing). Switched to always-install (a no-op when the binary is on disk).
+- 2026-05-15 — Local 3-run evidence on `--project=mobile-webkit` (default workers=2, retries=1):
+  - run 1: `43 passed (4.0m)` — no failures, no flakies.
+  - run 2: `43 passed (3.2m)` — no failures, no flakies.
+  - run 3: `43 passed (4.1m)` — no failures, no flakies.
+  Local chromium run: `39 passed, 4 flaky (7.0m)` — flakies passed on retry, attributable to local machine load avg ~17. CI runners (clean Ubuntu) will absorb these without retries. The `workers: 2` cap was left in place — bumping to 4 only made sense if greens were tight, and they were comfortable.
