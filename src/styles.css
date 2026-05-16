@@ -1812,6 +1812,187 @@ body {
   .trend__flag   { grid-area: flag; justify-self: end; }
 }
 
+/* ---- compare two draws (ticket 0009) ----------------------------------- */
+.compare-picker {
+  margin-top: 1.6rem;
+  padding: 1rem 1.2rem 1.2rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+}
+.compare-picker__lede {
+  font-family: var(--display);
+  font-size: 1.02rem;
+  color: var(--ink-soft);
+  margin: 0.3rem 0 0.9rem;
+  max-width: 62ch;
+}
+.compare-picker__form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.9rem;
+  align-items: end;
+}
+.compare-picker__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.compare-picker__label {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.compare-picker__field select {
+  font-family: var(--body);
+  font-size: 0.92rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+}
+.compare-picker__field select:focus {
+  border-color: var(--ink);
+}
+@media (max-width: 720px) {
+  .compare-picker__form {
+    grid-template-columns: 1fr;
+  }
+  .compare-picker__form .btn { justify-self: start; }
+}
+
+.compare-swap-notice {
+  margin-top: 0.9rem;
+  padding: 0.6rem 0.9rem;
+  border-left: 3px solid var(--rule);
+  background: var(--paper-deep);
+  font-family: var(--body);
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+}
+
+.compare-summary {
+  margin-top: 1.2rem;
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  color: var(--ink);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.7rem;
+  align-items: baseline;
+}
+.compare-summary__dates {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 1.05rem;
+}
+.compare-summary__sep { color: var(--ink-faint); }
+.compare-summary__count, .compare-summary__tally {
+  color: var(--ink-soft);
+}
+
+.compare-empty {
+  margin-top: 2rem;
+  padding: 1.4rem 1.2rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+  max-width: 62ch;
+}
+.compare-empty .lede { margin-top: 0; }
+
+.compare-list { display: flex; flex-direction: column; gap: 1rem; }
+.compare-row {
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+  padding: 0.95rem 1.1rem;
+}
+.compare-row__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.9rem;
+  margin-bottom: 0.55rem;
+}
+.compare-row__name {
+  font-family: var(--display);
+  font-size: 1.18rem;
+  color: var(--ink);
+  flex: 1 1 50%;
+  min-width: 0;
+}
+.compare-row__badge {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+}
+.compare-row__badge--improved  { color: var(--ink); }
+.compare-row__badge--regressed { color: var(--oxblood); }
+
+.compare-row__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 0.7rem 1rem;
+  padding: 0.3rem 0;
+}
+.compare-row__cell { min-width: 0; }
+.compare-row__cell-label {
+  font-family: var(--body);
+  font-size: 0.6rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.compare-row__cell-value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+.compare-row__num {
+  font-family: var(--mono);
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+.compare-row__unit { font-size: 0.74rem; color: var(--ink-faint); }
+.compare-row__pct  { font-family: var(--mono); font-size: 0.82rem; color: var(--ink-soft); }
+.compare-row__arrow {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  color: var(--ink-faint);
+}
+.compare-row__arrow--up   { color: var(--oxblood); }
+.compare-row__arrow--down { color: #2F4A2E; }
+
+.compare-row__therm {
+  margin-top: 0.6rem;
+  display: grid;
+  grid-template-columns: 4.5rem 1fr;
+  row-gap: 0.2rem;
+  column-gap: 0.6rem;
+  align-items: center;
+}
+.compare-row__therm-label {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.compare-row__therm .therm { width: 100%; }
+
+@media (max-width: 720px) {
+  .compare-row__grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .compare-row__cell--delta { grid-column: 1 / -1; }
+}
+
 /* =============================================================================
    FOOD — eat list, avoid list, meals, grocery
    ============================================================================= */

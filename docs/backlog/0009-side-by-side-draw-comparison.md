@@ -1,7 +1,7 @@
 ---
 id: 0009
 title: Side-by-side draw comparison with shared-marker deltas
-status: proposed
+status: in-progress
 priority: P1
 area: progress
 created: 2026-05-15
@@ -62,4 +62,8 @@ This is the artifact our highest-LTV cohort (specialty-medicine users, the cohor
 
 ## Implementation log
 
-(empty — pick up via `/ship 0009`)
+- 2026-05-16 — implementation-dev agent picked up via `/ship 0009`. Branch
+  `feat/0009-compare-draws`. Writing the Playwright spec first against the
+  picker → compare flow, intersection logic, cross-boundary badges, the
+  empty-intersection state, the user-defined-marker case, and the
+  no-Anthropic-egress invariant.
