@@ -1,7 +1,7 @@
 ---
 id: 0003
 title: Single-meal swap with constraint preservation
-status: in-progress
+status: shipped
 priority: P1
 area: meals
 created: 2026-05-14
@@ -61,3 +61,17 @@ The swap UX is the single screenshot that demonstrates "this app actually thinks
 ## Implementation log
 
 - 2026-05-15 — picked up by implementation-dev agent. Branch `feat/0003-single-meal-swap` open. Approach matches engineering notes: tight `SWAP_VOICE` reusing the cached static prefix, deterministic `recomputeGrocery()`, `route()` re-render after persist. No schema migration, no egress widening, no new deps.
+- 2026-05-15 — shipped via PR #7 ([https://github.com/mutaaf/almanac/pull/7](https://github.com/mutaaf/almanac/pull/7)). CI green (typecheck + build, chromium, mobile-webkit). Commits:
+  - `770cb7d` chore(backlog): mark 0003 in-progress
+  - `e391a4c` feat(meals): swap one meal without re-rolling the week
+  Files touched:
+  - `src/claude.ts` — `SWAP_VOICE` prompt, `GenerateMealSwapInput`, `ClaudeClient.generateMealSwap()`, `locateMeal()` helper. Re-uses `cache_control: ephemeral` on the static prefix (system + profile + marker reference + eat/avoid) so the swap is mostly output tokens once the week generation has primed the cache.
+  - `src/meals/grocery.ts` (new) — pure `recomputeGrocery(days: DayMeals[]): GrocerySection[]` aggregator with small string-based section heuristics (Produce / Protein / Pantry / Dairy / Other).
+  - `src/pages/meals.ts` — Swap button rendered per `mealDetail` card with `data-action="swap"` + `data-meal-id`; `swapMeal()` handler that splices the replacement, recomputes the grocery, persists via `saveMealPlan`, and re-renders via the imported `route()`.
+  - `src/telemetry.ts` — extends `CallRecord["kind"]` union to include `"swap"`.
+  - `src/styles.css` — `.meal-detail__actions` / `.meal-detail__swap` styling, matching the editorial almanac look.
+  - `tests/helpers/mocks.ts` — sniffs `SWAP_VOICE` (BEFORE the meals branch since SWAP_VOICE includes meal-plan-shaped phrasing) and serves the swap fixture with `cacheRead = 3200` so the cache-hit-greater-than-input assertion is meaningful.
+  - `tests/fixtures/swap.json` — single Meal JSON reusing id `d0-d`, unique ingredient `fresh dill` introduced, original-only ingredient `1 bunch Swiss chard` dropped.
+  - `tests/e2e/meals.spec.ts` — new `describe("Meals · swap a single meal")` block with 5 scenarios mapping 1:1 to the acceptance criteria above. Includes a local-date `todayIso()` helper that matches `src/db.ts today()` (UTC vs local matters near the UTC midnight boundary).
+  Test scenarios added: (1) day-detail dinner card exposes a Swap button distinct from re-roll; (2) swap fires a single SWAP_VOICE call, preserves the meal id, replaces only that slot, other 6 days byte-identical; (3) grocery rebuild — unique-to-original removed, unique-to-new added; (4) telemetry records a swap CallRecord with cacheReadTokens > inputTokens; (5) network failure surfaces errorCard() and leaves the original meal intact.
+  No schema migration. No egress allow-list change. No new dependencies.
