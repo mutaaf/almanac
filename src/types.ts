@@ -236,9 +236,59 @@ export interface CheckIn {
   day: Day;
   habitsCompleted: string[];
   mealsAte?: string[];               // ids of meals from today's plan that were eaten
-  signals?: { sleepHours?: number; mood?: 1|2|3|4|5; energy?: 1|2|3|4|5 };
+  /**
+   * Per-day signals. The manual fields (`sleepHours`, `mood`, `energy`) are
+   * populated by the Today screen and are NEVER overwritten by the Apple
+   * Health import — manual entry wins forever.
+   *
+   * The continuous fields (`hrvMs`, `rhrBpm`, `weightKg`, `glucoseMgDl`) are
+   * populated by the Apple Health import (ticket 0004). `sleepHours` is the
+   * only field both surfaces can write: manual entry wins if present;
+   * otherwise the import fills it from the aggregated nightly asleep total.
+   */
+  signals?: {
+    sleepHours?: number;
+    mood?: 1|2|3|4|5;
+    energy?: 1|2|3|4|5;
+    /** Heart-rate variability (SDNN), milliseconds. From Apple Health import. */
+    hrvMs?: number;
+    /** Resting heart rate, bpm. From Apple Health import. */
+    rhrBpm?: number;
+    /** Body mass, kilograms. From Apple Health import. */
+    weightKg?: number;
+    /** Blood glucose readings for the day, mg/dL. From Apple Health import. */
+    glucoseMgDl?: number[];
+  };
   note?: string;
   createdAt: number;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Continuous signals (ticket 0004 — Apple Health import)                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One day's worth of continuous-signal data parsed out of an Apple Health
+ * export. The Apple Health import collapses HK record streams into one row
+ * per local day and then merges those rows into the per-day `CheckIn.signals`
+ * structure — this type is the intermediate the worker returns.
+ *
+ * All numeric fields are optional because Apple Health exports are sparse:
+ * a user might wear an Apple Watch but never step on a connected scale, or
+ * wear a Dexcom but no watch.
+ */
+export interface ContinuousSignal {
+  day: Day;
+  /** Heart-rate variability (SDNN), milliseconds. Averaged across the day. */
+  hrvMs?: number;
+  /** Resting heart rate, bpm. Averaged across the day. */
+  rhrBpm?: number;
+  /** Total nightly asleep time in hours, attributed to the wake-up day. */
+  sleepHours?: number;
+  /** Body mass, kilograms. Latest reading of the day. */
+  weightKg?: number;
+  /** All blood-glucose readings for the day, mg/dL, in time order. */
+  glucoseMgDl?: number[];
 }
 
 /* -------------------------------------------------------------------------- */

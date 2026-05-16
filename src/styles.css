@@ -1812,6 +1812,71 @@ body {
   .trend__flag   { grid-area: flag; justify-self: end; }
 }
 
+/* ---- continuous signals (ticket 0004 — Apple Health import) ------------ */
+.continuous-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 0.6rem;
+}
+.continuous-signal {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.35rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+}
+.continuous-signal__label {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.continuous-signal__chart svg { display: block; width: 100%; }
+.continuous-signal__chart--empty {
+  height: 36px;
+  display: grid;
+  place-items: center;
+  font-family: var(--body);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+.continuous-signal__latest {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-top: 0.2rem;
+}
+.continuous-signal__value {
+  font-family: var(--display);
+  font-size: 1.6rem;
+  color: var(--ink);
+}
+.continuous-signal__unit {
+  font-family: var(--body);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.06em;
+}
+.continuous-signal__avg {
+  font-family: var(--body);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+/* ---- Apple Health import banner (Settings) ----------------------------- */
+.health-banner {
+  border-left: 3px solid var(--oxblood);
+  padding: 0.6rem 0.9rem;
+  background: var(--paper-deep);
+  font-family: var(--display);
+  font-size: 1.05rem;
+  color: var(--ink);
+  max-width: 64ch;
+}
+
 /* ---- compare two draws (ticket 0009) ----------------------------------- */
 .compare-picker {
   margin-top: 1.6rem;
