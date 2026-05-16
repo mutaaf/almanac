@@ -15,6 +15,7 @@ import { renderPlan }       from "./pages/plan";
 import { renderMeals }      from "./pages/meals";
 import { renderLabs }       from "./pages/labs";
 import { renderProgress }   from "./pages/progress";
+import { renderRecap }      from "./pages/recap";
 import { renderSettings }   from "./pages/settings";
 
 export async function route(): Promise<void> {
@@ -42,6 +43,7 @@ export async function route(): Promise<void> {
     case "#/plan":       return renderPlan();
     case "#/meals":      return renderMeals();
     case "#/progress":   return renderProgress();
+    case "#/recap":      return renderRecap();
     case "#/settings":   return renderSettings();
     case "#/today":
     default:             return renderToday();

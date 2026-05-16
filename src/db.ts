@@ -111,6 +111,41 @@ export function addDays(day: Day, n: number): Day {
   return iso(d);
 }
 
+/**
+ * ISO 8601 week label: "YYYY-Www". Weeks run Monday → Sunday and the week
+ * that contains the year's first Thursday is week 01. We use this label as
+ * the localStorage key for the weekly recap's dismissal flag, so two
+ * sessions on the same calendar week land on the same key regardless of
+ * locale or time-of-day.
+ *
+ * The math is the canonical algorithm: pivot to the nearest Thursday, then
+ * the week number is the round-trip distance from Jan 4 (which is always
+ * in week 1).
+ */
+export function isoWeek(d: Date): string {
+  // Copy to UTC midnight so DST shifts in the source don't move the date.
+  const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = target.getUTCDay() || 7;                  // Sun = 7
+  target.setUTCDate(target.getUTCDate() + 4 - dayNum);     // nearest Thursday
+  const yearStart = new Date(Date.UTC(target.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil((((target.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${target.getUTCFullYear()}-W${String(weekNo).padStart(2, "0")}`;
+}
+
+/**
+ * The Monday → Sunday Day window enclosing `d` (inclusive on both ends).
+ * Returns `[mondayIso, sundayIso]`. Pure; no DB dependency. The weekly recap
+ * uses this to slice `recentCheckIns` into "this week" vs "last week".
+ */
+export function weekRange(d: Date): [Day, Day] {
+  // Day-of-week with Monday = 0 ... Sunday = 6.
+  const local = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const dow = (local.getDay() + 6) % 7;
+  const mon = new Date(local); mon.setDate(local.getDate() - dow);
+  const sun = new Date(mon);   sun.setDate(mon.getDate() + 6);
+  return [iso(mon), iso(sun)];
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Profile                                                                   */
 /* -------------------------------------------------------------------------- */

@@ -240,3 +240,70 @@ export interface CheckIn {
   note?: string;
   createdAt: number;
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Weekly recap (ticket 0008)                                                */
+/* -------------------------------------------------------------------------- */
+/*
+ * Computed read-only summary of one ISO week. Nothing here is persisted;
+ * `computeRecap()` builds a fresh `RecapSummary` from the current Plan +
+ * MealPlan + checkins on every render. The recap page is deterministic and
+ * runs without a single Anthropic call.
+ */
+
+export interface RecapSummary {
+  /** ISO 8601 week label, e.g. "2026-W19". Used as the dismissal key. */
+  isoWeek: string;
+  /** Inclusive [mondayIso, sundayIso] for the recapped week. */
+  range: [Day, Day];
+  /** Total check-in rows that fell inside `range`. Used by empty-state gating. */
+  checkInCount: number;
+  /** True when `checkInCount < 3` — the renderer shows the empty card and skips data sections. */
+  isEmpty: boolean;
+
+  /** Days in the week with at least one habit logged (0..7). */
+  daysWithHabit: number;
+  /** Days in the week with no check-in row at all (0..7). */
+  daysWithoutCheckIn: number;
+
+  /** One row per habit in the active plan. Always present (may be empty list). */
+  adherence: RecapAdherenceRow[];
+
+  /** Meals counted vs total planned. Undefined when no meal plan covered the week. */
+  meals?: { ate: number; planned: number };
+
+  /** Sleep / mood / energy averages + week-over-week deltas. Undefined when no signals were logged. */
+  signals?: RecapSignals;
+
+  /** Largest absolute signal mover, if any. The renderer phrases the editorial line from this. */
+  mover?: RecapMover;
+
+  /** "The thing to try next week" — a single editorial sentence, no LLM. */
+  suggestion?: string;
+}
+
+export interface RecapAdherenceRow {
+  habitId: string;
+  /** Human-readable habit title — taken from the plan's habit stack. */
+  title: string;
+  /** Days in the week where this habit appears in CheckIn.habitsCompleted. */
+  hit: number;
+  /** Always 7 — surfaced so the renderer can read "{hit} of {of}". */
+  of: 7;
+}
+
+export interface RecapSignals {
+  sleepHoursAvg?: number;    // hours
+  moodAvg?: number;          // 1..5
+  energyAvg?: number;        // 1..5
+  /** Deltas: thisWeekAvg - lastWeekAvg. Undefined when last week had no data. */
+  sleepHoursDelta?: number;
+  moodDelta?: number;
+  energyDelta?: number;
+}
+
+export interface RecapMover {
+  kind: "sleep" | "mood" | "energy";
+  delta: number;             // signed; same units as the signal it refers to
+  direction: "up" | "down";  // sign of `delta`
+}
