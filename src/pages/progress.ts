@@ -1,11 +1,20 @@
 // Progress — for any marker that appears in 2+ panels, show a small inline
 // trend (sparkline) plus latest value, delta, and flag.
+//
+// The page also hosts the "Compare two draws" picker at its top (ticket 0009).
+// When `?compare=A,B` is present in the URL, the page swaps in the side-by-side
+// comparison render path — the picker and trends step aside so the comparison
+// is the only thing on screen.
 
 import { mount, h, esc } from "../ui";
 import { masthead, foot } from "../chrome";
-import { getProfile, allPanels } from "../db";
+import { getProfile, allPanels, getPanel } from "../db";
 import { findMarker } from "../data/markers";
-import type { Panel, Result } from "../types";
+import { getAllMarkers } from "../data/userMarkers";
+import { thermometer } from "../viz";
+import { route } from "../main";
+import { computeComparison, type ComparisonRow } from "../progress/compare";
+import type { MarkerDef, Panel, Result } from "../types";
 
 interface Series {
   markerKey: string;
@@ -15,6 +24,19 @@ interface Series {
 export async function renderProgress(): Promise<void> {
   const profile = await getProfile();
   if (!profile) { location.hash = "#/onboarding"; return; }
+
+  // Branch on the compare param BEFORE rendering the trend page — the compare
+  // view is self-contained and re-uses neither the picker nor the trends.
+  const params = new URLSearchParams(location.hash.split("?")[1] ?? "");
+  const cmp = params.get("compare");
+  if (cmp) {
+    const [aStr, bStr] = cmp.split(",");
+    const aId = Number(aStr); const bId = Number(bStr);
+    if (Number.isFinite(aId) && Number.isFinite(bId)) {
+      return renderCompare(aId, bId);
+    }
+  }
+
   const masth = await masthead("#/progress");
   const panels = await allPanels();
 
@@ -74,6 +96,11 @@ export async function renderProgress(): Promise<void> {
     </section>
   `;
 
+  // The picker is meaningful only when there are 2+ panels on file. When
+  // we have one or zero, the empty / single-panel guidance below covers it
+  // and adding empty selects would be confusing.
+  const pickerHtml = panels.length >= 2 ? renderPicker(panels) : "";
+
   const frag = h(`
     <div class="reveal">
       ${masth}
@@ -82,6 +109,7 @@ export async function renderProgress(): Promise<void> {
         <h1 class="headline" style="margin-top: 0.4rem;">
           What is <em>moving</em>.
         </h1>
+        ${pickerHtml}
         ${panels.length === 0
           ? `<div class="quiet">No labs yet. <a href="#/labs">Add a panel</a>.</div>`
           : panels.length === 1
@@ -93,7 +121,253 @@ export async function renderProgress(): Promise<void> {
   `);
 
   mount(frag);
+  wirePicker();
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Compare two draws (ticket 0009)                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The inline picker shown above the trends. Two selects (earlier / later)
+ * populated from the panel list newest-first, plus a Compare button that
+ * builds the `?compare=earlierId,laterId` URL and re-renders via `route()`.
+ *
+ * No slideover — keep the affordance self-contained, the way the ticket
+ * called it out.
+ */
+function renderPicker(panels: Panel[]): string {
+  // panels arrives newest-first from allPanels(); use that order in the UI.
+  const options = panels.map(p => {
+    const label = `${p.drawnAt}${p.labName ? ` · ${p.labName}` : ""} · ${p.results.length} markers`;
+    return `<option value="${esc(p.id)}">${esc(label)}</option>`;
+  }).join("");
+
+  // Default "earlier" to the SECOND-newest, "later" to the newest so the
+  // most common comparison (this draw vs the previous draw) is one click.
+  const newestId = panels[0]?.id;
+  const prevId   = panels[1]?.id ?? newestId;
+
+  return `
+    <section class="compare-picker" aria-label="Compare two draws">
+      <div class="section-mark">Compare two draws</div>
+      <p class="compare-picker__lede">
+        Pick any two panels. We show the markers they share, the deltas, and what crossed the optimal band.
+      </p>
+      <form id="compare-form" class="compare-picker__form">
+        <label class="compare-picker__field">
+          <span class="compare-picker__label">Earlier draw</span>
+          <select id="compare-earlier" required>
+            ${options.replace(`value="${esc(prevId)}"`, `value="${esc(prevId)}" selected`)}
+          </select>
+        </label>
+        <label class="compare-picker__field">
+          <span class="compare-picker__label">Later draw</span>
+          <select id="compare-later" required>
+            ${options.replace(`value="${esc(newestId)}"`, `value="${esc(newestId)}" selected`)}
+          </select>
+        </label>
+        <button type="submit" class="btn btn--accent">Compare</button>
+      </form>
+    </section>
+  `;
+}
+
+function wirePicker(): void {
+  const form = document.getElementById("compare-form") as HTMLFormElement | null;
+  if (!form) return;
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const earlier = (document.getElementById("compare-earlier") as HTMLSelectElement | null)?.value;
+    const later   = (document.getElementById("compare-later")   as HTMLSelectElement | null)?.value;
+    if (!earlier || !later) return;
+    location.hash = `#/progress?compare=${earlier},${later}`;
+    // The hashchange listener in main.ts will fire route(); call it directly
+    // too so the post-submit render is deterministic under Mobile WebKit
+    // (the same belt-and-braces pattern used by compose() in plan.ts).
+    void route();
+  });
+}
+
+/**
+ * Render the comparison page: header + per-row breakdown + back link.
+ *
+ * If either id resolves to nothing, render the editorial empty state so the
+ * URL stays valid (and the back link still works) even when one panel was
+ * just deleted on another tab.
+ */
+async function renderCompare(aId: number, bId: number): Promise<void> {
+  const masth = await masthead("#/progress");
+  const [a, b, markers] = await Promise.all([getPanel(aId), getPanel(bId), getAllMarkers()]);
+
+  if (!a || !b) {
+    mount(h(`
+      <div class="reveal">
+        ${masth}
+        <section class="page">
+          <div class="eyebrow">Compare</div>
+          <h1 class="headline" style="margin-top: 0.4rem;">No panels at <em>those ids</em>.</h1>
+          <div class="compare-empty" style="margin-top: 1.4rem;">
+            <p class="lede">One or both of the panels in the URL no longer exist.</p>
+            <p><a href="#/progress" class="btn btn--ghost">Pick another pair</a></p>
+          </div>
+        </section>
+        ${foot("iv")}
+      </div>
+    `));
+    return;
+  }
+
+  // Honor the ticket: if the URL passes the panels in reverse chronological
+  // order, swap them and warn quietly. The header's date pair always reads
+  // older-first so the visual story is consistent.
+  let earlier = a, later = b, swapped = false;
+  if (a.drawnAt > b.drawnAt) { earlier = b; later = a; swapped = true; }
+
+  const summary = computeComparison(earlier, later, markers);
+
+  const swapNotice = swapped
+    ? `<div class="compare-swap-notice">Reading these in chronological order: <strong>${esc(earlier.drawnAt)}</strong> first, then <strong>${esc(later.drawnAt)}</strong>.</div>`
+    : "";
+
+  const header = `
+    <div class="compare-summary">
+      <span class="compare-summary__dates">${esc(earlier.drawnAt)} <span class="compare-summary__sep">·</span> ${esc(later.drawnAt)}</span>
+      <span class="compare-summary__sep">·</span>
+      <span class="compare-summary__count">${summary.count} markers in common</span>
+      <span class="compare-summary__sep">·</span>
+      <span class="compare-summary__tally">${summary.improved} improved, ${summary.regressed} regressed</span>
+    </div>
+  `;
+
+  const body = summary.count === 0
+    ? renderEmpty(earlier, later)
+    : renderRowsByCategory(summary.rows);
+
+  mount(h(`
+    <div class="reveal">
+      ${masth}
+      <section class="page">
+        <div style="margin-bottom: 1rem;">
+          <a href="#/progress" style="font-family:var(--body);font-size:0.78rem;color:var(--ink-faint);letter-spacing:0.16em;text-transform:uppercase;text-decoration:none;">← Back to progress</a>
+        </div>
+        <div class="eyebrow">Compare two draws</div>
+        <h1 class="headline" style="margin-top: 0.4rem;">
+          <em>${esc(earlier.drawnAt)}</em> &nbsp;vs.&nbsp; <em>${esc(later.drawnAt)}</em>.
+        </h1>
+        ${swapNotice}
+        ${header}
+        ${body}
+      </section>
+      ${foot("iv")}
+    </div>
+  `));
+}
+
+function renderEmpty(earlier: Panel, later: Panel): string {
+  return `
+    <div class="compare-empty">
+      <p class="lede">
+        These two draws share no markers in common. The earlier panel
+        (<strong>${esc(earlier.drawnAt)}</strong>) carries
+        ${earlier.results.length} marker${earlier.results.length === 1 ? "" : "s"};
+        the later one (<strong>${esc(later.drawnAt)}</strong>) carries
+        ${later.results.length}. Pick a different pair to see the side-by-side.
+      </p>
+      <p><a href="#/progress" class="btn btn--ghost">Pick another pair</a></p>
+    </div>
+  `;
+}
+
+function renderRowsByCategory(rows: ComparisonRow[]): string {
+  // Group preserving the already-sorted row order (category major, |pct| desc).
+  const groups = new Map<string, ComparisonRow[]>();
+  for (const r of rows) {
+    const c = r.marker.category;
+    if (!groups.has(c)) groups.set(c, []);
+    groups.get(c)!.push(r);
+  }
+  return Array.from(groups.entries()).map(([cat, list]) => `
+    <section style="margin-top: 2rem;">
+      <div class="section-mark">${esc(cat)}</div>
+      <div class="compare-list">
+        ${list.map(renderRow).join("")}
+      </div>
+    </section>
+  `).join("");
+}
+
+function renderRow(r: ComparisonRow): string {
+  const arrowClass = r.delta === 0 ? "" : r.delta > 0 ? "compare-row__arrow--up" : "compare-row__arrow--down";
+
+  // The badge is the editorial summary of the crossing — oxblood for
+  // regressed, ink for improved (per the ticket: "use existing oxblood / ink
+  // tokens — no new colors"). When `null`, no badge.
+  const badge = r.crossing === "improved"
+    ? `<span class="compare-row__badge compare-row__badge--improved">improved</span>`
+    : r.crossing === "regressed"
+      ? `<span class="compare-row__badge compare-row__badge--regressed">regressed</span>`
+      : "";
+
+  const pctText = r.pctChange === 0
+    ? "0.0%"
+    : `${r.pctChange > 0 ? "+" : ""}${r.pctChange.toFixed(1)}%`;
+
+  // Re-use thermometer() per the ticket: render two stacked thermometers
+  // (earlier on top, later below) so the user sees both points against the
+  // same functional / lab band without inventing a new viz primitive.
+  const therms = `
+    <div class="compare-row__therm">
+      <div class="compare-row__therm-label">earlier</div>
+      ${thermometer({ marker: r.marker, value: r.earlier, height: 30 })}
+      <div class="compare-row__therm-label">later</div>
+      ${thermometer({ marker: r.marker, value: r.later, height: 30 })}
+    </div>
+  `;
+
+  return `
+    <article class="compare-row">
+      <header class="compare-row__head">
+        <div class="compare-row__name">${esc(r.marker.name)}</div>
+        ${badge}
+      </header>
+      <div class="compare-row__grid">
+        <div class="compare-row__cell">
+          <div class="compare-row__cell-label">earlier</div>
+          <div class="compare-row__cell-value"><span class="compare-row__num">${esc(formatValue(r.earlier))}</span> <span class="compare-row__unit">${esc(r.unit)}</span></div>
+        </div>
+        <div class="compare-row__cell">
+          <div class="compare-row__cell-label">later</div>
+          <div class="compare-row__cell-value"><span class="compare-row__num">${esc(formatValue(r.later))}</span> <span class="compare-row__unit">${esc(r.unit)}</span></div>
+        </div>
+        <div class="compare-row__cell compare-row__cell--delta">
+          <div class="compare-row__cell-label">Δ</div>
+          <div class="compare-row__cell-value">
+            <span class="compare-row__arrow ${arrowClass}">${r.arrow}</span>
+            <span class="compare-row__num">${esc(formatDelta(r.delta))}</span>
+            <span class="compare-row__pct">${esc(pctText)}</span>
+          </div>
+        </div>
+      </div>
+      ${therms}
+    </article>
+  `;
+}
+
+function formatValue(v: number): string {
+  if (Number.isInteger(v)) return String(v);
+  return v.toFixed(Math.abs(v) < 1 ? 2 : 1);
+}
+
+function formatDelta(d: number): string {
+  if (d === 0) return "0";
+  const sign = d > 0 ? "+" : "";
+  return `${sign}${d.toFixed(Math.abs(d) < 1 ? 2 : 1)}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Trend list — the existing main-page render                                */
+/* -------------------------------------------------------------------------- */
 
 function renderTrend(s: Series): string {
   const m = findMarker(s.markerKey);
@@ -132,12 +406,6 @@ function latestOnlyRow(marker: NonNullable<ReturnType<typeof findMarker>>, r: Re
       <div class="trend__flag flag--${esc(r.flag ?? "")}">${esc(r.flag ?? "")}</div>
     </div>
   `;
-}
-
-function formatDelta(d: number): string {
-  if (d === 0) return "0";
-  const sign = d > 0 ? "+" : "";
-  return `${sign}${d.toFixed(Math.abs(d) < 1 ? 2 : 1)}`;
 }
 
 /** "good" / "bad" depending on whether the latest move is toward the optimal range. */
@@ -200,5 +468,5 @@ function sparkline(s: Series, m: NonNullable<ReturnType<typeof findMarker>>): st
   `;
 }
 
-// quiet linting — allow Panel import in case we extend
-void undefined as unknown as Panel;
+// quiet linting — allow MarkerDef import in case we extend
+void undefined as unknown as MarkerDef;
