@@ -1,7 +1,7 @@
 ---
 id: 0010
 title: Printable one-page protocol (on-device, share with doctor or friend)
-status: in-progress
+status: shipped
 priority: P2
 area: plan
 created: 2026-05-15
@@ -72,3 +72,36 @@ dialog covers the share-sheet criterion on every modern OS the user is on, and
 keeps every byte on-device. `navigator.share({ files })` is wired as an
 opportunistic enhancement when `navigator.canShare({ files })` reports true and
 the print path falls through; otherwise it's a plain `<a download>` link.
+
+### 2026-05-16 — shipped (PR #20)
+
+Ships via PR https://github.com/mutaaf/almanac/pull/20 — all gating CI green
+(typecheck/build 15s, E2E chromium 3m3s, E2E mobile-webkit 6m10s). Auto-merge
+enabled and the squash will land on the next green pass after this status
+commit.
+
+Final approach matched the engineering notes exactly: Option 1 only, no
+`pdf-lib`. The filename is seeded into `document.title` so the browser's
+native "Save as PDF" / OS share sheet uses `almanac-plan-YYYY-MM-DD` as the
+suggestion. The `.print-sheet` lives in `<body>` (mounted by
+`src/print/protocol.ts`) and a `@media print` block hides every other surface
+on the page including the share chip itself.
+
+Privacy guard built into the type system: `src/print/protocol.ts` builds a
+`PrintProfile` slice of `Profile` that only carries `ownerName`, and the
+renderers' input type only declares that single field. The Anthropic key,
+goals, conditions, and household size cannot enter the printed bytes — even
+a future code path that tries to read them in the print module fails
+typecheck. The new `tests/e2e/print.spec.ts` greps the printed DOM for the
+canary key on both audience variants as a runtime backstop.
+
+Files touched:
+- `src/print/protocol.ts` — new module (orchestrator + filename helper + mount/print)
+- `src/print/template.ts` — new module (pure `renderForDoctor` / `renderForFriend`)
+- `src/pages/plan.ts` — added the "Print or share" chip + audience panel + handlers
+- `src/styles.css` — `.print-share`, `.print-share-panel`, `.print-sheet`, and the `@media print` block
+- `tests/e2e/print.spec.ts` — new spec, 13 tests (5 mobile-parity, 7 chromium-only generation path, 1 router-stability)
+- `docs/backlog/0010-printable-protocol-one-pager.md` — status + log
+
+Dependencies added: none. The print path uses `window.print()` against a
+print-only DOM block as the engineering notes' preferred option.
