@@ -14,6 +14,7 @@ import { getAllMarkers } from "../data/userMarkers";
 import { thermometer } from "../viz";
 import { route } from "../main";
 import { computeComparison, type ComparisonRow } from "../progress/compare";
+import { generateMarkerCardPng, markerCardFilename, shareOrDownload } from "../share/marker-card";
 import type { CheckIn, MarkerDef, Panel, Result } from "../types";
 
 interface Series {
@@ -269,6 +270,49 @@ async function renderCompare(aId: number, bId: number): Promise<void> {
       ${foot("iv")}
     </div>
   `));
+
+  // Wire the per-row "Share marker" chips (ticket 0011). Build a quick lookup
+  // by marker key so the click handler can hand the right ComparisonRow and
+  // MarkerDef to the canvas-rendering module without re-deriving them.
+  wireShareChips(summary.rows, earlier.drawnAt, later.drawnAt);
+}
+
+/**
+ * One delegated click handler covering every `.compare-row__share` button on
+ * the page — rows are grouped by category into multiple `.compare-list`
+ * containers, so we attach the listener to the page section itself rather
+ * than to each list. The handler resolves the row + marker by data-key,
+ * then asks the share module to render and ship the PNG. Keeping the
+ * resolution table local to this function means the share module never sees
+ * a Profile, a Plan, or any other marker — the ticket's privacy-by-
+ * construction discipline.
+ */
+function wireShareChips(rows: ComparisonRow[], earlierDate: string, laterDate: string): void {
+  const byKey = new Map<string, ComparisonRow>();
+  for (const r of rows) byKey.set(r.marker.key, r);
+
+  // Delegate from the page <section>, which contains every category group.
+  const root = document.querySelector(".page");
+  if (!root) return;
+  root.addEventListener("click", (ev) => {
+    const btn = (ev.target as HTMLElement | null)?.closest<HTMLButtonElement>(".compare-row__share");
+    if (!btn) return;
+    const key = btn.dataset.markerKey;
+    if (!key) return;
+    const row = byKey.get(key);
+    if (!row) return;
+    // Optimistic state — disable the chip while we draw to avoid double-fires.
+    btn.disabled = true;
+    void shareMarker(row, earlierDate, laterDate).finally(() => {
+      btn.disabled = false;
+    });
+  });
+}
+
+async function shareMarker(row: ComparisonRow, earlierDate: string, laterDate: string): Promise<void> {
+  const blob = await generateMarkerCardPng(row, row.marker, earlierDate, laterDate);
+  const filename = markerCardFilename(row.marker.key, laterDate);
+  await shareOrDownload(blob, filename);
 }
 
 function renderEmpty(earlier: Panel, later: Panel): string {
@@ -332,11 +376,25 @@ function renderRow(r: ComparisonRow): string {
     </div>
   `;
 
+  // Ticket 0011 — per-row "Share marker" chip. Lives in the head on desktop
+  // (right-edge) and folds under the value pair on mobile (via the CSS
+  // media query in styles.css). It's a button, not a link, so it's
+  // keyboard-focusable by default and never confuses screen readers.
+  const shareChip = `
+    <button type="button"
+            class="compare-row__share"
+            data-marker-key="${esc(r.marker.key)}"
+            aria-label="Share ${esc(r.marker.name)} as an image">
+      Share marker
+    </button>
+  `;
+
   return `
     <article class="compare-row">
       <header class="compare-row__head">
         <div class="compare-row__name">${esc(r.marker.name)}</div>
         ${badge}
+        ${shareChip}
       </header>
       <div class="compare-row__grid">
         <div class="compare-row__cell">

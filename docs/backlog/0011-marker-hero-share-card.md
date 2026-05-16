@@ -1,7 +1,7 @@
 ---
 id: 0011
 title: Marker hero share card — one-marker, phone-shaped image for social
-status: groomed
+status: in-progress
 priority: P1
 area: growth
 created: 2026-05-16
@@ -67,4 +67,4 @@ Explicit anti-goals. The dev agent will not do these even if they seem related.
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-16 — picked up by implementation-dev. Branch `feat/0011-marker-hero-share-card`. Plan: add a per-row "Share marker" chip on the compare view that calls a new `src/share/marker-card.ts` module to draw a 1080×1920 PNG via canvas 2D, then ship it via `navigator.share({ files })` (with `<a download>` fallback). No new deps, no schema change, no egress allow-list change.
