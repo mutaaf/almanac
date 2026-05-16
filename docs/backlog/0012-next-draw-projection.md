@@ -1,7 +1,7 @@
 ---
 id: 0012
 title: "Next-draw projection — what we'd expect to see if you tested today"
-status: in-progress
+status: shipped
 priority: P1
 area: progress
 created: 2026-05-16
@@ -94,3 +94,66 @@ Picked up the ticket on `feat/0012-next-draw-projection`. Plan:
   primitive from `src/ui.ts`.
 - Spec lives at `tests/e2e/projection.spec.ts`; uses `page.clock.setFixedTime`
   (the same trick the recap spec uses — `install` deadlocks Dexie).
+
+### 2026-05-16 — implementation-dev — shipped (PR #25)
+
+CI green on Typecheck+build, E2E (chromium) 3m27s, E2E (mobile-webkit) 7m33s.
+PR: https://github.com/mutaaf/almanac/pull/25.
+
+Files touched:
+- `src/types.ts` — added `responsiveness` to `MarkerDef` + new
+  `ProjectionSnapshot` interface.
+- `src/data/markers.ts` — curated `responsiveness` entries on ferritin
+  (both sex variants), ApoB, hs-CRP, fasting insulin, HbA1c, vit D 25-OH,
+  omega-3 index, free T3, magnesium RBC. Sourcing comment block at the
+  top of the file references the literature lineage (Heaney, Harris,
+  Mensink, Esposito, Calder, Beard, Cook).
+- `src/claude.ts` — extracted `tierForCheckIns()` as a pure exported
+  helper so the projection module and the plan prompt share the same
+  easy/moderate/advanced derivation.
+- `src/db.ts` — Dexie v6 adds the `projections` table, keyed by
+  `&[markerKey+panelId]` for idempotent re-uploads. Helpers
+  `getProjectionsFor(panelId)` and `saveProjections(snapshots)`. Also
+  exposes the Dexie handle on `window.__almanacDb` in dev/test only
+  (Vite tree-shakes the branch in production) so the v5→v6 migration
+  spec can close the live connection before deleting the database.
+- `src/progress/projection.ts` (new) — pure `computeProjection()` +
+  `evaluateLanded()`. Returns `null` when adherence is below 30% of
+  habit-stack-days so the UI renders the editorial empty branch.
+- `src/viz.ts` — `thermometer()` gained an optional `projectionBand`
+  overlay (stroked-only oxblood rectangle with dasharray, no fill).
+- `src/pages/progress.ts` — render the "Between draws — what we'd
+  expect" section above the trend list; click handler opens the
+  slideover with rule evidence + closing sentence.
+- `src/pages/labs.ts` — `materializeProjectionsForPriorPanel()` fires
+  inside both addPanel call sites (extraction + manual) so every new
+  upload writes a snapshot against the prior latest panel.
+- `src/styles.css` — `.projection-section`, `.projection-card`,
+  `.projection-card__band-note`, `.projection-eval--in-range`,
+  `.projection-eval--under`/`--over`. No new color tokens.
+- `tests/e2e/projection.spec.ts` (new) — 7 tests covering every
+  acceptance-criteria checkbox.
+
+Gotchas hit + decisions:
+- Dexie scales schema version numbers by 10 internally — Dexie's v5
+  lives at IDB v50, v6 at IDB v60. The migration test had to seed at
+  IDB v50 (not raw 5) to look like the production v5 state Dexie
+  produces. Seeding at raw IDB v5 triggers Dexie's full upgrade chain
+  starting from v1, which drops the legacy `entries`/`pages`/
+  `summaries`/`settings` stores and silently wipes data on first
+  upgrade.
+- `page.evaluate` against `about:blank` is denied IndexedDB access on
+  Chromium (SecurityError). The migration spec stays on the SPA origin
+  and uses the `__almanacDb.close()` side-channel to release the
+  Dexie connection before `indexedDB.deleteDatabase`.
+- N-of-14 tally on the card counts distinct days the user logged at
+  least one habit (the editorial promise), while the tier-derivation
+  math uses habit-stack-days (days × habits). Both surface on the card
+  so the user sees the tier label AND the calendar-day denominator.
+- Compare spec parallelism flakes pre-exist on main and are
+  acknowledged in AGENTS.md; they're absorbed by `retries: 2` on CI.
+- Sibling spawn: the `responsiveness` field is curated for seed
+  markers only. A future ticket could let users author responsiveness
+  entries on their own `userMarkers` (ticket 0002 surface) so e.g. a
+  user-defined Lp-PLA2 could carry a projection too. Out of scope
+  here per the ticket's "Out of scope" list.
