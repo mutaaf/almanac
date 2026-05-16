@@ -1,7 +1,7 @@
 ---
 id: 0012
 title: "Next-draw projection — what we'd expect to see if you tested today"
-status: proposed
+status: in-progress
 priority: P1
 area: progress
 created: 2026-05-16
@@ -69,4 +69,28 @@ Each box maps 1:1 to a Playwright test scenario.
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+### 2026-05-16 — implementation-dev — in-progress
+Picked up the ticket on `feat/0012-next-draw-projection`. Plan:
+- Extract a pure `tierForCheckIns(checkins14d, plan)` helper that
+  `formatAdherence` and the new projection module both call (single source of
+  truth for the easy/moderate/advanced label so the prompt and the UI agree).
+- Add `responsiveness` to `MarkerDef` and curate entries for ferritin (both
+  sex variants), ApoB, hs-CRP, fasting insulin, HbA1c, vit-D 25-OH,
+  omega-3 index, free T3, and magnesium RBC. Sourcing comment block at the
+  top of the file so curators can sanity-check.
+- New module `src/progress/projection.ts` — pure `computeProjection()` +
+  `evaluateLanded()`. Returns `null` when adherence is below 30% so the UI
+  can render the empty editorial branch instead of a misleading band.
+- Dexie v6 — additive `projections` table keyed by `&[markerKey+panelId]`.
+  Helpers: `getProjectionsFor(panelId)`, `saveProjections(snapshots)`. Save
+  fires inside `labs.ts` after a successful panel insert; the snapshot is
+  computed against the PRIOR latest panel so the next visit to `#/progress`
+  can render the evaluation row.
+- Render the new "Between draws — what we'd expect" section above the
+  sparkline section on `#/progress`. Re-use `thermometer()` with a new
+  optional `projectionBand?: {low, high}` overlay (stroked-only oxblood
+  rectangle so the existing functional band stays the dominant visual).
+- Slideover with rule evidence on tap — re-use the existing `openSlideover`
+  primitive from `src/ui.ts`.
+- Spec lives at `tests/e2e/projection.spec.ts`; uses `page.clock.setFixedTime`
+  (the same trick the recap spec uses — `install` deadlocks Dexie).
