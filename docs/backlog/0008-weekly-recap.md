@@ -1,7 +1,7 @@
 ---
 id: 0008
 title: Weekly recap — "this week in your protocol"
-status: in-progress
+status: shipped
 priority: P1
 area: today
 created: 2026-05-15
@@ -68,3 +68,13 @@ This is the retention feature, plain and stated. A daily-only app loses its week
 ## Implementation log
 
 - 2026-05-15 — Dev agent picked up the ticket on branch `feat/0008-weekly-recap`. Status flipped to `in-progress`. Next step: failing E2E spec covering the six acceptance branches before any source change.
+- 2026-05-15 — Shipped via PR https://github.com/mutaaf/almanac/pull/13 (merged to `main`). All required CI checks green (Typecheck + build, E2E chromium, E2E mobile-webkit). Files touched:
+  - `src/types.ts` — `RecapSummary`, `RecapAdherenceRow`, `RecapSignals`, `RecapMover`
+  - `src/db.ts` — `isoWeek()` + `weekRange()` pure helpers near `today()`
+  - `src/pages/recap.ts` — new file. `computeRecap()` + renderer
+  - `src/main.ts` — `#/recap` route registered
+  - `src/chrome.ts` — Recap nav link conditional on Sunday or current route
+  - `src/pages/today.ts` — Sunday-only Recap card with ISO-week-keyed dismissal
+  - `src/styles.css` — recap-card / recap-grid / recap-section / recap-adherence / recap-signals / recap-numbers
+  - `tests/e2e/recap.spec.ts` — 9 tests (empty / partial / full / Sunday card + dismissal × 3 / nav × 3)
+  - Implementation choice worth remembering: the recap spec uses `page.clock.setFixedTime(...)` to pin the wall clock. `page.clock.install({ time })` was tried first; it deadlocks Dexie because `install` freezes `setTimeout`/`setInterval` and IndexedDB transactions never flush. `setFixedTime` mocks only `Date.now()` / `new Date()` and leaves the timers alone — which is what we want for a "what day is it?" decision.
