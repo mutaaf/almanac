@@ -151,6 +151,12 @@ export interface Recommendation {
   tier: Tier;
   expectedImpact?: string;
   caution?: string;
+  /**
+   * Markers this recommendation is intended to move. Optional for back-compat
+   * with older plans, but the slideover's "How to move it" panel filters
+   * supplements/lifestyle by this field when populated.
+   */
+  markerKeys?: string[];
 }
 
 export interface HabitStack {

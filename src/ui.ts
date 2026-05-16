@@ -68,6 +68,117 @@ export function errorCard(opts: {
   `;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Slideover                                                                 */
+/* -------------------------------------------------------------------------- */
+/*
+ * In-page slideover for contextual long-form. The slideover is a sibling of
+ * the route content (mounted directly under #app) so subsequent route renders
+ * (which use `mount()`'s `replaceChildren`) do NOT blow it away — wait,
+ * actually they would. So instead we mount it on <body>, return focus to the
+ * element that opened it, and never touch the URL.
+ *
+ * The contract:
+ *   - one instance at a time; opening a second slideover closes the first
+ *   - backdrop tap, Escape, and the close button all dismiss
+ *   - focus returns to the element that was active at open time
+ *   - zero network — the consumer passes pre-rendered HTML
+ *   - no history.pushState / no hashchange — strictly DOM-only
+ */
+
+interface SlideoverState {
+  root: HTMLElement;
+  backdrop: HTMLElement;
+  aside: HTMLElement;
+  returnFocus: HTMLElement | null;
+  onClose?: (() => void) | undefined;
+  escListener: (e: KeyboardEvent) => void;
+}
+
+let _slideover: SlideoverState | null = null;
+
+function isPhoneViewport(): boolean {
+  // Match the same breakpoint used in styles.css for `.slideover--from-bottom`.
+  // Window.matchMedia is the simplest correct read; if it's unavailable
+  // (vanishingly rare) default to desktop variant.
+  try { return window.matchMedia("(max-width: 720px)").matches; }
+  catch { return false; }
+}
+
+export interface OpenSlideoverOpts {
+  onClose?: () => void;
+  /** Optional ARIA label for the slideover container itself. */
+  label?: string;
+  /**
+   * Element to focus when the slideover closes. Defaults to whatever was
+   * `document.activeElement` at open time, but WebKit doesn't focus buttons
+   * on click, so callers should pass the originating element explicitly.
+   */
+  returnFocusTo?: HTMLElement;
+}
+
+/**
+ * Open the slideover with the given inner HTML. Closes any existing one first.
+ * Returns nothing; the caller closes via `closeSlideover()` or by tapping the
+ * backdrop / close button / pressing Escape.
+ */
+export function openSlideover(html: string, opts: OpenSlideoverOpts = {}): void {
+  closeSlideover();   // enforce single-instance
+
+  const returnFocus = opts.returnFocusTo
+    ?? ((document.activeElement instanceof HTMLElement) ? document.activeElement : null);
+
+  const variant = isPhoneViewport() ? "slideover--from-bottom" : "slideover--from-right";
+
+  // Build markup as a single fragment so the close button is reachable.
+  const frag = h(`
+    <div class="slideover-root">
+      <div class="slideover-backdrop" data-close></div>
+      <aside class="slideover ${variant}" role="dialog" aria-modal="true"${opts.label ? ` aria-label="${esc(opts.label)}"` : ""}>
+        <button type="button" class="slideover__close" aria-label="Close" data-close>×</button>
+        <div class="slideover__inner">${html}</div>
+      </aside>
+    </div>
+  `);
+
+  // Mount on body so route re-renders into #app don't take the slideover
+  // with them. (#app's replaceChildren would otherwise clear it.)
+  document.body.appendChild(frag);
+  const root     = document.body.querySelector<HTMLElement>(".slideover-root")!;
+  const backdrop = root.querySelector<HTMLElement>(".slideover-backdrop")!;
+  const aside    = root.querySelector<HTMLElement>("aside.slideover")!;
+
+  const escListener = (e: KeyboardEvent) => {
+    if (e.key === "Escape") { e.preventDefault(); closeSlideover(); }
+  };
+  document.addEventListener("keydown", escListener);
+
+  for (const el of root.querySelectorAll<HTMLElement>("[data-close]")) {
+    el.addEventListener("click", () => closeSlideover());
+  }
+
+  _slideover = { root, backdrop, aside, returnFocus, ...(opts.onClose ? { onClose: opts.onClose } : {}), escListener };
+
+  // Move focus to the close button so keyboard users land inside the dialog.
+  // Skipping the focus call would leave focus on the opener and break Escape
+  // routing in some browsers. Still, returnFocus is restored on close.
+  queueMicrotask(() => aside.querySelector<HTMLElement>(".slideover__close")?.focus());
+}
+
+export function closeSlideover(): void {
+  if (!_slideover) return;
+  const s = _slideover;
+  _slideover = null;
+  document.removeEventListener("keydown", s.escListener);
+  s.root.remove();
+  // Return focus to whatever opened the slideover — keyboard users should
+  // never find their focus stranded on <body> after a dismiss.
+  if (s.returnFocus && document.contains(s.returnFocus)) {
+    try { s.returnFocus.focus(); } catch { /* element no longer focusable */ }
+  }
+  s.onClose?.();
+}
+
 /** Volume / Issue label like "Vol. III · No. 47" — derived from the user's start date. */
 export function issueLabel(startedAt: number, today: Date = new Date()): string {
   const start = new Date(startedAt);
