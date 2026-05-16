@@ -1,7 +1,7 @@
 ---
 id: 0004
 title: Apple Health import (CSV/XML, on-device)
-status: in-progress
+status: shipped
 priority: P2
 area: infra
 created: 2026-05-14
@@ -58,3 +58,4 @@ This is the moment we stop being "the lab app" and become "the health app you do
 ## Implementation log
 
 - 2026-05-16 — picked up by implementation-dev. Branch `feat/0004-apple-health-import`. Plan: SAX-style parser in a Web Worker, zip via `DecompressionStream` (no `fflate` — built-in is universally available in the browsers we target). New `CheckIn.signals` continuous fields rather than a new table (per engineering notes). Progress page sparklines + `formatAdherence` 7-day rolling averages of HRV / RHR / sleep.
+- 2026-05-16 — shipped in PR #18. Files touched: `src/health/apple.ts` (regex-streamed parser), `src/health/apple.worker.ts` (Web Worker + `DecompressionStream` zip reader), `src/health/importApple.ts` (orchestration + merge logic), `src/types.ts` (extended `CheckIn.signals` + new `ContinuousSignal`), `src/pages/settings.ts` (file input + banner + errorCard wiring), `src/pages/progress.ts` (Continuous-signals section with sparklines), `src/claude.ts` (`formatAdherence` extended with 7-day rolling averages + week-over-week deltas), `src/styles.css` (continuous-signal cards + health-banner), `tests/e2e/health-import.spec.ts` (8 scenarios), `tests/fixtures/health-export.xml` (synthetic 10-day fixture with known counts). No new npm dep — `DecompressionStream` was sufficient and `fflate` proved unnecessary.
