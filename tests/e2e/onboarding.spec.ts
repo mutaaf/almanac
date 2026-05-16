@@ -8,7 +8,7 @@ test.describe("Onboarding", () => {
   test.beforeEach(async ({ context }) => {
   });
 
-  test("captures all required fields and lands on labs", async ({ page }) => {
+  test("captures all required fields and lands on the plan first-compose state", async ({ page }) => {
     await installMocks(page);
     await acknowledgeConsent(page);
 
@@ -22,7 +22,11 @@ test.describe("Onboarding", () => {
     await page.fill("#key", "sk-ant-test-fake");
 
     await page.getByRole("button", { name: /^begin$/i }).click();
-    await expect(page).toHaveURL(/#\/labs$/);
+    // After ticket 0007: post-onboarding hand-off is to the plan page, which
+    // renders the two-path "compose from intake | upload labs first" state.
+    await expect(page).toHaveURL(/#\/plan$/);
+    await expect(page.getByRole("button", { name: /compose from intake/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /i have labs.*upload first/i })).toBeVisible();
 
     // Masthead shows the new dateline/wordmark, not the onboarding chrome.
     await expect(page.locator(".masthead .wordmark")).toBeVisible();

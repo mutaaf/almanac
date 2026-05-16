@@ -3,7 +3,7 @@
 
 import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
-import { onboard, addManualPanel, composePlan } from "../helpers/flows";
+import { onboard, addManualPanel, composePlan, waitForDb } from "../helpers/flows";
 
 test.describe("Plan", () => {
   test.beforeEach(async ({ context, page }) => {
@@ -250,5 +250,146 @@ test.describe("Plan — Why slideover", () => {
     } else {
       await expect(slideover).toHaveClass(/slideover--from-right/);
     }
+  });
+});
+
+/* ============================================================================
+   First plan from intake alone (ticket 0007)
+   ============================================================================
+   A brand-new user finishes onboarding with no labs uploaded. The plan page
+   offers a two-path first-compose state: compose now from intake answers, or
+   bounce to labs to upload first. The intake compose fires one Anthropic
+   call, sniffed by the INTAKE_PLAN_VOICE sentinel in the system prompt, and
+   persists a Plan with basedOnPanelIds: [].
+*/
+test.describe("Plan — first compose from intake alone", () => {
+  test.beforeEach(async ({ page }) => {
+    await installMocks(page);
+    // Seed the intake with a distinctive phrase the fixture echoes back, so
+    // the snapshot-contains-intake-token assertion is meaningful.
+    await onboard(page, {
+      goals: "Lower cholesterol and beat the afternoon energy crash; hold easy habits.",
+    });
+    // NB: no panels added.
+  });
+
+  test("after onboarding, the plan page offers two paths and shows no labs yet", async ({ page }) => {
+    await page.goto("/#/plan");
+    // The eyebrow and primary headline frame the first-compose state.
+    await expect(page.locator(".eyebrow").first()).toBeVisible();
+    // Primary: compose from intake. Secondary: go upload labs first.
+    await expect(page.getByRole("button", { name: /compose from intake/i })).toBeVisible();
+    await expect(page.getByRole("link", { name: /i have labs.*upload first/i })).toBeVisible();
+  });
+
+  test("composing from intake fires exactly one Anthropic call, sniffed via INTAKE_PLAN_VOICE", async ({ page }) => {
+    const stats = await installMocks(page);
+    await page.goto("/#/plan");
+    await page.getByRole("button", { name: /compose from intake/i }).click();
+    // Dashboard paints once the plan lands.
+    await expect(page.locator(".dash-snapshot")).toBeVisible({ timeout: 20_000 });
+    expect(stats.planCalls).toBe(1);
+  });
+
+  test("the composed plan has basedOnPanelIds: [], snapshot echoes the intake token, and retest invites labs", async ({ page }) => {
+    await page.goto("/#/plan");
+    await page.getByRole("button", { name: /compose from intake/i }).click();
+    await expect(page.locator(".dash-snapshot")).toBeVisible({ timeout: 20_000 });
+
+    // Snapshot contains the seeded intake token.
+    await expect(page.locator(".dash-snapshot")).toContainText(/afternoon energy crash/i);
+
+    // Persisted plan: basedOnPanelIds is empty; retest's first reason mentions labs.
+    const persisted = await page.evaluate(() => {
+      return new Promise<{ basedOnPanelIds: number[]; retestReason: string } | null>((resolve) => {
+        const req = indexedDB.open("almanac");
+        req.onerror   = () => resolve(null);
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction("plans", "readonly");
+          const cur = tx.objectStore("plans").openCursor(null, "prev");
+          cur.onerror = () => { db.close(); resolve(null); };
+          cur.onsuccess = () => {
+            const c = cur.result;
+            if (!c) { db.close(); resolve(null); return; }
+            const p = c.value as { basedOnPanelIds: number[]; retest: Array<{ reason: string }> };
+            db.close();
+            resolve({
+              basedOnPanelIds: p.basedOnPanelIds,
+              retestReason: p.retest?.[0]?.reason ?? "",
+            });
+          };
+        };
+      });
+    });
+    expect(persisted).not.toBeNull();
+    expect(persisted!.basedOnPanelIds).toEqual([]);
+    expect(persisted!.retestReason).toMatch(/upload your.*labs|upload your most recent labs|labs/i);
+  });
+
+  test("after compose, lands on the standard dashboard — empty-state copy does not appear", async ({ page }) => {
+    await page.goto("/#/plan");
+    await page.getByRole("button", { name: /compose from intake/i }).click();
+    await expect(page.locator(".dash-snapshot")).toBeVisible({ timeout: 20_000 });
+    // The first-compose UI and the no-plan-yet headline are both gone.
+    await expect(page.getByRole("button", { name: /compose from intake/i })).toHaveCount(0);
+    const bodyText = await page.locator("body").innerText();
+    expect(bodyText).not.toMatch(/your protocol hasn't been written yet/i);
+  });
+
+  test("re-composing after a panel lands attaches the panel id and keeps the intake-only plan", async ({ page }) => {
+    // First: intake-only compose.
+    await page.goto("/#/plan");
+    await page.getByRole("button", { name: /compose from intake/i }).click();
+    await expect(page.locator(".dash-snapshot")).toBeVisible({ timeout: 20_000 });
+    await waitForDb(page, "plans", (n) => n >= 1);
+
+    // Now add a panel.
+    await addManualPanel(page);
+
+    // Re-compose from the plan screen.
+    await page.goto("/#/plan");
+    await expect(page.getByRole("button", { name: /re-compose plan/i })).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: /re-compose plan/i }).click();
+    await waitForDb(page, "plans", (n) => n >= 2, { timeoutMs: 30_000 });
+
+    // Inspect both plans: newest first, both retained.
+    const plans = await page.evaluate(() => {
+      return new Promise<Array<{ generatedAt: number; basedOnPanelIds: number[] }>>((resolve) => {
+        const req = indexedDB.open("almanac");
+        req.onerror   = () => resolve([]);
+        req.onsuccess = () => {
+          const db = req.result;
+          const tx = db.transaction("plans", "readonly");
+          const all = tx.objectStore("plans").getAll();
+          all.onerror = () => { db.close(); resolve([]); };
+          all.onsuccess = () => {
+            const rows = (all.result as Array<{ generatedAt: number; basedOnPanelIds: number[] }>);
+            db.close();
+            resolve(rows.sort((a, b) => b.generatedAt - a.generatedAt));
+          };
+        };
+      });
+    });
+    expect(plans.length).toBe(2);
+    // Newest first — has at least one panel id attached.
+    expect(plans[0]!.basedOnPanelIds.length).toBeGreaterThanOrEqual(1);
+    // The earlier intake-only plan is still present with no panels.
+    expect(plans[1]!.basedOnPanelIds).toEqual([]);
+  });
+
+  test("a new CallRecord row with kind: \"plan\" appears in Settings → Telemetry", async ({ page }) => {
+    await page.goto("/#/plan");
+    await page.getByRole("button", { name: /compose from intake/i }).click();
+    await expect(page.locator(".dash-snapshot")).toBeVisible({ timeout: 20_000 });
+
+    await page.goto("/#/settings");
+    // Aggregate header confirms a call landed.
+    await expect(page.getByText(/total calls/i)).toBeVisible();
+    // Expand the "Recent calls" disclosure so the table rows are visible.
+    await page.locator("summary").filter({ hasText: /recent calls/i }).click();
+    // Telemetry table includes a row whose "Kind" column reads "plan".
+    const row = page.locator(".telem-table tbody tr").filter({ hasText: /\bplan\b/ }).first();
+    await expect(row).toBeVisible();
   });
 });

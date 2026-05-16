@@ -176,6 +176,23 @@ export async function installMocks(page: Page): Promise<MockStats> {
         return;
       }
 
+      // Intake-only plan voice (ticket 0007). Sniffed BEFORE the default
+      // plan branch so the more-specific sentinel wins. Telemetry is still
+      // tracked under planCalls — both code paths persist a Plan and the
+      // tests don't distinguish them by kind.
+      if (sys.includes("INTAKE_PLAN_VOICE")) {
+        stats.planCalls++;
+        const cached = stats.planCalls > 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(buildResponse(body.model, readFixture("plan-from-intake.json"), {
+            cacheRead: cached ? 2400 : 0, cacheCreate: cached ? 0 : 1200,
+          })),
+        });
+        return;
+      }
+
       // Default: plan generation.
       stats.planCalls++;
       const cached = stats.planCalls > 1;

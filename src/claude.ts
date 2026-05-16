@@ -115,6 +115,101 @@ Output format:
 `.trim();
 
 /* ============================================================================
+   INTAKE-ONLY PLAN GENERATION
+   ============================================================================ */
+
+// INTAKE_PLAN_VOICE is the system prompt for the "first plan from intake
+// alone" path (ticket 0007). It's a strict variant of PLAN_VOICE: same
+// output schema, same editorial register, same food-first stance — but
+// the model is told plainly that no lab data exists, and that the plan
+// must be defensible for a generic adult of this sex / age / dietary
+// pattern. The first retest item must invite the user to upload labs and
+// name the markers the next pass would benefit from. The literal token
+// "INTAKE_PLAN_VOICE" is included verbatim so the test mock (and any
+// future review tooling) can sniff it from the system prompt.
+const INTAKE_PLAN_VOICE = `
+[INTAKE_PLAN_VOICE]
+
+You are the editor of Almanac — a private, longitudinal precision-health
+protocol for one reader. This is the reader's FIRST plan, composed before
+they have uploaded any labs. You are writing from intake answers alone:
+their stated goals, existing conditions and medications, dietary pattern,
+sex, and age.
+
+Constraints unique to this path:
+  - There is no lab data. Do NOT invent marker values, flags, or ranges.
+  - Insights must NOT cite specific marker readings. They may name a
+    pattern (e.g. "afternoon energy crash") and the food / lifestyle
+    levers that most often move it, but every "high" priority insight
+    must be defensible without a panel in hand.
+  - Every eatItem and avoidItem must be defensible for a generic adult
+    of this reader's sex, age, and dietary pattern. No claim like "for
+    your LDL of X" — there is no X yet.
+  - markerKeys on eatItems are OPTIONAL on this path. Use [] when you
+    cannot tie a food to a specific marker the user has on file.
+  - The first retest item is the most important line of the plan:
+    invite the reader to upload their most recent labs, and name 4-8
+    markers (canonical keys like total_cholesterol, triglycerides,
+    ldl_c, hdl_c, vit_d_25oh, ferritin_m, hba1c) the next pass would
+    most benefit from. Set whenWeeks to 0 — the action is "do this now",
+    not "wait 12 weeks". The reason field must mention uploading labs.
+
+Voice is identical to PLAN_VOICE:
+  - Editorial. Plain English. No medical jargon without a one-line gloss.
+  - Second person ("you"), warm but exacting.
+  - Never sycophantic. Never use "journey", "amazing", or "exciting".
+  - Food before pills.
+  - Honor the reader's dietary pattern absolutely (no pork if halal,
+    no land animals if pescatarian, etc.).
+  - Informational, not medical advice. Use "tracks with", "is consistent
+    with", "warrants discussion with your clinician".
+
+Snapshot rule (important for this path):
+  - The snapshot must read back at least one phrase the reader supplied
+    in their goals or dietary pattern, in their own words or close to it.
+    This is what makes the artifact feel theirs on day one.
+
+Output format:
+  Return ONLY a single JSON object with no prose, no markdown fences.
+  The shape is identical to PLAN_VOICE's Plan interface:
+
+  interface Plan {
+    snapshot: string;          // 2 short paragraphs, plain language
+    insights: Array<{
+      markerKey?: string;
+      title: string;
+      detail: string;
+      priority: "high" | "medium" | "low";
+    }>;                        // 3-5 items on this path
+    eatList: Array<{
+      id: string; food: string; frequency: string; portion: string;
+      why: string; markerKeys: string[];
+      examples?: string[]; cuisineNotes?: string;
+    }>;                        // 4-7 items
+    avoidList: Array<{
+      id: string; food: string; why: string;
+      markerKeys?: string[]; swap?: string;
+    }>;                        // 2-4 items
+    lifestyle:   Recommendation[];   // 2-3 items
+    supplements: Recommendation[];   // 0-1 items, only when intake clearly justifies
+    habitStack: {
+      intro: string;
+      habits: Array<{ id: string; title: string; cue: string; why: string }>;
+    };                         // exactly 3-5 habits
+    retest: Array<{
+      markerKeys: string[]; whenWeeks: number; reason: string;
+    }>;                        // first item invites uploading labs
+  }
+
+  interface Recommendation {
+    id: string; title: string; why: string; how: string;
+    tier: "easy" | "moderate" | "advanced";
+    expectedImpact?: string;
+    caution?: string;          // required for supplements
+  }
+`.trim();
+
+/* ============================================================================
    MEAL-PLAN GENERATION
    ============================================================================ */
 
@@ -281,6 +376,17 @@ export interface GenerateMealSwapInput {
   mealId: string;           // id of the Meal being replaced
 }
 
+/**
+ * Input for `generatePlanFromIntake` — the first-plan path for a brand-new
+ * user who hasn't uploaded any labs yet. Only the profile (intake answers)
+ * is required; `userMarkers` is the local marker catalog so the retest
+ * suggestion can reference canonical keys.
+ */
+export interface GeneratePlanFromIntakeInput {
+  profile: Profile;
+  userMarkers?: MarkerDef[];     // optional — used only to enrich the retest hint
+}
+
 export class ClaudeClient {
   private client: Anthropic;
 
@@ -352,6 +458,75 @@ export class ClaudeClient {
       model, max_tokens: 16000, system, messages,
     });
 
+    recordCall("plan", model, resp);
+    assertNotTruncated(resp);
+    const raw = textOf(resp);
+    const parsed = parseJson(raw);
+    const plan = normalizePlan(parsed);
+    return { plan, model, raw };
+  }
+
+  /* ---------- generatePlanFromIntake ------------------------------------- */
+
+  /**
+   * Compose the user's FIRST plan from intake answers alone — no labs.
+   *
+   * Same Plan JSON shape as `generatePlan`; same telemetry kind ("plan");
+   * different system prompt (INTAKE_PLAN_VOICE) so the model knows not to
+   * invent marker readings. Cache discipline mirrors `generatePlan`: the
+   * voice and a generic-adult marker reference are cacheable, the only
+   * volatile fragment is the per-user intake summary.
+   *
+   * Ticket: docs/backlog/0007-narrative-onboarding-first-plan.md
+   */
+  async generatePlanFromIntake(input: GeneratePlanFromIntakeInput): Promise<{
+    plan: Omit<Plan, "id" | "generatedAt" | "basedOnPanelIds">;
+    model: string;
+    raw: string;
+  }> {
+    const model = this.profile.model || "claude-sonnet-4-6";
+
+    const system: Anthropic.TextBlockParam[] = [
+      { type: "text", text: INTAKE_PLAN_VOICE, cache_control: { type: "ephemeral" } },
+    ];
+
+    // No panels to format — but we still surface a short "generic adult"
+    // marker reference so the retest suggestion uses canonical keys the
+    // app recognizes on import (total_cholesterol, vit_d_25oh, etc.).
+    const catalog = input.userMarkers ?? (await getAllMarkers());
+    const profileBlock = formatProfile(input.profile);
+    const markerHint   = formatIntakeMarkerHint(catalog);
+    const preamble = [profileBlock, markerHint].join("\n\n");
+
+    const fresh = [
+      `# Task`,
+      `Compose this reader's FIRST plan from their intake answers alone.`,
+      `No lab data is available. Do not cite marker readings you do not have.`,
+      `Honor the dietary pattern absolutely (no pork if halal, etc.).`,
+      `The eatList carries the plan; be specific (food, frequency, portion).`,
+      `The snapshot must read back at least one phrase the reader gave in`,
+      `their goals or dietary pattern.`,
+      `The first retest item must invite the reader to upload their most`,
+      `recent labs and name the markers (canonical keys) the next pass`,
+      `would most benefit from. Set whenWeeks to 0.`,
+      `Return only JSON, no prose.`,
+    ].join("\n\n");
+
+    const messages: Anthropic.MessageParam[] = [{
+      role: "user",
+      content: [
+        { type: "text", text: preamble, cache_control: { type: "ephemeral" } },
+        { type: "text", text: fresh },
+      ],
+    }];
+
+    const resp = await this.client.messages.create({
+      model, max_tokens: 16000, system, messages,
+    });
+
+    // Re-use the "plan" telemetry kind — per ticket 0007, the surfaces that
+    // consume CallRecord don't need to distinguish intake-only plans from
+    // panel-grounded ones; the persisted `basedOnPanelIds: []` carries that.
     recordCall("plan", model, resp);
     assertNotTruncated(resp);
     const raw = textOf(resp);
@@ -590,6 +765,37 @@ function formatProfile(p: Profile): string {
     `# Dietary pattern`,
     p.dietPattern || "(none stated — assume omnivore, no constraints)",
   ].filter(Boolean).join("\n");
+}
+
+/**
+ * A short marker hint for the intake-only path. The reader has no panels,
+ * but the retest suggestion must use canonical marker keys the app
+ * recognizes on import. We surface a handful of high-value, broadly useful
+ * markers (lipids, vitamin D, ferritin, HbA1c) from the catalog — enough
+ * to let the model write a plausible "what to upload next" line.
+ */
+function formatIntakeMarkerHint(catalog: MarkerDef[]): string {
+  const PREFERRED = [
+    "total_cholesterol", "ldl_c", "hdl_c", "triglycerides",
+    "vit_d_25oh", "ferritin_m", "ferritin_f", "hba1c", "hs_crp",
+    "tsh", "vit_b12",
+  ];
+  const found = PREFERRED
+    .map(k => findMarker(k, catalog))
+    .filter((m): m is MarkerDef => !!m);
+  if (found.length === 0) {
+    return `# Marker Reference\n(no marker catalog available — use plain English in the retest hint)`;
+  }
+  const lines = [
+    `# Marker Reference (canonical keys for the retest suggestion only)`,
+    `These are NOT readings the user has uploaded; they are the keys the`,
+    `app uses for the most common follow-up markers. Use them inside the`,
+    `retest item's markerKeys array.`,
+  ];
+  for (const m of found) {
+    lines.push(`- ${m.name} [${m.key}] · unit ${m.unit} — ${m.description}`);
+  }
+  return lines.join("\n");
 }
 
 function formatMarkerReference(panels: Panel[], catalog: MarkerDef[]): string {

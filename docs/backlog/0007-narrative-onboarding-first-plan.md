@@ -1,7 +1,7 @@
 ---
 id: 0007
 title: First plan from intake alone (no labs required)
-status: proposed
+status: in-progress
 priority: P0
 area: onboarding
 created: 2026-05-15
@@ -60,4 +60,4 @@ This is the missing wedge between "I saw a tweet about Almanac" and "I have my o
 
 ## Implementation log
 
-(empty — pick up via `/ship 0007`)
+- 2026-05-15 — picked up by implementation-dev. Branch `feat/0007-intake-only-plan`.

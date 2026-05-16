@@ -1,0 +1,45 @@
+{
+  "snapshot": "You came in naming the afternoon energy crash, a wish for lower cholesterol, and a preference for halal, pescatarian-leaning cooking with South Asian and Mediterranean staples. Without a lab panel in hand, this first plan is written from your intake alone — it lines up the food moves and habits that hold up well for an adult of your stated age, sex, and dietary pattern, and it names the markers that would sharpen the next pass once you upload your labs.\n\nThe eat list pulls from foods that pair naturally with the cuisines you cook in; the avoid list reaches for the items that most reliably blunt afternoon energy. The habit stack is the easy tier — five small things a tired person can hold without thinking.",
+
+  "insights": [
+    { "title": "Afternoon energy crash — the usual suspects", "detail": "Without labs we cannot point to a single marker, but the pattern (post-lunch dip, return mid-afternoon) most often tracks with carbohydrate quality at lunch, hydration through the morning, and short sun exposure on waking. The plan below addresses all three.", "priority": "high" },
+    { "title": "Cholesterol-friendly eating, written from intake", "detail": "Until we see a lipid panel, the plan leans on the food moves with the strongest evidence base across a generic adult: soluble fiber daily, fatty fish a few times a week, leafy greens, and reducing refined seed oils. Lipid-specific tuning waits for labs.", "priority": "medium" },
+    { "title": "Halal pescatarian-leaning, South Asian + Mediterranean", "detail": "Your dietary pattern carries the plan — every eat item below has a halal, pescatarian-friendly form, and the staples lean on cuisines you already cook in.", "priority": "medium" }
+  ],
+
+  "eatList": [
+    { "id": "fatty-fish",   "food": "Fatty fish (salmon, sardines, mackerel)", "frequency": "3x per week", "portion": "~4 oz cooked, palm-sized", "why": "Omega-3s for the lipid profile and a real vitamin D source — both useful generic moves while we wait on labs.", "markerKeys": [], "examples": ["wild salmon","canned sardines in olive oil","smoked mackerel"] },
+    { "id": "soluble-fiber","food": "Soluble fiber (oats, lentils, psyllium)", "frequency": "daily",       "portion": "1/2 cup oats OR 1 cup cooked lentils OR 1 tbsp psyllium", "why": "Pulls cholesterol out via bile-acid binding — the most direct dietary lever before we have a lipid panel to point at.", "markerKeys": [], "examples": ["steel-cut oats","masoor dal","whole psyllium husk"] },
+    { "id": "leafy-greens", "food": "Cooked leafy greens (palak, chard, kale)", "frequency": "4x per week", "portion": "2 packed cups cooked", "why": "Folate, magnesium, and plant nitrates carry weight across cardiovascular and energy pathways; cook them in ghee or olive oil for absorption.", "markerKeys": [], "examples": ["palak (spinach saag)","Swiss chard","lacinato kale"] },
+    { "id": "yogurt",       "food": "Plain whole-milk yogurt", "frequency": "5x per week", "portion": "3/4 cup", "why": "Steady protein at breakfast or snack — flattens the afternoon energy crash by smoothing morning blood sugar.", "markerKeys": [], "examples": ["plain whole-milk yogurt","labneh","Greek yogurt (unsweetened)"] },
+    { "id": "olive-oil",    "food": "Extra-virgin olive oil as the daily fat", "frequency": "daily", "portion": "2-3 tbsp across meals", "why": "Replaces refined seed oils for cooking and finishing; backbone of the Mediterranean pattern.", "markerKeys": [] }
+  ],
+
+  "avoidList": [
+    { "id": "refined-seed-oils", "food": "Industrial seed oils (soybean, corn, sunflower)", "why": "Pro-inflammatory and tied to higher cardiovascular risk markers across most adult populations.", "swap": "Olive oil, avocado oil, or ghee" },
+    { "id": "refined-grains",    "food": "Refined grains (white bread, white pasta, pastries) at lunch", "why": "The fastest path to the afternoon energy crash you described.", "swap": "Whole oats, intact grains, or legumes" },
+    { "id": "sugary-drinks",     "food": "Sweetened drinks (sodas, mango lassi, sweet chai)", "why": "Concentrated sugar undercuts both the energy and cholesterol goals.", "swap": "Sparkling water with lime, unsweetened chai, plain yogurt lassi" }
+  ],
+
+  "lifestyle": [
+    { "id": "post-meal-walk", "title": "10-minute walk after lunch", "why": "Improves post-meal glucose and is the single highest-leverage move against the afternoon energy crash.", "how": "Set the alarm; walk the block once.", "tier": "easy", "expectedImpact": "Steadier afternoons within a week or two." },
+    { "id": "morning-sun",    "title": "10 minutes morning sun on skin", "why": "Anchors the circadian rhythm; supports endogenous vitamin D synthesis.", "how": "Within an hour of waking; arms and face, no sunscreen for that window.", "tier": "easy" }
+  ],
+
+  "supplements": [],
+
+  "habitStack": {
+    "intro": "Five small actions that compound across the week.",
+    "habits": [
+      { "id": "h-water", "title": "16 oz water on rising", "cue": "Before coffee", "why": "Hydration sets up steadier morning energy." },
+      { "id": "h-oats",  "title": "1/2 cup oats with breakfast", "cue": "First thing, on the stove or microwave", "why": "Soluble fiber daily, with morning protein." },
+      { "id": "h-walk",  "title": "10-min walk after lunch", "cue": "Right after the last bite", "why": "Smooths the afternoon energy crash." },
+      { "id": "h-sun",   "title": "10-min morning sun", "cue": "Within an hour of waking", "why": "Endogenous vitamin D synthesis and circadian anchoring." },
+      { "id": "h-greens","title": "Cooked greens at one meal", "cue": "Lunch or dinner, your call", "why": "Hits the leafy-greens target across the week." }
+    ]
+  },
+
+  "retest": [
+    { "markerKeys": ["total_cholesterol","triglycerides","ldl_c","hdl_c","vit_d_25oh"], "whenWeeks": 0, "reason": "Upload your most recent labs to sharpen this plan — a lipid panel and a vitamin D level would let the next pass name specific markers instead of writing from intake alone." }
+  ]
+}
