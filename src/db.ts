@@ -1,7 +1,7 @@
 // Local-first storage. All persistence lives here.
 
 import Dexie, { type Table } from "dexie";
-import type { Profile, Panel, Plan, MealPlan, CheckIn, Day, MarkerDef } from "./types";
+import type { Profile, Panel, Plan, MealPlan, CheckIn, Day, MarkerDef, ProjectionSnapshot } from "./types";
 
 export interface ExtractCacheEntry {
   hash: string;            // SHA-256 of the staged files (in order)
@@ -26,6 +26,7 @@ class AlmanacDB extends Dexie {
   checkins!:      Table<CheckIn,           number>;
   extractCache!:  Table<ExtractCacheEntry, string>;
   userMarkers!:   Table<UserMarker,        string>;
+  projections!:   Table<ProjectionSnapshot, number>;
 
   constructor() {
     super("almanac");
@@ -78,10 +79,35 @@ class AlmanacDB extends Dexie {
       extractCache: "hash, createdAt",
       userMarkers:  "&key, createdAt",
     });
+
+    // v6 — adds the projections table for the between-draws "what we'd
+    // expect" cards on #/progress (ticket 0012). One row per qualifying
+    // marker per panel upload, keyed by [markerKey+panelId] so a re-upload
+    // of the same panel doesn't double-record. Additive over v5; existing
+    // v5 data is preserved (see the migration test in projection.spec.ts).
+    this.version(6).stores({
+      profile:      "id",
+      panels:       "++id, drawnAt, createdAt",
+      plans:        "++id, generatedAt",
+      mealPlans:    "++id, planId, weekStart, generatedAt",
+      checkins:     "++id, &day, createdAt",
+      extractCache: "hash, createdAt",
+      userMarkers:  "&key, createdAt",
+      projections:  "++id, &[markerKey+panelId], panelId, markerKey, createdAt",
+    });
   }
 }
 
 export const db = new AlmanacDB();
+
+// In dev/test only, expose the Dexie handle on `window` so the v5→v6 schema
+// migration spec can close the connection before deleting the database to
+// re-seed it at the older version. Vite replaces `import.meta.env.DEV` at
+// build time; in production this branch evaluates to false and gets dropped
+// from the bundle, so no global is ever attached.
+if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV) {
+  (window as unknown as { __almanacDb?: AlmanacDB }).__almanacDb = db;
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Day helpers                                                               */
@@ -232,6 +258,31 @@ export async function recentCheckIns(days = 14): Promise<CheckIn[]> {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Projection snapshots (ticket 0012)                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Return every projection snapshot persisted for the given panel id (the
+ * panel the projection was computed FROM, not the panel that arrived after).
+ * The Progress page calls this with the prior latest panel's id to render the
+ * "Projected X. Landed at Y." evaluation row.
+ */
+export async function getProjectionsFor(panelId: number): Promise<ProjectionSnapshot[]> {
+  return db.projections.where("panelId").equals(panelId).toArray();
+}
+
+/**
+ * Persist a batch of projection snapshots. Uses `bulkPut` so a re-upload of
+ * the same panel (same `[markerKey+panelId]` unique tuple) replaces the row
+ * rather than throwing — that matches the "snapshot is what we showed the
+ * user last" semantic; the latest write wins.
+ */
+export async function saveProjections(snapshots: ProjectionSnapshot[]): Promise<void> {
+  if (!snapshots.length) return;
+  await db.projections.bulkPut(snapshots);
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Extraction cache                                                          */
 /* -------------------------------------------------------------------------- */
 
@@ -316,10 +367,11 @@ function stripId<T extends { id?: number }>(row: T): Omit<T, "id"> {
 }
 
 export async function wipeAll(): Promise<void> {
-  await db.transaction("rw", [db.profile, db.panels, db.plans, db.mealPlans, db.checkins, db.userMarkers], async () => {
+  await db.transaction("rw", [db.profile, db.panels, db.plans, db.mealPlans, db.checkins, db.userMarkers, db.projections], async () => {
     await Promise.all([
       db.profile.clear(), db.panels.clear(), db.plans.clear(),
       db.mealPlans.clear(), db.checkins.clear(), db.userMarkers.clear(),
+      db.projections.clear(),
     ]);
   });
 }

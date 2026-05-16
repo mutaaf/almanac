@@ -10,12 +10,14 @@ import { mount, h, esc, errorCard } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
+  latestPlan, recentCheckIns, saveProjections,
 } from "../db";
 import { panelsFromFiles, type ExtractedRow } from "../extractor";
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import { listUserMarkers, addUserMarker, getAllMarkers } from "../data/userMarkers";
+import { computeProjection } from "../progress/projection";
 import { route } from "../main";
-import type { MarkerCategory, MarkerDef, Panel, Result } from "../types";
+import type { MarkerCategory, MarkerDef, Panel, ProjectionSnapshot, Result } from "../types";
 
 /* The staging set lives outside render so paste handlers can mutate it
    without re-running the whole component. */
@@ -313,6 +315,13 @@ async function extractStaged(): Promise<void> {
     const ids: number[] = [];
     for (const p of panels) {
       ids.push(await addPanel(p));
+      // Per ticket 0012 — every new panel materializes a projection snapshot
+      // for the markers on the PRIOR latest panel that have a curated
+      // responsiveness entry AND for which adherence cleared the threshold.
+      // Failure here must never block the upload; log and continue so a bug
+      // in projection math doesn't strand the user with no panel persisted.
+      try { await materializeProjectionsForPriorPanel(ids[ids.length - 1]!); }
+      catch { /* projection snapshotting is best-effort */ }
     }
     const newestId = ids[ids.length - 1];
     if (newestId == null) {
@@ -952,6 +961,11 @@ async function renderManualEntry(): Promise<void> {
     });
     // See plan.ts compose() — same fix.
     await waitForPanelCommit(id);
+    // Ticket 0012 — materialize projection snapshots against the prior
+    // latest panel so the Progress page can render the evaluation row on
+    // the next visit. Best-effort; never blocks the navigation.
+    try { await materializeProjectionsForPriorPanel(id); }
+    catch { /* projection snapshotting is best-effort */ }
     location.hash = `#/labs?id=${id}`;
     await route();
   });
@@ -969,6 +983,56 @@ async function waitForPanelCommit(id: number, timeoutMs = 2000): Promise<void> {
     if (p) return;
     await new Promise(r => setTimeout(r, 20));
   }
+}
+
+/**
+ * Materialize a projection snapshot per qualifying marker on the PRIOR
+ * latest panel — the panel that was newest BEFORE `newPanelId` arrived
+ * (ticket 0012). The next visit to `#/progress` joins these snapshots
+ * against the just-arrived panel's values to render the evaluation row.
+ *
+ * No-op when:
+ *   - there's no prior panel (this is the first upload ever)
+ *   - there's no active plan (adherence has nothing to score against)
+ *
+ * Every newly-inserted panel triggers this. We call it once per `addPanel`
+ * call site (extraction flow + manual flow) so the persistence stays
+ * deterministic regardless of which surface created the panel.
+ */
+async function materializeProjectionsForPriorPanel(newPanelId: number): Promise<void> {
+  const panels = await allPanels();      // newest-first by drawnAt
+  // Identify the prior panel: the panel that was newest before this upload.
+  // `allPanels()` returns newest-first by drawnAt, so the panel ordering
+  // here is:
+  //   index 0 — the newly-arrived panel IF it has the newest drawnAt
+  //   index 1 — the prior panel
+  // If the user back-dated this draw, the new panel might not be at index 0.
+  // Filter out the new panel and take whatever's newest among the rest.
+  const others = panels.filter(p => p.id !== newPanelId);
+  const prior  = others[0];   // newest of "everything but the new panel"
+  if (!prior?.id) return;
+
+  const plan = await latestPlan();
+  if (!plan) return;
+  const checkins = await recentCheckIns(14);
+
+  const snapshots: ProjectionSnapshot[] = [];
+  const now = Date.now();
+  for (const r of prior.results) {
+    const m = findMarker(r.markerKey);
+    if (!m?.responsiveness) continue;
+    const band = computeProjection(m, r, checkins, plan);
+    if (!band) continue;   // adherence below threshold → no snapshot
+    snapshots.push({
+      markerKey: r.markerKey,
+      panelId: prior.id,
+      low: band.low,
+      high: band.high,
+      weeksOut: band.weeksOut,
+      createdAt: now,
+    });
+  }
+  if (snapshots.length) await saveProjections(snapshots);
 }
 
 void updatePanel;

@@ -50,6 +50,29 @@ export interface MarkerDef {
   description: string;
   higherIsBetter?: boolean;
   sex?: Sex;
+  /**
+   * Curated time-to-effect + plausible-movement metadata, ticket 0012. Only
+   * present on markers where the functional-medicine literature gives us
+   * defensible numbers (ferritin, ApoB, hs-CRP, fasting insulin, hba1c,
+   * vit D, omega-3 index, free T3, magnesium RBC). The projection module
+   * skips markers without this field — that's the intentional gate.
+   *
+   *   weeksToEffect: [low, high] window in weeks over which the marker
+   *                  typically moves once a relevant tier is held.
+   *   direction:     which way "improvement" pushes the value. "either"
+   *                  is reserved for markers where the user's starting
+   *                  side of the optimal range determines the direction
+   *                  (rarely used; included for completeness).
+   *   magnitude:     plausible movement per protocol window in marker
+   *                  units. `low`/`high` are unsigned magnitudes — the
+   *                  projection module applies the sign from `direction`
+   *                  and the user's current side of the optimal range.
+   */
+  responsiveness?: {
+    weeksToEffect: [number, number];
+    direction: "increase" | "decrease" | "either";
+    magnitude: { low: number; high: number; unit?: string };
+  };
 }
 
 export type MarkerCategory =
@@ -356,4 +379,27 @@ export interface RecapMover {
   kind: "sleep" | "mood" | "energy";
   delta: number;             // signed; same units as the signal it refers to
   direction: "up" | "down";  // sign of `delta`
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Projection snapshots (ticket 0012)                                        */
+/* -------------------------------------------------------------------------- */
+/*
+ * One row per qualifying marker per panel upload. The row records the
+ * projected band the user was looking at at the time the new panel was
+ * uploaded, so the post-upload Progress page can render an evaluation
+ * ("Projected 35–55. Landed at 42 — within range.") against ground truth.
+ *
+ * `panelId` is the id of the panel the projection was computed FROM (the
+ * prior-latest panel). On a new upload, evaluation joins this row against
+ * the just-arrived panel's value for the same markerKey.
+ */
+export interface ProjectionSnapshot {
+  id?: number;
+  markerKey: string;
+  panelId: number;
+  low: number;
+  high: number;
+  weeksOut: [number, number];
+  createdAt: number;
 }
