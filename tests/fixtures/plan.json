@@ -26,7 +26,7 @@
   ],
 
   "supplements": [
-    { "id": "vit-d3", "title": "Vitamin D3 + K2", "why": "Vitamin D at 32 ng/mL needs replenishment beyond what food provides; K2 directs calcium correctly.", "how": "2000 IU D3 + 100 mcg K2 (MK-7) with the largest fat-containing meal.", "tier": "easy", "caution": "Retest D in 12 weeks. Stop if you start anticoagulants — discuss with clinician.", "expectedImpact": "+15-25 ng/mL over 12 weeks." }
+    { "id": "vit-d3", "title": "Vitamin D3 + K2", "why": "Vitamin D at 32 ng/mL needs replenishment beyond what food provides; K2 directs calcium correctly.", "how": "2000 IU D3 + 100 mcg K2 (MK-7) with the largest fat-containing meal.", "tier": "easy", "caution": "Retest D in 12 weeks. Stop if you start anticoagulants — discuss with clinician.", "expectedImpact": "+15-25 ng/mL over 12 weeks.", "markerKeys": ["vit_d_25oh"] }
   ],
 
   "habitStack": {

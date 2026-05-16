@@ -7,7 +7,7 @@
 // The mode persists in localStorage so each user gets their preferred surface
 // every time they open the plan.
 
-import { mount, h, esc, longDate, errorCard } from "../ui";
+import { mount, h, esc, longDate, errorCard, openSlideover, closeSlideover } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, latestPlan, savePlan, recentCheckIns,
@@ -220,7 +220,7 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
 
   // Dashboard-only handlers.
   if (mode === "dashboard") {
-    wireDashboardHandlers(plan, ci);
+    wireDashboardHandlers(plan, ci, panels);
   }
 }
 
@@ -495,22 +495,36 @@ function renderInsightCard(i: Insight, series: Map<string, MarkerSeries>): strin
     ? thermometer({ marker: m, value: s.latest })
     : "";
 
+  // "Read why X is on the list" — only when the insight cites a marker we know.
+  // Lives outside <summary> so a tap on it never toggles the details
+  // disclosure; the JS handler stops propagation as a belt-and-braces too.
+  const whyLabel = m ? `Read why ${m.shortName ?? m.name} is on the list` : "";
+  const whyChevron = i.markerKey && m
+    ? `<button type="button" class="insight-card__why" data-why="${esc(i.markerKey)}" aria-label="${esc(whyLabel)}">›</button>`
+    : "";
+
+  // The chevron sits OUTSIDE <details> so closed-state UA styling doesn't
+  // hide it. Both live inside a positioning wrapper so the button can be
+  // pinned to the top-right corner.
   return `
-    <details class="insight-card insight-card--${esc(i.priority)}">
-      <summary class="insight-card__head">
-        <span class="insight-card__pri">${esc(i.priority)}</span>
-        <span class="insight-card__title">${esc(i.title)}</span>
-      </summary>
-      <div class="insight-card__body">
-        <p class="insight-card__detail">${esc(i.detail)}</p>
-        ${therm ? `
-          <div class="insight-card__therm">
-            <div class="insight-card__therm-label">${esc(m!.shortName ?? m!.name)} · ${esc(s!.latest!)} ${esc(m!.unit)}</div>
-            ${therm}
-          </div>
-        ` : ""}
-      </div>
-    </details>
+    <div class="insight-card-wrap">
+      <details class="insight-card insight-card--${esc(i.priority)}">
+        <summary class="insight-card__head">
+          <span class="insight-card__pri">${esc(i.priority)}</span>
+          <span class="insight-card__title">${esc(i.title)}</span>
+        </summary>
+        <div class="insight-card__body">
+          <p class="insight-card__detail">${esc(i.detail)}</p>
+          ${therm ? `
+            <div class="insight-card__therm">
+              <div class="insight-card__therm-label">${esc(m!.shortName ?? m!.name)} · ${esc(s!.latest!)} ${esc(m!.unit)}</div>
+              ${therm}
+            </div>
+          ` : ""}
+        </div>
+      </details>
+      ${whyChevron}
+    </div>
   `;
 }
 
@@ -526,7 +540,7 @@ function renderEatCard(e: EatItem): string {
   }).join("");
 
   return `
-    <article class="eat-card">
+    <article class="eat-card" data-card-id="${esc(e.id)}">
       <div class="eat-card__head">
         <div class="eat-card__food">${esc(e.food)}</div>
         <div class="eat-card__freq" title="${esc(e.frequency)}">${dots}</div>
@@ -574,7 +588,7 @@ function renderHabitCard(h: { id: string; title: string; cue: string; why: strin
 
 function renderSupportingCard(r: Recommendation, kind: string): string {
   return `
-    <details class="support-card support-card--${esc(r.tier)}">
+    <details class="support-card support-card--${esc(r.tier)}" data-card-id="${esc(r.id)}">
       <summary>
         <span class="support-card__kind">${esc(kind)}</span>
         <span class="support-card__title">${esc(r.title)}</span>
@@ -592,7 +606,7 @@ function renderSupportingCard(r: Recommendation, kind: string): string {
 
 /* ---- dashboard wiring -------------------------------------------------- */
 
-async function wireDashboardHandlers(plan: Plan, _ci: CheckIn | undefined): Promise<void> {
+async function wireDashboardHandlers(plan: Plan, _ci: CheckIn | undefined, panels: Panel[]): Promise<void> {
   for (const btn of document.querySelectorAll<HTMLElement>(".habit-card")) {
     btn.addEventListener("click", async () => {
       const id = btn.dataset.habit;
@@ -621,6 +635,155 @@ async function wireDashboardHandlers(plan: Plan, _ci: CheckIn | undefined): Prom
       if (checkEl) checkEl.textContent = btn.classList.contains("is-done") ? "✓" : "";
     });
   }
+
+  // "Why is this a problem?" chevrons on each insight card — open the
+  // slideover with three local sections built from the marker DB, the
+  // user's own trajectory, and the current plan. Zero API calls.
+  for (const btn of document.querySelectorAll<HTMLElement>(".insight-card__why")) {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();   // never toggle the wrapping <details>
+      const key = btn.dataset.why;
+      if (!key) return;
+      const insight = plan.insights.find(i => i.markerKey === key);
+      if (!insight) return;
+      openWhySlideover(insight, plan, panels, btn);
+    });
+  }
+}
+
+/* ---- why slideover ---------------------------------------------------- */
+
+/**
+ * Build and open the "Why is this a problem?" slideover for a single insight.
+ * All data comes from the marker DB, the user's panels, and the current plan
+ * — strictly local, zero network. Tap-targets close the slideover and scroll
+ * to the matching plan card.
+ */
+function openWhySlideover(insight: Insight, plan: Plan, panels: Panel[], opener: HTMLElement): void {
+  const key = insight.markerKey!;
+  const marker = findMarker(key);
+
+  // -- "The marker": marker DB description verbatim ----------------------
+  const markerSection = marker
+    ? `
+      <section class="slideover__section">
+        <h2 class="slideover__heading">The marker</h2>
+        <div class="slideover__marker-name">${esc(marker.shortName ?? marker.name)}</div>
+        <p class="slideover__marker-desc">${esc(marker.description)}</p>
+      </section>
+    `
+    : `
+      <section class="slideover__section">
+        <h2 class="slideover__heading">The marker</h2>
+        <p class="slideover__marker-desc">No reference entry on file.</p>
+      </section>
+    `;
+
+  // -- "Your trajectory": ≤6 newest-first readings -----------------------
+  // Walk every panel; gather (drawnAt, value, unit, flag) for this markerKey.
+  // Sort newest → oldest by drawnAt and slice 6.
+  type Row = { drawnAt: string; value: number; unit: string; flag?: string };
+  const all: Row[] = [];
+  for (const p of panels) {
+    for (const r of p.results) {
+      if (r.markerKey === key) {
+        all.push({
+          drawnAt: p.drawnAt,
+          value: r.value,
+          unit: r.unit,
+          ...(r.flag ? { flag: r.flag as string } : {}),
+        });
+      }
+    }
+  }
+  all.sort((a, b) => b.drawnAt.localeCompare(a.drawnAt));
+  const visible = all.slice(0, 6);
+
+  const trajectorySection = visible.length <= 1
+    ? `
+      <section class="slideover__section">
+        <h2 class="slideover__heading">Your trajectory</h2>
+        <div class="slideover__trajectory">
+          <p>Only one reading on file — upload earlier draws to see a trend.</p>
+          <p><a href="#/labs">Add earlier panels in labs →</a></p>
+        </div>
+      </section>
+    `
+    : `
+      <section class="slideover__section">
+        <h2 class="slideover__heading">Your trajectory</h2>
+        <div class="slideover__trajectory">
+          <ol class="slideover__trajectory-list">
+            ${visible.map(r => `
+              <li class="slideover__trajectory-row">
+                <span class="slideover__trajectory-date">${esc(r.drawnAt)}</span>
+                <span class="slideover__trajectory-value">${esc(r.value)} <span class="slideover__trajectory-unit">${esc(r.unit)}</span></span>
+                ${r.flag ? `<span class="slideover__trajectory-flag flag--${esc(r.flag)}">${esc(r.flag)}</span>` : ""}
+              </li>
+            `).join("")}
+          </ol>
+        </div>
+      </section>
+    `;
+
+  // -- "How to move it": insight detail + tap-targets --------------------
+  const matchingEats: Array<{ id: string; label: string }> = plan.eatList
+    .filter(e => e.markerKeys.includes(key))
+    .map(e => ({ id: e.id, label: e.food }));
+  const matchingSupps: Array<{ id: string; label: string }> = plan.supplements
+    .filter(r => (r.markerKeys ?? []).includes(key))
+    .map(r => ({ id: r.id, label: r.title }));
+  const targets = [...matchingEats, ...matchingSupps];
+
+  const moveSection = `
+    <section class="slideover__section">
+      <h2 class="slideover__heading">How to move it</h2>
+      <p class="slideover__detail">${esc(insight.detail)}</p>
+      ${targets.length ? `
+        <div class="slideover__move">
+          <div class="slideover__move-label">In your plan:</div>
+          ${targets.map(t => `
+            <button type="button" class="slideover__target" data-target="${esc(t.id)}">${esc(t.label)} <span class="slideover__target-arrow">↘</span></button>
+          `).join("")}
+        </div>
+      ` : `
+        <p class="slideover__detail slideover__detail--muted">No directly-matched items in your current plan.</p>
+      `}
+    </section>
+  `;
+
+  const labelName = marker?.shortName ?? marker?.name ?? insight.title;
+  openSlideover(
+    `<div class="slideover__sections">${markerSection}${trajectorySection}${moveSection}</div>`,
+    { label: `Why ${labelName} is on the list`, returnFocusTo: opener },
+  );
+
+  // Wire tap-targets after the slideover is in the DOM.
+  for (const t of document.querySelectorAll<HTMLElement>("aside.slideover .slideover__target")) {
+    t.addEventListener("click", () => {
+      const id = t.dataset.target;
+      closeSlideover();
+      if (!id) return;
+      // Find the matching card on the plan: either an `.eat-card` (no data-id
+      // today) or a `.support-card`. We tag both by data-card-id below to
+      // make this scrollIntoView deterministic.
+      const card = document.querySelector<HTMLElement>(`[data-card-id="${cssEscape(id)}"]`);
+      card?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
+}
+
+/**
+ * Bare-bones CSS.escape polyfill. WebKit/Chromium ship CSS.escape but
+ * eat-item ids are simple slugs in practice; this just protects against
+ * the unlikely id containing characters CSS would mis-parse.
+ */
+function cssEscape(s: string): string {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(s);
+  }
+  return s.replace(/[^a-zA-Z0-9_-]/g, c => `\\${c}`);
 }
 
 /* ============================================================================

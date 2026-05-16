@@ -2223,6 +2223,259 @@ body {
 }
 
 /* =============================================================================
+   SLIDEOVER — in-page contextual long-form (the "Why is this a problem?"
+   surface). Single instance, mounted on <body> as a sibling of #app so
+   route re-renders don't blow it away. Mobile slides up from the bottom,
+   desktop slides in from the right. Same oxblood / ink / cream palette.
+   ============================================================================= */
+
+.slideover-root {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: block;
+}
+
+.slideover-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(26, 24, 20, 0.36);
+  animation: slideover-fade 220ms var(--ease) both;
+}
+
+.slideover {
+  position: absolute;
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--paper-edge);
+  box-shadow: -2px 0 28px rgba(26, 24, 20, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Desktop variant — enters from the right at ~480px wide. */
+.slideover--from-right {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 480px;
+  max-width: 92vw;
+  animation: slideover-in-right 280ms var(--ease) both;
+}
+
+/* Mobile variant — rises from the bottom, ≥60vh tall. */
+.slideover--from-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 78vh;
+  min-height: 60vh;
+  border-top: 1px solid var(--paper-edge);
+  box-shadow: 0 -2px 28px rgba(26, 24, 20, 0.18);
+  animation: slideover-in-bottom 280ms var(--ease) both;
+}
+
+.slideover__close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.8rem;
+  width: 2rem;
+  height: 2rem;
+  font-family: var(--display);
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--ink-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+.slideover__close:hover { color: var(--oxblood); }
+
+.slideover__inner {
+  overflow-y: auto;
+  padding: 2.4rem 1.6rem 2.4rem;
+  flex: 1 1 auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.slideover__sections { display: flex; flex-direction: column; gap: 1.8rem; }
+
+.slideover__section { display: flex; flex-direction: column; gap: 0.5rem; }
+
+.slideover__heading {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  margin: 0 0 0.2rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.slideover__marker-name {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 1.35rem;
+  color: var(--ink);
+}
+
+.slideover__marker-desc {
+  font-family: var(--display);
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 0;
+}
+
+.slideover__trajectory p {
+  font-family: var(--display);
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0 0 0.5rem;
+}
+.slideover__trajectory a {
+  color: var(--oxblood);
+  text-decoration: none;
+  border-bottom: 1px solid var(--paper-edge);
+}
+.slideover__trajectory a:hover { border-bottom-color: var(--oxblood); }
+
+.slideover__trajectory-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--paper-edge);
+}
+.slideover__trajectory-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.8rem;
+  align-items: baseline;
+  padding: 0.55rem 0;
+  border-bottom: 1px dotted var(--paper-edge);
+  font-family: var(--body);
+  font-size: 0.92rem;
+}
+.slideover__trajectory-date {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}
+.slideover__trajectory-value {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  color: var(--ink);
+  font-weight: 500;
+}
+.slideover__trajectory-unit {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+.slideover__trajectory-flag {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.slideover__detail {
+  font-family: var(--display);
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 0;
+}
+.slideover__detail--muted { color: var(--ink-soft); }
+
+.slideover__move {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.slideover__move-label {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 0.2rem;
+}
+.slideover__target {
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.7rem 0.9rem;
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-edge);
+  font-family: var(--display);
+  font-size: 1.05rem;
+  color: var(--ink);
+  transition: background-color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.slideover__target:hover {
+  background: var(--paper);
+  border-color: var(--oxblood);
+}
+.slideover__target-arrow {
+  color: var(--oxblood);
+  font-family: var(--body);
+  font-size: 0.9rem;
+}
+
+/* Why chevron on each insight card. Lives outside the <details> so the
+   browser's default closed-state styling doesn't hide it; the wrap is the
+   positioning context. */
+.insight-card-wrap { position: relative; display: block; }
+.insight-card__why {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.7rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  font-family: var(--display);
+  font-size: 1.35rem;
+  line-height: 1;
+  color: var(--ink-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--paper-edge);
+  background: var(--paper);
+  transition: color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.insight-card__why:hover {
+  color: var(--oxblood);
+  border-color: var(--oxblood);
+}
+
+@keyframes slideover-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes slideover-in-right {
+  from { transform: translateX(102%); }
+  to   { transform: translateX(0); }
+}
+@keyframes slideover-in-bottom {
+  from { transform: translateY(102%); }
+  to   { transform: translateY(0); }
+}
+
+/* =============================================================================
    MOBILE — refinements at narrower breakpoints (mobile-first overrides)
    ============================================================================= */
 
