@@ -59,7 +59,6 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0003 | Single-meal swap with constraint preservation | P1 | groomed | meals |
 | 0006 | Per-marker "Why is this a problem?" expansion | P1 | groomed | plan |
 | 0007 | First plan from intake alone (no labs required) | P0 | proposed | onboarding |
 | 0008 | Weekly recap — "this week in your protocol" | P1 | proposed | today |
@@ -69,6 +68,7 @@ owner: gtm-innovation
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
 | 0002 | User-extensible marker database | P1 | shipped | labs |
+| 0003 | Single-meal swap with constraint preservation | P1 | shipped | meals |
 
 ## Hand-off discipline
 
