@@ -1,7 +1,7 @@
 ---
 id: 0007
 title: First plan from intake alone (no labs required)
-status: in-progress
+status: shipped
 priority: P0
 area: onboarding
 created: 2026-05-15
@@ -61,3 +61,14 @@ This is the missing wedge between "I saw a tweet about Almanac" and "I have my o
 ## Implementation log
 
 - 2026-05-15 — picked up by implementation-dev. Branch `feat/0007-intake-only-plan`.
+- 2026-05-15 — shipped via PR https://github.com/mutaaf/almanac/pull/11. Files touched:
+  - `src/claude.ts` — added `INTAKE_PLAN_VOICE` system prompt, `ClaudeClient.generatePlanFromIntake()`, and `formatIntakeMarkerHint()` helper. Re-uses existing `Plan` schema and `recordCall("plan", …)` telemetry kind.
+  - `src/pages/plan.ts` — `paintEmpty()` now branches three ways (haveLabs / !haveLabs first-compose / loaded plan); added `composeFromIntake()` mirroring `compose()` with `basedOnPanelIds: []` on save.
+  - `src/pages/onboarding.ts` — post-save redirect goes to `#/plan` instead of `#/labs`, satisfying the "user is routed to the first-compose state" acceptance criterion.
+  - `tests/fixtures/plan-from-intake.json` — new fixture; snapshot echoes the seeded "afternoon energy crash" token; `retest[0].reason` mentions uploading labs.
+  - `tests/helpers/mocks.ts` — sniffs `INTAKE_PLAN_VOICE` and serves the new fixture; defaults to `plan.json` otherwise.
+  - `tests/helpers/flows.ts` — `onboard()` now asserts the new post-onboarding URL (`#/plan`).
+  - `tests/e2e/plan.spec.ts` — six new scenarios in a `Plan — first compose from intake alone` describe block.
+  - `tests/e2e/onboarding.spec.ts` — updated the "lands on labs" assertion to "lands on the plan first-compose state".
+- Interpretation note: the engineering notes scoped src/ changes to `plan.ts` + `claude.ts`, but acceptance criterion #1 explicitly says the user is routed to `#/plan` after onboarding. Took the bold reading and switched the onboarding redirect; the existing onboarding test was updated to match. Same fields are still captured.
+- No new deps, no schema migration, no egress allow-list change. Privacy E2E green.
