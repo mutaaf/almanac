@@ -1,7 +1,7 @@
 ---
 id: 0011
 title: Marker hero share card — one-marker, phone-shaped image for social
-status: in-progress
+status: shipped
 priority: P1
 area: growth
 created: 2026-05-16
@@ -68,3 +68,4 @@ Explicit anti-goals. The dev agent will not do these even if they seem related.
 ## Implementation log
 
 - 2026-05-16 — picked up by implementation-dev. Branch `feat/0011-marker-hero-share-card`. Plan: add a per-row "Share marker" chip on the compare view that calls a new `src/share/marker-card.ts` module to draw a 1080×1920 PNG via canvas 2D, then ship it via `navigator.share({ files })` (with `<a download>` fallback). No new deps, no schema change, no egress allow-list change.
+- 2026-05-16 — shipped via PR #23. CI green (typecheck + build, E2E chromium, E2E mobile-webkit). Files touched: `src/share/marker-card.ts` (new — canvas 2D drawing module + share/download helper, ~380 lines), `src/pages/progress.ts` (chip render + delegated click handler on the page section since rows are grouped into multiple `.compare-list` containers), `src/styles.css` (`.compare-row__share` chip — hairline-bordered, ≥44×44 tap target, repositions under the value pair on mobile), `tests/e2e/share-card.spec.ts` (new — 9 tests across chromium and mobile-webkit; mobile assertions limited per ticket). Notable wrinkle: headless Chromium does not ship `navigator.share` / `navigator.canShare`, so the test stub installs them via `Object.defineProperty` after the page navigation rather than `addInitScript`, because the SPA's hash-only navigations don't create a new document for `addInitScript` to fire against.
