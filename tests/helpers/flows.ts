@@ -35,7 +35,10 @@ interface OnboardOverrides {
 
 /**
  * Fill onboarding with a halal-pescatarian profile. Always starts from "/",
- * always ends on "#/labs". Acknowledges consent along the way.
+ * always ends on the plan first-compose state at "#/plan" (ticket 0007 —
+ * after saving the intake form, the user lands on the plan page so the
+ * first-compose-from-intake CTA is the first thing they see).
+ * Acknowledges consent along the way.
  */
 export async function onboard(page: Page, overrides: OnboardOverrides = {}): Promise<void> {
   await acknowledgeConsent(page);
@@ -71,10 +74,10 @@ export async function onboard(page: Page, overrides: OnboardOverrides = {}): Pro
   await page.selectOption("#model", d.model);
 
   await page.getByRole("button", { name: /^begin$/i }).click();
-  await expect(page).toHaveURL(/#\/labs$/);
-  // Wait for the labs page to actually finish rendering before returning;
-  // the post-onboarding flow on mobile-webkit can race the next page action.
-  await expect(page.locator(".dropzone, .archive, .quiet").first()).toBeVisible();
+  await expect(page).toHaveURL(/#\/plan$/);
+  // Wait for the plan first-compose state to actually paint before returning;
+  // mobile-webkit can race the next page action on initial render.
+  await expect(page.locator(".eyebrow, .dash-snapshot, .prose").first()).toBeVisible();
 }
 
 /**

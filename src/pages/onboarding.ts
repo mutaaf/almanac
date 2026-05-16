@@ -134,7 +134,11 @@ export async function renderOnboarding(): Promise<void> {
       anthropicKey: String(fd.get("key") ?? "").trim(),
       model:        String(fd.get("model") ?? "claude-sonnet-4-6"),
     });
-    location.hash = "#/labs";   // straight to "upload your first labs"
+    // Ticket 0007 — hand the user off to the plan page, which renders the
+    // first-compose state ("Compose from intake" primary, "I have labs —
+    // upload first" secondary). The intake answers above are enough to
+    // write a real first protocol; labs become an upgrade, not a prereq.
+    location.hash = "#/plan";
   });
 }
 

@@ -50,27 +50,48 @@ async function paintEmpty(): Promise<void> {
   const panels = await allPanels();
   const haveLabs = panels.length > 0;
 
+  // Three branches:
+  //   - haveLabs                → "compose now from your panels" (the old flow)
+  //   - !haveLabs (intake only) → the first-compose two-path state (ticket 0007)
+  //
+  // The intake branch offers compose-from-intake as the primary CTA and a
+  // labs-first link as the secondary. We keep the labs-first option so the
+  // reader who came in with a PDF in hand isn't railroaded.
+  const body = haveLabs
+    ? `
+      <div class="eyebrow">The plan</div>
+      <h1 class="headline" style="margin-top: 0.4rem; max-width: 26ch;">
+        Your <em>protocol</em> hasn't been written yet.
+      </h1>
+      <p class="lede" style="max-width: 60ch; margin-top: 1rem;">
+        ${panels.length} panel${panels.length === 1 ? "" : "s"} ready. Compose the plan when you are.
+      </p>
+      <div style="display: flex; gap: 1rem; margin-top: 2.2rem;">
+        <button id="compose" class="btn btn--accent">Compose the plan</button>
+        <a href="#/labs" class="btn btn--ghost">Back to labs</a>
+      </div>
+    `
+    : `
+      <div class="eyebrow">The plan</div>
+      <h1 class="headline" style="margin-top: 0.4rem; max-width: 30ch;">
+        Your first <em>protocol</em>, from what you've told us so far.
+      </h1>
+      <p class="lede" style="max-width: 60ch; margin-top: 1rem;">
+        We can compose a real first plan from your intake — the goals, the dietary pattern, the conditions
+        you named. It will be written without lab data, and the first thing it asks you to do is upload your
+        most recent labs so the next pass can name specific markers.
+      </p>
+      <div style="display: flex; gap: 1rem; margin-top: 2.2rem; flex-wrap: wrap;">
+        <button id="compose-from-intake" class="btn btn--accent">Compose from intake</button>
+        <a href="#/labs" class="btn btn--ghost">I have labs — upload first</a>
+      </div>
+    `;
+
   const frag = h(`
     <div class="reveal">
       ${masth}
       <section class="page">
-        <div class="eyebrow">The plan</div>
-        <h1 class="headline" style="margin-top: 0.4rem; max-width: 26ch;">
-          ${haveLabs
-            ? `Your <em>protocol</em> hasn't been written yet.`
-            : `Add labs first — the <em>protocol</em> reads from them.`}
-        </h1>
-        <p class="lede" style="max-width: 60ch; margin-top: 1rem;">
-          ${haveLabs
-            ? `${panels.length} panel${panels.length === 1 ? "" : "s"} ready. Compose the plan when you are.`
-            : `Drop a PDF or photo of your last labs to begin.`}
-        </p>
-        <div style="display: flex; gap: 1rem; margin-top: 2.2rem;">
-          ${haveLabs
-            ? `<button id="compose" class="btn btn--accent">Compose the plan</button>
-               <a href="#/labs" class="btn btn--ghost">Back to labs</a>`
-            : `<a href="#/labs" class="btn btn--accent">Add labs</a>`}
-        </div>
+        ${body}
         <div id="status" class="quiet" style="display: none; margin-top: 2rem;"></div>
       </section>
       ${foot("iii")}
@@ -79,6 +100,59 @@ async function paintEmpty(): Promise<void> {
 
   mount(frag);
   document.getElementById("compose")?.addEventListener("click", () => compose());
+  document.getElementById("compose-from-intake")?.addEventListener("click", () => composeFromIntake());
+}
+
+/**
+ * Compose the first plan from intake answers alone — no panels required.
+ * Mirrors `compose()` (loading state, telemetry via the SDK call, savePlan,
+ * commit-wait, then route() to re-render). The persisted Plan has
+ * `basedOnPanelIds: []`, which is the only marker that distinguishes it
+ * from a panel-grounded plan in storage. Ticket 0007.
+ */
+async function composeFromIntake(): Promise<void> {
+  const profile = await getProfile();
+  if (!profile) return;
+  const status = document.getElementById("status") as HTMLDivElement | null;
+  const setStatus = (msg: string) => {
+    if (!status) return;
+    status.style.display = "block";
+    status.innerHTML = `<span class="spinner"></span>&nbsp;&nbsp;${esc(msg)}`;
+  };
+
+  try {
+    setStatus("Reading your intake…");
+
+    setStatus("Composing your first plan…");
+    const client = new ClaudeClient(profile);
+    const { plan, model } = await client.generatePlanFromIntake({ profile });
+
+    const savedId = await savePlan({
+      ...plan,
+      generatedAt: Date.now(),
+      basedOnPanelIds: [],
+      model,
+    });
+
+    // Same WebKit/IndexedDB read-after-write wait as compose() — see the
+    // comment in compose() for the long form of why this exists.
+    await waitForPlanCommit(savedId);
+
+    location.hash = "#/plan";
+    await route();
+  } catch (err: any) {
+    if (!status) return;
+    status.style.display = "block";
+    const isTrunc = err instanceof TruncatedResponseError;
+    const raw = isTrunc ? err.raw : extractRawFromMessage(err.message);
+    status.innerHTML = errorCard({
+      title: "Composition failed",
+      message: err.message ?? String(err),
+      ...(raw ? { raw } : {}),
+      actions: `<button id="retry-intake" class="btn btn--accent">Try again</button>`,
+    });
+    document.getElementById("retry-intake")?.addEventListener("click", () => composeFromIntake());
+  }
 }
 
 async function compose(): Promise<void> {
