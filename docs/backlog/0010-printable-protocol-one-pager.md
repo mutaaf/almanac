@@ -1,7 +1,7 @@
 ---
 id: 0010
 title: Printable one-page protocol (on-device, share with doctor or friend)
-status: proposed
+status: in-progress
 priority: P2
 area: plan
 created: 2026-05-15
@@ -63,4 +63,12 @@ Word-of-mouth in this category is bottlenecked on "what do I actually show my fr
 
 ## Implementation log
 
-(empty — pick up via `/ship 0010`)
+### 2026-05-16 — picked up by implementation-dev
+
+Branch: `feat/0010-printable-protocol`. Approach: Option 1 from the engineering
+notes — render a `.print-sheet` into the live DOM and trigger `window.print()`.
+No new dependencies. The browser's "Save as PDF" / "Share" flow off the print
+dialog covers the share-sheet criterion on every modern OS the user is on, and
+keeps every byte on-device. `navigator.share({ files })` is wired as an
+opportunistic enhancement when `navigator.canShare({ files })` reports true and
+the print path falls through; otherwise it's a plain `<a download>` link.
