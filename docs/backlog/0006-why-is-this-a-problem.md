@@ -1,7 +1,7 @@
 ---
 id: 0006
 title: Per-marker "Why is this a problem?" expansion
-status: in-progress
+status: shipped
 priority: P1
 area: plan
 created: 2026-05-14
@@ -59,3 +59,4 @@ Curious users stay longer when "tap to learn more" actually rewards them. The 2-
 ## Implementation log
 
 - 2026-05-15 — picked up by implementation-dev agent; branch `feat/0006-why-is-this-a-problem` opened. Test-first plan: extend `tests/e2e/plan.spec.ts` with a `Slideover` describe block covering chevron presence, no-route-change, three sections in order, marker description verbatim, trajectory rendering with newest-first ordering, tap-targets that scroll to plan cards, focus return, backdrop/Escape close, mobile-vs-desktop variant, zero new API calls. Then implement `openSlideover`/`closeSlideover` in `src/ui.ts`, hook chevron + handler into `src/pages/plan.ts` dashboard mode, add `.slideover` styles to `src/styles.css`. Add optional `markerKeys?` to `Recommendation` so the supplements tap-target filter works; bump `tests/fixtures/plan.json` to tag the vit-D3 supplement.
+- 2026-05-15 — shipped via PR #9 (squash-merged on green CI: typecheck + build, E2E chromium, E2E mobile-webkit, Vercel deploy). Files touched: `src/pages/plan.ts` (chevron, `openWhySlideover`, eat/support `data-card-id` hooks), `src/ui.ts` (`openSlideover` / `closeSlideover` helpers, mounted on `<body>` so route re-renders don't blow them away; `returnFocusTo` opt because WebKit doesn't focus buttons on click), `src/styles.css` (`.slideover-root` + `.slideover--from-right` / `.slideover--from-bottom` + `.insight-card__why` chevron), `src/types.ts` (`Recommendation.markerKeys?`), `tests/fixtures/plan.json` (vit-D3 tagged), `tests/e2e/plan.spec.ts` (twelve `Plan — Why slideover` scenarios). Implementation notes: each insight `<details>` is wrapped in a `.insight-card-wrap` so the chevron lives outside the details element (UA closed-state styling hides non-summary children otherwise). WebKit-specific fix: pass the opener element explicitly to `returnFocusTo` so Escape's focus restore works on Mobile Safari.
