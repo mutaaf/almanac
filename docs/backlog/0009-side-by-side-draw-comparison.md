@@ -1,7 +1,7 @@
 ---
 id: 0009
 title: Side-by-side draw comparison with shared-marker deltas
-status: in-progress
+status: shipped
 priority: P1
 area: progress
 created: 2026-05-15
@@ -28,19 +28,19 @@ This is the artifact our highest-LTV cohort (specialty-medicine users, the cohor
 
 ## Acceptance criteria
 
-- [ ] A new route `#/progress?compare=A,B` renders a side-by-side comparison of two panels by id (A = older, B = newer; if reversed, the page swaps them and warns in a small note).
-- [ ] The default `#/progress` page gains a **"Compare two draws"** affordance at the top. Tapping it opens an inline picker (no slideover yet — keep this self-contained) with two `<select>`s: "Earlier draw" and "Later draw," each populated from `allPanels()` ordered newest-first.
-- [ ] The picker has a **"Compare"** button that constructs the URL `#/progress?compare=<earlierId>,<laterId>` and navigates via the imported `route()`.
-- [ ] The comparison page lists ONLY markers that appear in BOTH panels (intersection by `markerKey`). If the intersection is empty, the page renders an editorial empty state explaining the two draws share no markers and links back to the picker.
-- [ ] Each row shows: marker name (canonical), unit, earlier value, later value, absolute delta, percent change (rounded to one decimal), an arrow glyph (`↑` / `↓` / `→`), and a small functional-range band visualization (re-use `thermometer` from `src/viz.ts`) showing where each value falls.
-- [ ] Rows are ordered by category, then by the absolute percent change descending within each category (biggest movers first).
-- [ ] Markers that crossed an `optimal` boundary between the two draws get a one-word badge: "improved" (entered optimal) or "regressed" (exited optimal). The badge uses the existing oxblood / ink tokens — no new colors.
-- [ ] The page header reads: "<earlier date> · <later date> · N markers in common · <X> improved, <Y> regressed."
-- [ ] Comparison works for user-defined markers (from ticket 0002) when both panels contain them. Asserted with a fixture that includes one user marker on both draws.
-- [ ] Zero Anthropic calls fire during compare. All data is local.
-- [ ] Renders on both chromium and mobile-webkit. On mobile, each row collapses to a stacked card; on desktop, a two-column row.
-- [ ] Privacy E2E still passes.
-- [ ] New scenarios in `tests/e2e/progress.spec.ts` (or a new `tests/e2e/compare.spec.ts`) cover: picker → compare flow, the intersection logic, the cross-boundary badges, the empty-intersection state, and the user-marker case.
+- [x] A new route `#/progress?compare=A,B` renders a side-by-side comparison of two panels by id (A = older, B = newer; if reversed, the page swaps them and warns in a small note).
+- [x] The default `#/progress` page gains a **"Compare two draws"** affordance at the top. Tapping it opens an inline picker (no slideover yet — keep this self-contained) with two `<select>`s: "Earlier draw" and "Later draw," each populated from `allPanels()` ordered newest-first.
+- [x] The picker has a **"Compare"** button that constructs the URL `#/progress?compare=<earlierId>,<laterId>` and navigates via the imported `route()`.
+- [x] The comparison page lists ONLY markers that appear in BOTH panels (intersection by `markerKey`). If the intersection is empty, the page renders an editorial empty state explaining the two draws share no markers and links back to the picker.
+- [x] Each row shows: marker name (canonical), unit, earlier value, later value, absolute delta, percent change (rounded to one decimal), an arrow glyph (`↑` / `↓` / `→`), and a small functional-range band visualization (re-use `thermometer` from `src/viz.ts`) showing where each value falls.
+- [x] Rows are ordered by category, then by the absolute percent change descending within each category (biggest movers first).
+- [x] Markers that crossed an `optimal` boundary between the two draws get a one-word badge: "improved" (entered optimal) or "regressed" (exited optimal). The badge uses the existing oxblood / ink tokens — no new colors.
+- [x] The page header reads: "<earlier date> · <later date> · N markers in common · <X> improved, <Y> regressed."
+- [x] Comparison works for user-defined markers (from ticket 0002) when both panels contain them. Asserted with a fixture that includes one user marker on both draws.
+- [x] Zero Anthropic calls fire during compare. All data is local.
+- [x] Renders on both chromium and mobile-webkit. On mobile, each row collapses to a stacked card; on desktop, a two-column row.
+- [x] Privacy E2E still passes.
+- [x] New scenarios in `tests/e2e/progress.spec.ts` (or a new `tests/e2e/compare.spec.ts`) cover: picker → compare flow, the intersection logic, the cross-boundary badges, the empty-intersection state, and the user-marker case.
 
 ## Out of scope
 
@@ -67,3 +67,19 @@ This is the artifact our highest-LTV cohort (specialty-medicine users, the cohor
   picker → compare flow, intersection logic, cross-boundary badges, the
   empty-intersection state, the user-defined-marker case, and the
   no-Anthropic-egress invariant.
+- 2026-05-16 — shipped via PR #16 (squash-merged). CI green on all three
+  gating checks: Typecheck + build (15s), E2E chromium (2m39s), E2E
+  mobile-webkit (5m38s). Files touched:
+  - `src/pages/progress.ts` — branch on `?compare=` for the side-by-side
+    render path, picker UI at the top of the default view, `route()`-based
+    navigation, and the renderRow / renderEmpty / renderRowsByCategory
+    helpers.
+  - `src/progress/compare.ts` (new) — pure `computeComparison(earlier,
+    later, markers)` returning ordered rows + improved / regressed tally.
+  - `src/styles.css` — `.compare-picker`, `.compare-summary`,
+    `.compare-row`, `.compare-row__badge--{improved,regressed}`, and the
+    720px mobile reflow.
+  - `tests/e2e/compare.spec.ts` (new) — seven scenarios covering every
+    acceptance bullet on this ticket.
+  - `docs/backlog/0009-side-by-side-draw-comparison.md` — status flips
+    and this log.
