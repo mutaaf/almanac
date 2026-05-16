@@ -2051,11 +2051,51 @@ body {
 }
 .compare-row__therm .therm { width: 100%; }
 
+/* Ticket 0011 — per-row "Share marker" chip. Sits flush right in the row
+   head on desktop (margin-left: auto pushes it past the badge), drops under
+   the value pair on mobile (≥44×44 tap target via min-height/min-width).
+   Hairline-bordered like the editorial buttons elsewhere; never pill-shaped. */
+.compare-row__share {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: 0.55rem 0.9rem;
+  min-height: 44px;
+  min-width: 44px;
+  cursor: pointer;
+  margin-left: auto;
+  white-space: nowrap;
+  transition: background 180ms var(--ease), color 180ms var(--ease), border-color 180ms var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.compare-row__share:hover,
+.compare-row__share:focus-visible {
+  color: var(--ink);
+  border-color: var(--ink);
+  background: transparent;
+}
+.compare-row__share:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
 @media (max-width: 720px) {
   .compare-row__grid {
     grid-template-columns: 1fr 1fr;
   }
   .compare-row__cell--delta { grid-column: 1 / -1; }
+  /* On mobile, the chip drops out of the header row entirely and re-anchors
+     beneath the value pair where the user's thumb already is. */
+  .compare-row__share {
+    margin-left: 0;
+    width: 100%;
+    margin-top: 0.6rem;
+  }
 }
 
 /* =============================================================================
