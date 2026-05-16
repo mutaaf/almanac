@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE HealthData [
+<!-- HealthKit Export -->
+<!ELEMENT HealthData (ExportDate,Me,Record*)>
+<!ELEMENT ExportDate EMPTY>
+<!ELEMENT Me EMPTY>
+<!ELEMENT Record (MetadataEntry*,HeartRateVariabilityMetadataList?)>
+<!ELEMENT MetadataEntry EMPTY>
+<!ELEMENT HeartRateVariabilityMetadataList (InstantaneousBeatsPerMinute*)>
+<!ELEMENT InstantaneousBeatsPerMinute EMPTY>
+]>
+<HealthData locale="en_US">
+ <ExportDate value="2026-05-11 09:00:00 -0700"/>
+ <Me HKCharacteristicTypeIdentifierBiologicalSex="HKBiologicalSexMale"/>
+
+ <!-- HRV (SDNN) — one reading per day, 2026-05-01..2026-05-10 = 10 days -->
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-01 07:15:00 -0700" endDate="2026-05-01 07:15:00 -0700" value="42.3"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-02 07:10:00 -0700" endDate="2026-05-02 07:10:00 -0700" value="48.1"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-03 07:20:00 -0700" endDate="2026-05-03 07:20:00 -0700" value="51.5"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-04 07:05:00 -0700" endDate="2026-05-04 07:05:00 -0700" value="46.7"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-05 07:18:00 -0700" endDate="2026-05-05 07:18:00 -0700" value="44.2"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-06 07:08:00 -0700" endDate="2026-05-06 07:08:00 -0700" value="49.9"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-07 07:14:00 -0700" endDate="2026-05-07 07:14:00 -0700" value="53.6"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-08 07:22:00 -0700" endDate="2026-05-08 07:22:00 -0700" value="55.0"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-09 07:11:00 -0700" endDate="2026-05-09 07:11:00 -0700" value="50.4"/>
+ <Record type="HKQuantityTypeIdentifierHeartRateVariabilitySDNN" sourceName="Apple Watch" unit="ms" startDate="2026-05-10 07:17:00 -0700" endDate="2026-05-10 07:17:00 -0700" value="47.8"/>
+
+ <!-- Resting heart rate — one per day, 10 days -->
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-01 08:00:00 -0700" endDate="2026-05-01 08:00:00 -0700" value="58"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-02 08:00:00 -0700" endDate="2026-05-02 08:00:00 -0700" value="57"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-03 08:00:00 -0700" endDate="2026-05-03 08:00:00 -0700" value="56"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-04 08:00:00 -0700" endDate="2026-05-04 08:00:00 -0700" value="59"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-05 08:00:00 -0700" endDate="2026-05-05 08:00:00 -0700" value="60"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-06 08:00:00 -0700" endDate="2026-05-06 08:00:00 -0700" value="58"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-07 08:00:00 -0700" endDate="2026-05-07 08:00:00 -0700" value="55"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-08 08:00:00 -0700" endDate="2026-05-08 08:00:00 -0700" value="54"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-09 08:00:00 -0700" endDate="2026-05-09 08:00:00 -0700" value="56"/>
+ <Record type="HKQuantityTypeIdentifierRestingHeartRate" sourceName="Apple Watch" unit="count/min" startDate="2026-05-10 08:00:00 -0700" endDate="2026-05-10 08:00:00 -0700" value="57"/>
+
+ <!-- Sleep — multiple Asleep* segments per night across 10 nights -->
+ <!-- "InBed" is intentionally ignored — only asleep segments contribute hours -->
+ <!-- Night of 2026-05-01: 7.5h asleep (split into two segments) + 0.5h InBed (ignored) -->
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-04-30 22:30:00 -0700" endDate="2026-05-01 00:00:00 -0700" value="HKCategoryValueSleepAnalysisInBed"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-04-30 23:00:00 -0700" endDate="2026-05-01 02:00:00 -0700" value="HKCategoryValueSleepAnalysisAsleepCore"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-01 02:30:00 -0700" endDate="2026-05-01 07:00:00 -0700" value="HKCategoryValueSleepAnalysisAsleepUnspecified"/>
+
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-01 23:00:00 -0700" endDate="2026-05-02 06:30:00 -0700" value="HKCategoryValueSleepAnalysisAsleepUnspecified"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-02 23:15:00 -0700" endDate="2026-05-03 06:45:00 -0700" value="HKCategoryValueSleepAnalysisAsleepCore"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-03 22:45:00 -0700" endDate="2026-05-04 06:30:00 -0700" value="HKCategoryValueSleepAnalysisAsleepUnspecified"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-04 23:30:00 -0700" endDate="2026-05-05 07:00:00 -0700" value="HKCategoryValueSleepAnalysisAsleepUnspecified"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-05 23:00:00 -0700" endDate="2026-05-06 07:00:00 -0700" value="HKCategoryValueSleepAnalysisAsleepCore"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-06 22:30:00 -0700" endDate="2026-05-07 06:30:00 -0700" value="HKCategoryValueSleepAnalysisAsleepUnspecified"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-07 22:45:00 -0700" endDate="2026-05-08 06:15:00 -0700" value="HKCategoryValueSleepAnalysisAsleepCore"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-08 23:00:00 -0700" endDate="2026-05-09 06:30:00 -0700" value="HKCategoryValueSleepAnalysisAsleepUnspecified"/>
+ <Record type="HKCategoryTypeIdentifierSleepAnalysis" sourceName="Apple Watch" startDate="2026-05-09 23:15:00 -0700" endDate="2026-05-10 06:45:00 -0700" value="HKCategoryValueSleepAnalysisAsleepUnspecified"/>
+
+ <!-- Body mass — 5 weigh-ins (kg) across the window -->
+ <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Withings" unit="kg" startDate="2026-05-01 06:00:00 -0700" endDate="2026-05-01 06:00:00 -0700" value="79.4"/>
+ <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Withings" unit="kg" startDate="2026-05-03 06:00:00 -0700" endDate="2026-05-03 06:00:00 -0700" value="79.1"/>
+ <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Withings" unit="kg" startDate="2026-05-05 06:00:00 -0700" endDate="2026-05-05 06:00:00 -0700" value="78.8"/>
+ <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Withings" unit="kg" startDate="2026-05-07 06:00:00 -0700" endDate="2026-05-07 06:00:00 -0700" value="78.5"/>
+ <Record type="HKQuantityTypeIdentifierBodyMass" sourceName="Withings" unit="kg" startDate="2026-05-09 06:00:00 -0700" endDate="2026-05-09 06:00:00 -0700" value="78.3"/>
+
+ <!-- Blood glucose — 12 readings (a few per day, across some of the days), mg/dL -->
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-01 08:00:00 -0700" endDate="2026-05-01 08:00:00 -0700" value="92"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-01 13:00:00 -0700" endDate="2026-05-01 13:00:00 -0700" value="118"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-02 08:30:00 -0700" endDate="2026-05-02 08:30:00 -0700" value="95"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-02 14:00:00 -0700" endDate="2026-05-02 14:00:00 -0700" value="122"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-03 08:00:00 -0700" endDate="2026-05-03 08:00:00 -0700" value="90"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-04 09:00:00 -0700" endDate="2026-05-04 09:00:00 -0700" value="88"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-05 08:15:00 -0700" endDate="2026-05-05 08:15:00 -0700" value="94"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-06 08:00:00 -0700" endDate="2026-05-06 08:00:00 -0700" value="91"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-07 08:45:00 -0700" endDate="2026-05-07 08:45:00 -0700" value="96"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-08 08:00:00 -0700" endDate="2026-05-08 08:00:00 -0700" value="89"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-09 08:30:00 -0700" endDate="2026-05-09 08:30:00 -0700" value="93"/>
+ <Record type="HKQuantityTypeIdentifierBloodGlucose" sourceName="Dexcom G7" unit="mg/dL" startDate="2026-05-10 08:00:00 -0700" endDate="2026-05-10 08:00:00 -0700" value="97"/>
+
+ <!-- Records we DO NOT recognize — must be silently ignored, not crash -->
+ <Record type="HKQuantityTypeIdentifierStepCount" sourceName="iPhone" unit="count" startDate="2026-05-01 09:00:00 -0700" endDate="2026-05-01 23:00:00 -0700" value="8421"/>
+ <Record type="HKQuantityTypeIdentifierActiveEnergyBurned" sourceName="Apple Watch" unit="kcal" startDate="2026-05-01 09:00:00 -0700" endDate="2026-05-01 23:00:00 -0700" value="412"/>
+ <Record type="HKQuantityTypeIdentifierDistanceWalkingRunning" sourceName="iPhone" unit="mi" startDate="2026-05-01 09:00:00 -0700" endDate="2026-05-01 23:00:00 -0700" value="3.4"/>
+
+</HealthData>

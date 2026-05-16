@@ -8,13 +8,13 @@
 
 import { mount, h, esc } from "../ui";
 import { masthead, foot } from "../chrome";
-import { getProfile, allPanels, getPanel } from "../db";
+import { getProfile, allPanels, getPanel, recentCheckIns } from "../db";
 import { findMarker } from "../data/markers";
 import { getAllMarkers } from "../data/userMarkers";
 import { thermometer } from "../viz";
 import { route } from "../main";
 import { computeComparison, type ComparisonRow } from "../progress/compare";
-import type { MarkerDef, Panel, Result } from "../types";
+import type { CheckIn, MarkerDef, Panel, Result } from "../types";
 
 interface Series {
   markerKey: string;
@@ -39,6 +39,10 @@ export async function renderProgress(): Promise<void> {
 
   const masth = await masthead("#/progress");
   const panels = await allPanels();
+  // Last 90 days of check-ins for the "Continuous signals" section (ticket
+  // 0004). Read once here so we don't fan out to multiple Dexie roundtrips
+  // inside the render pass.
+  const checkins = await recentCheckIns(90);
 
   // Sort oldest → newest for trend reading.
   const ordered = [...panels].sort((a, b) => a.drawnAt.localeCompare(b.drawnAt));
@@ -87,6 +91,8 @@ export async function renderProgress(): Promise<void> {
     </section>
   `).join("");
 
+  const continuousHtml = renderContinuousSignals(checkins);
+
   const singletonHtml = singletons.length === 0 ? "" : `
     <section style="margin-top: 2.4rem;">
       <div class="section-mark">Latest values · awaiting a second draw</div>
@@ -115,6 +121,7 @@ export async function renderProgress(): Promise<void> {
           : panels.length === 1
             ? `<p class="lede" style="max-width: 60ch; margin-top: 1rem;">One panel on file. Trends appear after a second draw.</p>${singletonHtml}`
             : `${groupsHtml}${singletonHtml}`}
+        ${continuousHtml}
       </section>
       ${foot("iv")}
     </div>
@@ -462,6 +469,124 @@ function sparkline(s: Series, m: NonNullable<ReturnType<typeof findMarker>>): st
   return `
     <svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="none" aria-hidden="true">
       <rect x="0" y="${bandY1.toFixed(1)}" width="${w}" height="${bandH.toFixed(1)}" fill="rgba(122,31,43,0.08)" />
+      <path d="${path}" fill="none" stroke="var(--ink)" stroke-width="1.4" />
+      ${dots}
+    </svg>
+  `;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Continuous signals (ticket 0004 — Apple Health import)                    */
+/* -------------------------------------------------------------------------- */
+/*
+ * The section renders three sparklines — HRV, RHR, sleep — over the last 90
+ * days when any imported data exists. The section is omitted ENTIRELY when
+ * no check-in row carries any of those fields, per the ticket: we don't show
+ * empty cards inviting the user to "import their data" here. The Settings
+ * page already owns that affordance.
+ */
+
+interface ContinuousSeries {
+  /** Editorial label, used as the card title. */
+  label: string;
+  /** Stable id so the test can count cards reliably. */
+  key: "hrv" | "rhr" | "sleep";
+  /** Unit suffix shown next to the latest reading. */
+  unit: string;
+  /** Per-day points, oldest → newest. Missing days are dropped (not zero-filled). */
+  points: { day: string; value: number }[];
+}
+
+function renderContinuousSignals(checkins: CheckIn[]): string {
+  // recentCheckIns returns rows newest-first; we want chronological for the
+  // sparkline x-axis to read left-to-right as time-forward.
+  const chrono = [...checkins].sort((a, b) => a.day.localeCompare(b.day));
+
+  const hrv: ContinuousSeries["points"] = [];
+  const rhr: ContinuousSeries["points"] = [];
+  const slp: ContinuousSeries["points"] = [];
+  for (const c of chrono) {
+    const s = c.signals;
+    if (!s) continue;
+    if (typeof s.hrvMs       === "number") hrv.push({ day: c.day, value: s.hrvMs });
+    if (typeof s.rhrBpm      === "number") rhr.push({ day: c.day, value: s.rhrBpm });
+    if (typeof s.sleepHours  === "number") slp.push({ day: c.day, value: s.sleepHours });
+  }
+
+  // Section gate: no continuous data → no section.
+  if (hrv.length === 0 && rhr.length === 0 && slp.length === 0) return "";
+
+  const series: ContinuousSeries[] = [
+    { label: "HRV (SDNN)",          key: "hrv",   unit: "ms",  points: hrv },
+    { label: "Resting heart rate",  key: "rhr",   unit: "bpm", points: rhr },
+    { label: "Sleep",               key: "sleep", unit: "h",   points: slp },
+  ];
+
+  return `
+    <section style="margin-top: 2.8rem;">
+      <div class="section-mark">Continuous signals · last 90 days</div>
+      <div class="continuous-list">
+        ${series.map(renderContinuousCard).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderContinuousCard(s: ContinuousSeries): string {
+  if (s.points.length === 0) {
+    return `
+      <div class="continuous-signal continuous-signal--empty" data-key="${esc(s.key)}">
+        <div class="continuous-signal__label">${esc(s.label)}</div>
+        <div class="continuous-signal__chart continuous-signal__chart--empty">— no readings yet —</div>
+        <div class="continuous-signal__latest continuous-signal__latest--empty">—</div>
+      </div>
+    `;
+  }
+  const last = s.points[s.points.length - 1]!;
+  const avg = s.points.reduce((n, p) => n + p.value, 0) / s.points.length;
+  return `
+    <div class="continuous-signal" data-key="${esc(s.key)}">
+      <div class="continuous-signal__label">${esc(s.label)}</div>
+      <div class="continuous-signal__chart">${continuousSparkline(s)}</div>
+      <div class="continuous-signal__latest">
+        <span class="continuous-signal__value">${esc(formatValue(last.value))}</span>
+        <span class="continuous-signal__unit">${esc(s.unit)}</span>
+      </div>
+      <div class="continuous-signal__avg">90-day avg ${esc(formatValue(avg))} ${esc(s.unit)}</div>
+    </div>
+  `;
+}
+
+/**
+ * Sparkline tuned for sparse, gap-heavy continuous data: the x-axis is
+ * indexed by reading (not calendar day), the y-axis spans min..max of the
+ * series with a small padding, and we draw a faint horizontal mean line so
+ * the latest reading reads against the user's own baseline rather than an
+ * arbitrary zero.
+ */
+function continuousSparkline(s: ContinuousSeries): string {
+  const w = 220, h = 36, pad = 3;
+  const vals = s.points.map(p => p.value);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const span = (max - min) || 1;
+  const yPad = span * 0.15;
+  const yMin = min - yPad;
+  const yMax = max + yPad;
+  const yFor = (v: number) => h - pad - ((v - yMin) / (yMax - yMin)) * (h - pad * 2);
+  const xFor = (i: number) => pad + (i * (w - pad * 2)) / Math.max(1, vals.length - 1);
+  const path = vals.map((v, i) =>
+    `${i === 0 ? "M" : "L"} ${xFor(i).toFixed(1)} ${yFor(v).toFixed(1)}`,
+  ).join(" ");
+  const dots = vals.map((v, i) =>
+    `<circle cx="${xFor(i).toFixed(1)}" cy="${yFor(v).toFixed(1)}" r="1.6" fill="var(--ink)" />`,
+  ).join("");
+  const mean = vals.reduce((n, v) => n + v, 0) / vals.length;
+  const meanY = yFor(mean).toFixed(1);
+
+  return `
+    <svg viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" preserveAspectRatio="none" aria-hidden="true">
+      <line x1="0" x2="${w}" y1="${meanY}" y2="${meanY}" stroke="var(--rule)" stroke-dasharray="2 3" stroke-width="0.7" />
       <path d="${path}" fill="none" stroke="var(--ink)" stroke-width="1.4" />
       ${dots}
     </svg>

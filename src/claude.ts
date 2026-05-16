@@ -881,7 +881,15 @@ function formatEatAvoid(plan: Plan): string {
 }
 
 function formatAdherence(checkins: CheckIn[], prior?: Plan): string {
-  if (!checkins.length || !prior) return `# Adherence\n(no check-ins on the prior plan yet)`;
+  // The continuous-signals rolling-averages block ALWAYS runs when there's
+  // import data — it's useful with or without a prior plan to compare habits
+  // against. Habit adherence still requires a prior plan to score against.
+  const signalsBlock = formatContinuousSignalRollingAvg(checkins);
+
+  if (!checkins.length || !prior) {
+    return [`# Adherence\n(no check-ins on the prior plan yet)`, signalsBlock]
+      .filter(Boolean).join("\n\n");
+  }
   const habits = prior.habitStack.habits;
   const counts = new Map<string, number>();
   for (const c of checkins) for (const h of c.habitsCompleted) counts.set(h, (counts.get(h) ?? 0) + 1);
@@ -891,7 +899,75 @@ function formatAdherence(checkins: CheckIn[], prior?: Plan): string {
     const pct = Math.round((hit / checkins.length) * 100);
     lines.push(`  - "${h.title}" — ${hit}/${checkins.length} days (${pct}%)`);
   }
+  return [lines.join("\n"), signalsBlock].filter(Boolean).join("\n\n");
+}
+
+/**
+ * Per ticket 0004: surface 7-day rolling averages of HRV / sleep / resting
+ * heart rate so the plan generator can write things like "your HRV trends
+ * down on weeks you don't hold the habit stack". Returns "" when there's
+ * no continuous-signal data — that's the import-not-yet-run case and we
+ * don't want to fill the prompt with empty scaffolding.
+ *
+ * The block is fed into the same `# Adherence` neighborhood of the prompt
+ * because it asks the same question (how the user is doing day-to-day),
+ * just from a different sensor.
+ */
+function formatContinuousSignalRollingAvg(checkins: CheckIn[]): string {
+  if (!checkins.length) return "";
+  // recentCheckIns gives us newest-first; flip to chronological so the
+  // "this week vs last week" framing reads in the prompt the way humans
+  // think about time.
+  const chrono = [...checkins].sort((a, b) => a.day.localeCompare(b.day));
+
+  // Bucket into "last 7 days on file" and "the 7 days before that".
+  const last7 = chrono.slice(-7);
+  const prev7 = chrono.slice(-14, -7);
+
+  const stats = (rows: CheckIn[]) => {
+    const hrv: number[] = [], rhr: number[] = [], sleep: number[] = [];
+    for (const c of rows) {
+      const s = c.signals;
+      if (!s) continue;
+      if (typeof s.hrvMs      === "number") hrv.push(s.hrvMs);
+      if (typeof s.rhrBpm     === "number") rhr.push(s.rhrBpm);
+      if (typeof s.sleepHours === "number") sleep.push(s.sleepHours);
+    }
+    return { hrv: avg(hrv), rhr: avg(rhr), sleep: avg(sleep) };
+  };
+  const cur = stats(last7);
+  const prv = stats(prev7);
+
+  // If we have nothing, return nothing. The prompt is allergic to empty
+  // sections with editorial preambles.
+  if (cur.hrv == null && cur.rhr == null && cur.sleep == null) return "";
+
+  const lines = [
+    `# Continuous signals (7-day rolling averages from Apple Health import)`,
+  ];
+  if (cur.hrv != null) {
+    lines.push(`  - HRV (SDNN):         ${cur.hrv.toFixed(1)} ms${
+      prv.hrv != null ? ` (prior 7d ${prv.hrv.toFixed(1)} ms, Δ ${signed(cur.hrv - prv.hrv, 1)} ms)` : ""}`);
+  }
+  if (cur.rhr != null) {
+    lines.push(`  - Resting heart rate: ${cur.rhr.toFixed(1)} bpm${
+      prv.rhr != null ? ` (prior 7d ${prv.rhr.toFixed(1)} bpm, Δ ${signed(cur.rhr - prv.rhr, 1)} bpm)` : ""}`);
+  }
+  if (cur.sleep != null) {
+    lines.push(`  - Sleep:              ${cur.sleep.toFixed(2)} h/night${
+      prv.sleep != null ? ` (prior 7d ${prv.sleep.toFixed(2)} h, Δ ${signed(cur.sleep - prv.sleep, 2)} h)` : ""}`);
+  }
   return lines.join("\n");
+}
+
+function avg(arr: number[]): number | undefined {
+  if (!arr.length) return undefined;
+  return arr.reduce((n, v) => n + v, 0) / arr.length;
+}
+
+function signed(n: number, decimals: number): string {
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(decimals)}`;
 }
 
 function formatPriorPlan(p: Plan): string {

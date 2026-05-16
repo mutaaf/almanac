@@ -1,12 +1,14 @@
 // Settings — edit profile, key, model. Export / import / wipe.
 
-import { mount, h, esc } from "../ui";
+import { mount, h, esc, errorCard } from "../ui";
 import { masthead, foot } from "../chrome";
 import { getProfile, saveProfile, exportAll, importAll, wipeAll, clearExtractCache } from "../db";
 import type { AlmanacExport, UserMarker } from "../db";
 import type { Sex } from "../types";
 import { listUserMarkers, deleteUserMarker } from "../data/userMarkers";
 import { list as listCalls, aggregate as aggregateCalls, clear as clearTelemetry } from "../telemetry";
+import { importAppleHealth } from "../health/importApple";
+import { formatBanner } from "../health/apple";
 
 export async function renderSettings(): Promise<void> {
   const p = await getProfile();
@@ -107,6 +109,27 @@ export async function renderSettings(): Promise<void> {
           </p>
         </div>
 
+        <div style="margin-top: 3.6rem;">
+          <div class="section-mark">Import Apple Health</div>
+          <p class="hint" style="max-width: 64ch;">
+            Export from the Health app on your iPhone (your profile → Export All
+            Health Data) and drop the ZIP — or the <code>export.xml</code> inside
+            it — here. We read HRV, resting heart rate, sleep, weight, and
+            blood glucose on this device and merge each day into your check-in
+            timeline. Nothing leaves the browser.
+          </p>
+          <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
+            <label class="btn btn--ghost" style="cursor: pointer;">
+              Choose a Health export
+              <input id="import-health" type="file" accept=".zip,.xml,application/zip,application/xml,text/xml"
+                     style="display: none;" />
+            </label>
+            <span id="import-health-progress" class="quiet" style="padding: 0; font-size: 0.95rem;"></span>
+          </div>
+          <div id="import-health-banner" class="health-banner" style="display: none; margin-top: 1rem;"></div>
+          <div id="import-health-status" style="margin-top: 1rem;"></div>
+        </div>
+
         ${renderUserMarkersSection(userMarkers)}
 
         ${renderTelemetry()}
@@ -176,6 +199,43 @@ export async function renderSettings(): Promise<void> {
       const st = document.getElementById("io-status"); if (st) st.textContent = "Imported. Reload to see it.";
     } catch (err: any) {
       const st = document.getElementById("io-status"); if (st) st.textContent = `Import failed: ${err.message ?? err}`;
+    }
+  });
+
+  document.getElementById("import-health")?.addEventListener("change", async (e) => {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const banner   = document.getElementById("import-health-banner");
+    const status   = document.getElementById("import-health-status");
+    const progress = document.getElementById("import-health-progress");
+    // Reset any prior render.
+    if (banner)   { banner.style.display = "none"; banner.textContent = ""; }
+    if (status)   { status.innerHTML = ""; }
+    if (progress) { progress.textContent = "Reading…"; }
+
+    try {
+      const result = await importAppleHealth(file, {
+        onProgress: (pct) => {
+          if (progress) progress.textContent = `Parsing… ${Math.round(pct * 100)}%`;
+        },
+      });
+      if (progress) progress.textContent = "";
+      if (banner) {
+        banner.textContent = formatBanner(result.counts);
+        banner.style.display = "block";
+      }
+    } catch (err: any) {
+      if (progress) progress.textContent = "";
+      if (status) {
+        status.innerHTML = errorCard({
+          title: "Import failed",
+          message: err?.message ?? String(err),
+        });
+      }
+    } finally {
+      // Reset the input so re-selecting the same file fires `change` again.
+      input.value = "";
     }
   });
 
