@@ -1,7 +1,7 @@
 ---
 id: 0007
 title: First plan from intake alone (no labs required)
-status: in-progress
+status: shipped
 priority: P0
 area: onboarding
 created: 2026-05-15
@@ -28,17 +28,17 @@ This is the missing wedge between "I saw a tweet about Almanac" and "I have my o
 
 ## Acceptance criteria
 
-- [ ] After saving the onboarding form for the first time, the user is routed to a new `#/plan` "first compose" state that offers two paths: **"Compose from intake"** (primary) and **"I have labs — upload first"** (secondary link to `#/labs`).
-- [ ] Tapping **Compose from intake** fires exactly one Anthropic call. The mock detects it via a sentinel in the system prompt (`INTAKE_PLAN_VOICE` or a `kind=intake-plan` marker passed through the user message) and serves a new fixture `tests/fixtures/plan-from-intake.json`.
-- [ ] The returned `Plan` validates against the existing `Plan` type and is persisted via `savePlan()`. `basedOnPanelIds` is `[]` (no panels).
-- [ ] The composed plan's `snapshot` paragraph references at least one phrase from the user's `profile.goals` or `profile.dietPattern` verbatim or near-verbatim (assert by seeding intake with a distinctive token like "afternoon energy crash" and checking the rendered snapshot contains it via the fixture).
-- [ ] The composed plan's `retest` array is non-empty and the first item's `reason` mentions uploading labs.
-- [ ] After compose, the user lands on the standard `#/plan` dashboard view. The empty-state ("Your protocol hasn't been written yet") does NOT appear.
-- [ ] When a labs panel is later added and the user re-composes, the resulting plan's `basedOnPanelIds` includes the new panel id — i.e. re-compose works exactly as today; intake-only plans are not a special re-compose state.
-- [ ] Re-composing after labs are added does NOT delete the intake-only plan; `allPlans()` returns both, ordered newest first.
-- [ ] A new `CallRecord` row with `kind: "plan"` (re-use the existing kind; do not invent a new one) shows up in Settings → Telemetry.
-- [ ] All scenarios pass on both chromium and mobile-webkit.
-- [ ] Privacy E2E still passes (no new hostnames).
+- [x] After saving the onboarding form for the first time, the user is routed to a new `#/plan` "first compose" state that offers two paths: **"Compose from intake"** (primary) and **"I have labs — upload first"** (secondary link to `#/labs`).
+- [x] Tapping **Compose from intake** fires exactly one Anthropic call. The mock detects it via a sentinel in the system prompt (`INTAKE_PLAN_VOICE` or a `kind=intake-plan` marker passed through the user message) and serves a new fixture `tests/fixtures/plan-from-intake.json`.
+- [x] The returned `Plan` validates against the existing `Plan` type and is persisted via `savePlan()`. `basedOnPanelIds` is `[]` (no panels).
+- [x] The composed plan's `snapshot` paragraph references at least one phrase from the user's `profile.goals` or `profile.dietPattern` verbatim or near-verbatim (assert by seeding intake with a distinctive token like "afternoon energy crash" and checking the rendered snapshot contains it via the fixture).
+- [x] The composed plan's `retest` array is non-empty and the first item's `reason` mentions uploading labs.
+- [x] After compose, the user lands on the standard `#/plan` dashboard view. The empty-state ("Your protocol hasn't been written yet") does NOT appear.
+- [x] When a labs panel is later added and the user re-composes, the resulting plan's `basedOnPanelIds` includes the new panel id — i.e. re-compose works exactly as today; intake-only plans are not a special re-compose state.
+- [x] Re-composing after labs are added does NOT delete the intake-only plan; `allPlans()` returns both, ordered newest first.
+- [x] A new `CallRecord` row with `kind: "plan"` (re-use the existing kind; do not invent a new one) shows up in Settings → Telemetry.
+- [x] All scenarios pass on both chromium and mobile-webkit.
+- [x] Privacy E2E still passes (no new hostnames).
 
 ## Out of scope
 
@@ -61,3 +61,14 @@ This is the missing wedge between "I saw a tweet about Almanac" and "I have my o
 ## Implementation log
 
 - 2026-05-15 — picked up by implementation-dev. Branch `feat/0007-intake-only-plan`.
+- 2026-05-15 — shipped via PR https://github.com/mutaaf/almanac/pull/11 (squash-merged as `2751785`). Files touched:
+  - `src/claude.ts` — added `INTAKE_PLAN_VOICE` system prompt, `ClaudeClient.generatePlanFromIntake()`, and `formatIntakeMarkerHint()` helper. Re-uses existing `Plan` schema and `recordCall("plan", …)` telemetry kind.
+  - `src/pages/plan.ts` — `paintEmpty()` now branches three ways (haveLabs / !haveLabs first-compose / loaded plan); added `composeFromIntake()` mirroring `compose()` with `basedOnPanelIds: []` on save.
+  - `src/pages/onboarding.ts` — post-save redirect goes to `#/plan` instead of `#/labs`, satisfying the "user is routed to the first-compose state" acceptance criterion.
+  - `tests/fixtures/plan-from-intake.json` — new fixture; snapshot echoes the seeded "afternoon energy crash" token; `retest[0].reason` mentions uploading labs.
+  - `tests/helpers/mocks.ts` — sniffs `INTAKE_PLAN_VOICE` and serves the new fixture; defaults to `plan.json` otherwise.
+  - `tests/helpers/flows.ts` — `onboard()` now asserts the new post-onboarding URL (`#/plan`).
+  - `tests/e2e/plan.spec.ts` — six new scenarios in a `Plan — first compose from intake alone` describe block.
+  - `tests/e2e/onboarding.spec.ts` — updated the "lands on labs" assertion to "lands on the plan first-compose state".
+- Interpretation note: the engineering notes scoped src/ changes to `plan.ts` + `claude.ts`, but acceptance criterion #1 explicitly says the user is routed to `#/plan` after onboarding. Took the bold reading and switched the onboarding redirect; the existing onboarding test was updated to match. Same fields are still captured.
+- No new deps, no schema migration, no egress allow-list change. Privacy E2E green.
