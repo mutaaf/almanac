@@ -1,7 +1,7 @@
 ---
 id: 0004
 title: Apple Health import (CSV/XML, on-device)
-status: proposed
+status: in-progress
 priority: P2
 area: infra
 created: 2026-05-14
@@ -57,4 +57,4 @@ This is the moment we stop being "the lab app" and become "the health app you do
 
 ## Implementation log
 
-(empty)
+- 2026-05-16 — picked up by implementation-dev. Branch `feat/0004-apple-health-import`. Plan: SAX-style parser in a Web Worker, zip via `DecompressionStream` (no `fflate` — built-in is universally available in the browsers we target). New `CheckIn.signals` continuous fields rather than a new table (per engineering notes). Progress page sparklines + `formatAdherence` 7-day rolling averages of HRV / RHR / sleep.
