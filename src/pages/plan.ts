@@ -20,6 +20,7 @@ import type {
 } from "../types";
 import { findMarker } from "./../data/markers";
 import { thermometer, sparkline, ring } from "../viz";
+import { mountAndPrint, removeMountedSheet, type Audience } from "../print/protocol";
 
 type ViewMode = "read" | "dashboard";
 const VIEW_KEY = "almanac.plan.view";
@@ -254,6 +255,7 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
 
   const composedDate = esc(longDate(new Date(plan.generatedAt).toISOString().slice(0,10)));
   const toggleHtml = renderViewToggle(mode);
+  const shareHtml = renderShareControl();
 
   const body = mode === "dashboard"
     ? renderDashboard(plan, profile, panels, recent, ci, !!haveMeals)
@@ -265,7 +267,10 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
       <article class="page">
         <div class="plan-head">
           <div class="eyebrow">Plan · composed ${composedDate}</div>
-          ${toggleHtml}
+          <div class="plan-head__actions">
+            ${toggleHtml}
+            ${shareHtml}
+          </div>
         </div>
         ${body}
         <div style="margin-top: 3rem; display: flex; gap: 1rem; flex-wrap: wrap;">
@@ -292,6 +297,9 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
 
   document.getElementById("recompose")?.addEventListener("click", () => compose());
 
+  // Print or share — the audience-toggle panel + the generate handler.
+  wireShareControl(plan, profile, panels);
+
   // Dashboard-only handlers.
   if (mode === "dashboard") {
     wireDashboardHandlers(plan, ci, panels);
@@ -307,6 +315,103 @@ function renderViewToggle(mode: ViewMode): string {
       ${opt("read", "Read")}
     </div>
   `;
+}
+
+/* ============================================================================
+   Print or share (ticket 0010)
+   ============================================================================
+   A small in-header chip that toggles an inline panel with two audience radio
+   options plus a Generate button. Generating builds a `.print-sheet` into
+   the document and fires `window.print()`. No route change, no API call.
+*/
+
+function renderShareControl(): string {
+  // The control is a single button that toggles an `aria-expanded` flag on
+  // the wrapping element; the panel itself lives next to the button and is
+  // shown via the `is-open` class.
+  return `
+    <div class="print-share">
+      <button type="button" class="print-share__btn" aria-expanded="false" aria-controls="print-share-panel">
+        Print or share
+      </button>
+      <div class="print-share-panel" id="print-share-panel" hidden>
+        <fieldset class="print-share-panel__group">
+          <legend class="print-share-panel__legend">Who is this for?</legend>
+          <label class="print-share-panel__opt">
+            <input type="radio" name="print-audience" value="doctor" checked />
+            <span>For my doctor</span>
+          </label>
+          <label class="print-share-panel__opt">
+            <input type="radio" name="print-audience" value="friend" />
+            <span>For a friend</span>
+          </label>
+        </fieldset>
+        <label class="print-share-panel__hide" data-audience-only="friend" hidden>
+          <input type="checkbox" id="print-hide-name" />
+          <span>Hide my name</span>
+        </label>
+        <button type="button" class="btn btn--accent print-share-panel__generate" id="print-generate">
+          Generate PDF
+        </button>
+        <div class="print-share-panel__hint">
+          Generated on your device — nothing is sent anywhere.
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function wireShareControl(plan: Plan, profile: Profile, panels: Panel[]): void {
+  const btn   = document.querySelector<HTMLButtonElement>(".print-share__btn");
+  const panel = document.querySelector<HTMLDivElement>(".print-share-panel");
+  if (!btn || !panel) return;
+
+  const openPanel = () => {
+    panel.hidden = false;
+    panel.classList.add("is-open");
+    btn.setAttribute("aria-expanded", "true");
+  };
+  const closePanel = () => {
+    panel.hidden = true;
+    panel.classList.remove("is-open");
+    btn.setAttribute("aria-expanded", "false");
+  };
+
+  btn.addEventListener("click", () => {
+    if (panel.classList.contains("is-open")) closePanel();
+    else openPanel();
+  });
+
+  // Show / hide the "Hide my name" checkbox in sync with the audience choice.
+  // The checkbox only makes sense for the friend variant — for the doctor
+  // variant the name is the whole point.
+  const hideWrap = panel.querySelector<HTMLLabelElement>('[data-audience-only="friend"]');
+  const syncHideVisibility = () => {
+    if (!hideWrap) return;
+    const selected = panel.querySelector<HTMLInputElement>('input[name="print-audience"]:checked');
+    const isFriend = selected?.value === "friend";
+    hideWrap.hidden = !isFriend;
+  };
+  for (const r of panel.querySelectorAll<HTMLInputElement>('input[name="print-audience"]')) {
+    r.addEventListener("change", syncHideVisibility);
+  }
+  syncHideVisibility();
+
+  // The generate button assembles the audience choice + hide-name toggle and
+  // hands off to the print orchestrator. No async work — the sheet renders
+  // synchronously from already-loaded local data.
+  panel.querySelector<HTMLButtonElement>("#print-generate")?.addEventListener("click", () => {
+    const checked = panel.querySelector<HTMLInputElement>('input[name="print-audience"]:checked');
+    const audience: Audience = checked?.value === "friend" ? "friend" : "doctor";
+    const hideName = (panel.querySelector<HTMLInputElement>("#print-hide-name")?.checked) ?? false;
+    mountAndPrint({ plan, profile, panels, audience, hideName });
+  });
+
+  // Re-painting the page (view-mode toggle, re-compose) blows away the share
+  // panel along with the rest of the plan body. Strip any orphaned print
+  // sheet on render so a previously-printed variant doesn't ghost into the
+  // next paint as a stray DOM fragment.
+  removeMountedSheet();
 }
 
 /* ============================================================================

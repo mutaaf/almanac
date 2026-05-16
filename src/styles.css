@@ -3078,3 +3078,325 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* =============================================================================
+   PRINT OR SHARE (ticket 0010)
+   Header chip + inline panel on the Plan page; the print-sheet itself; and the
+   @media print rules that hide app chrome and show only the sheet.
+   ============================================================================= */
+
+/* Header action cluster — view toggle + share chip share a row. */
+.plan-head__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+}
+
+/* The "Print or share" trigger sits in the plan-head next to the view toggle.
+   Same height as .view-toggle so the row reads as one cluster. */
+.print-share { position: relative; display: inline-block; }
+.print-share__btn {
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 180ms var(--ease), border-color 180ms var(--ease);
+}
+.print-share__btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+.print-share__btn[aria-expanded="true"] {
+  color: var(--paper);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* The inline panel. Anchored to the right under the trigger on desktop; full
+   width on phones so the radio rows have room to breathe. */
+.print-share-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 40;
+  min-width: 16rem;
+  max-width: 22rem;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  padding: 1rem 1.1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  box-shadow: 0 12px 28px -16px rgba(26, 24, 20, 0.35);
+}
+.print-share-panel__group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.print-share-panel__legend {
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  padding: 0 0 0.2rem;
+}
+.print-share-panel__opt {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--display);
+  font-size: 1.02rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+.print-share-panel__opt input { accent-color: var(--oxblood); }
+.print-share-panel__hide {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--body);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.print-share-panel__hide input { accent-color: var(--oxblood); }
+.print-share-panel__generate {
+  margin-top: 0.25rem;
+  align-self: flex-start;
+}
+.print-share-panel__hint {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  line-height: 1.4;
+}
+
+/* Phones: anchor stays under the trigger but stretches edge-to-edge. */
+@media (max-width: 560px) {
+  .print-share-panel {
+    right: auto;
+    left: 0;
+    width: min(20rem, calc(100vw - 2 * var(--gutter)));
+    max-width: none;
+  }
+}
+
+/* =============================================================================
+   THE PRINT SHEET ITSELF
+   Mounted into <body> by src/print/protocol.ts. Hidden on screen, shown on
+   print. The on-screen visibility is `display: none` for everyone except the
+   running tests; tests use `.print-sheet[data-audience=...]` selectors via
+   `.toBeAttached()` not `.toBeVisible()`.
+   ============================================================================= */
+
+.print-sheet-wrap {
+  /* Off-screen visually but reachable by tests. The @media print rules below
+     flip the container to block + drop everything else on the page. */
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 7.5in;
+  pointer-events: none;
+}
+
+.print-sheet {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 11pt;
+  line-height: 1.45;
+  padding: 0.6in 0.7in;
+  box-sizing: border-box;
+}
+.print-sheet__head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--ink);
+}
+.print-sheet__eyebrow {
+  font-family: var(--body);
+  font-size: 8.5pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.print-sheet__title {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 22pt;
+  line-height: 1.1;
+  margin: 0;
+}
+.print-sheet__meta {
+  font-family: var(--body);
+  font-size: 9pt;
+  color: var(--ink-soft);
+}
+.print-sheet__section { margin-top: 0.55rem; }
+.print-sheet__heading {
+  font-family: var(--body);
+  font-size: 8.5pt;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 0.3rem;
+}
+.print-sheet__para {
+  font-family: var(--display);
+  font-size: 11pt;
+  line-height: 1.45;
+  margin: 0 0 0.35rem;
+}
+.print-sheet__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.print-sheet__insight {
+  border-left: 2px solid var(--rule);
+  padding: 0 0 0 0.55rem;
+}
+.print-sheet__insight--high   { border-left-color: var(--oxblood); }
+.print-sheet__insight--medium { border-left-color: var(--ink-soft); }
+.print-sheet__insight-title {
+  font-family: var(--body);
+  font-size: 10pt;
+  font-weight: 600;
+  color: var(--ink);
+}
+.print-sheet__insight-detail {
+  font-family: var(--display);
+  font-size: 10.5pt;
+  line-height: 1.4;
+  color: var(--ink);
+  margin: 0.1rem 0 0;
+}
+.print-sheet__chip {
+  font-family: var(--body);
+  font-size: 7.5pt;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  border: 1px solid var(--paper-edge);
+  padding: 1px 5px;
+  margin-left: 4px;
+}
+.print-sheet__markers {
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.print-sheet__eat-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.print-sheet__eat-meta {
+  font-family: var(--body);
+  font-size: 9pt;
+  color: var(--ink-soft);
+}
+.print-sheet__eat-why,
+.print-sheet__avoid-why,
+.print-sheet__avoid-swap {
+  font-family: var(--display);
+  font-size: 10pt;
+  line-height: 1.4;
+  margin: 0.05rem 0 0;
+  color: var(--ink);
+}
+.print-sheet__eat-friend,
+.print-sheet__avoid-friend {
+  font-family: var(--display);
+  font-size: 11pt;
+  line-height: 1.4;
+}
+.print-sheet__habit {
+  font-family: var(--display);
+  font-size: 10.5pt;
+  line-height: 1.4;
+}
+.print-sheet__habit-cue { color: var(--ink-soft); }
+.print-sheet__retest {
+  font-family: var(--display);
+  font-size: 10.5pt;
+  line-height: 1.4;
+}
+.print-sheet__panel-meta {
+  font-family: var(--body);
+  font-size: 8.5pt;
+  color: var(--ink-soft);
+  margin-bottom: 0.25rem;
+}
+.print-sheet__panel-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 0.6rem;
+  font-family: var(--body);
+  font-size: 9.5pt;
+  color: var(--ink);
+  padding: 1px 0;
+  border-bottom: 1px dotted var(--paper-edge);
+}
+.print-sheet__panel-value { font-family: var(--mono); font-size: 9pt; }
+.print-sheet__panel-range {
+  font-family: var(--body);
+  font-size: 8.5pt;
+  color: var(--ink-soft);
+}
+.print-sheet__quiet {
+  font-family: var(--display);
+  font-size: 10pt;
+  color: var(--ink-soft);
+  margin: 0;
+}
+.print-sheet__colophon {
+  margin-top: 0.6rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--paper-edge);
+  font-family: var(--body);
+  font-size: 8pt;
+  color: var(--ink-faint);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* The print-only stylesheet: hide the SPA chrome and unhide the print-sheet
+   wrapper. `body *` is the cheapest way to make sure nothing the page or a
+   future feature added stays visible alongside the sheet. */
+@media print {
+  body { background: white !important; }
+  /* Hide everything by default, then opt the sheet wrapper back in. */
+  .masthead,
+  .foot,
+  .reveal,
+  .slideover-root,
+  .print-share,
+  #app { display: none !important; }
+
+  .print-sheet-wrap {
+    position: static !important;
+    left: auto !important;
+    pointer-events: auto !important;
+    width: auto !important;
+  }
+  .print-sheet { padding: 0; }
+}
+
+@page { size: Letter; margin: 0.5in; }
