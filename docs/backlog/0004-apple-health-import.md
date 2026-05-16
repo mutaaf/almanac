@@ -1,7 +1,7 @@
 ---
 id: 0004
 title: Apple Health import (CSV/XML, on-device)
-status: proposed
+status: groomed
 priority: P2
 area: infra
 created: 2026-05-14

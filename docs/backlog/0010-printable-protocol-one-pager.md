@@ -1,7 +1,7 @@
 ---
 id: 0010
 title: Printable one-page protocol (on-device, share with doctor or friend)
-status: proposed
+status: groomed
 priority: P2
 area: plan
 created: 2026-05-15

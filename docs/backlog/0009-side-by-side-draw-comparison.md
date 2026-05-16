@@ -1,7 +1,7 @@
 ---
 id: 0009
 title: Side-by-side draw comparison with shared-marker deltas
-status: proposed
+status: groomed
 priority: P1
 area: progress
 created: 2026-05-15
@@ -36,7 +36,7 @@ This is the artifact our highest-LTV cohort (specialty-medicine users, the cohor
 - [ ] Rows are ordered by category, then by the absolute percent change descending within each category (biggest movers first).
 - [ ] Markers that crossed an `optimal` boundary between the two draws get a one-word badge: "improved" (entered optimal) or "regressed" (exited optimal). The badge uses the existing oxblood / ink tokens — no new colors.
 - [ ] The page header reads: "<earlier date> · <later date> · N markers in common · <X> improved, <Y> regressed."
-- [ ] Comparison works for user-defined markers (from ticket 0002) when both panels contain them. Asserted with a fixture that includes one user marker on both draws.
+- [ ] Comparison works for user-defined markers (the `userMarkers` table shipped in 0002) when both panels contain them. Asserted with a fixture that defines one user marker (e.g. `lp-pla2`) and includes it on both draws; the comparison row renders the user's canonical name plus a `yours` pill matching the labs-page treatment.
 - [ ] Zero Anthropic calls fire during compare. All data is local.
 - [ ] Renders on both chromium and mobile-webkit. On mobile, each row collapses to a stacked card; on desktop, a two-column row.
 - [ ] Privacy E2E still passes.

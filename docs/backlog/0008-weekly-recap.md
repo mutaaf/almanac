@@ -1,7 +1,7 @@
 ---
 id: 0008
 title: Weekly recap — "this week in your protocol"
-status: in-progress
+status: shipped
 priority: P1
 area: today
 created: 2026-05-15
@@ -68,3 +68,4 @@ This is the retention feature, plain and stated. A daily-only app loses its week
 ## Implementation log
 
 - 2026-05-15 — Dev agent picked up the ticket on branch `feat/0008-weekly-recap`. Status flipped to `in-progress`. Next step: failing E2E spec covering the six acceptance branches before any source change.
+- 2026-05-15 — Shipped via PR #13 (`2e57638`). Files touched: `src/pages/recap.ts` (new — `renderRecap`, `computeRecap` pure function), `src/types.ts` (added `RecapSummary`, `RecapAdherenceRow`, `RecapSignals`, `RecapMover` interfaces), `src/db.ts` (`isoWeek`, `weekRange` helpers near `today()`), `src/main.ts` (registered `#/recap` route), `src/chrome.ts` (Recap nav link, part-time — Sundays + while-on-recap only), `src/pages/today.ts` (Sunday recap card with ISO-week-keyed localStorage dismissal). The six acceptance sections render deterministically from local data; zero Anthropic calls on the route. No schema migration, no egress allow-list change, no new deps.
