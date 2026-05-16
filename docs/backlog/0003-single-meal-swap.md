@@ -1,7 +1,7 @@
 ---
 id: 0003
 title: Single-meal swap with constraint preservation
-status: groomed
+status: in-progress
 priority: P1
 area: meals
 created: 2026-05-14
@@ -60,4 +60,4 @@ The swap UX is the single screenshot that demonstrates "this app actually thinks
 
 ## Implementation log
 
-(empty — pick up via `/ship 0003`)
+- 2026-05-15 — picked up by implementation-dev agent. Branch `feat/0003-single-meal-swap` open. Approach matches engineering notes: tight `SWAP_VOICE` reusing the cached static prefix, deterministic `recomputeGrocery()`, `route()` re-render after persist. No schema migration, no egress widening, no new deps.

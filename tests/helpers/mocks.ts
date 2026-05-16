@@ -85,6 +85,7 @@ export interface MockStats {
   extractCalls: number;
   planCalls: number;
   mealsCalls: number;
+  swapCalls: number;
   /** Every request URL the page attempted to make off-device. */
   outboundUrls: string[];
 }
@@ -97,7 +98,7 @@ export interface MockStats {
  * telemetry tests verify their math.
  */
 export async function installMocks(page: Page): Promise<MockStats> {
-  const stats: MockStats = { extractCalls: 0, planCalls: 0, mealsCalls: 0, outboundUrls: [] };
+  const stats: MockStats = { extractCalls: 0, planCalls: 0, mealsCalls: 0, swapCalls: 0, outboundUrls: [] };
 
   // Allow-list of hosts the browser may talk to. Anything else gets blocked
   // so the privacy test can prove there's no egress.
@@ -139,6 +140,24 @@ export async function installMocks(page: Page): Promise<MockStats> {
           contentType: "application/json",
           body: JSON.stringify(buildResponse(body.model, readFixture(fixture), {
             cacheRead: cached ? 800 : 0, cacheCreate: cached ? 0 : 400,
+          })),
+        });
+        return;
+      }
+
+      // Swap voice — single-meal regeneration. Must be sniffed BEFORE the
+      // meals branch since SWAP_VOICE shares phrasing with MEAL_VOICE.
+      // The fixture is a single Meal object; the cache_read tokens are set
+      // higher than input so the per-call cache-hit assertion can verify the
+      // static prefix (system + eat/avoid + profile + marker reference) is
+      // being served from the cache primed by the meal-plan generation.
+      if (sys.includes("SWAP_VOICE")) {
+        stats.swapCalls++;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(buildResponse(body.model, readFixture("swap.json"), {
+            cacheRead: 3200, cacheCreate: 0,
           })),
         });
         return;

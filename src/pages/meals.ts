@@ -10,6 +10,7 @@ import {
   getProfile, latestPlan, latestMealPlan, allPanels, saveMealPlan, today,
 } from "../db";
 import { ClaudeClient, TruncatedResponseError } from "../claude";
+import { recomputeGrocery } from "../meals/grocery";
 import { route } from "../main";
 import type { MealPlan, Meal, DayMeals, Effort } from "../types";
 
@@ -204,6 +205,90 @@ async function paint(mp: MealPlan, focusDay: string | null): Promise<void> {
     if (!confirm("Re-roll all 7 days? The current week's meals will be replaced.")) return;
     await compose(mp.planId);
   });
+
+  // Per-meal swap buttons live inside the day-detail view; in the week view
+  // there are no .meal-detail nodes, so this loop is a no-op there.
+  for (const btn of document.querySelectorAll<HTMLButtonElement>("[data-action='swap']")) {
+    btn.addEventListener("click", () => {
+      const mealId = btn.dataset.mealId ?? "";
+      if (!mealId) return;
+      void swapMeal(mp, mealId, btn);
+    });
+  }
+}
+
+/**
+ * Replace one Meal in the current week. The id of the original is preserved
+ * so the slot stays unambiguous; the LLM only generates the one meal; the
+ * grocery list is rebuilt deterministically from the new days array.
+ *
+ * On failure, the original meal stays intact and an errorCard() takes the
+ * place of the status line — never a silent half-swap.
+ */
+async function swapMeal(mp: MealPlan, mealId: string, btn: HTMLButtonElement): Promise<void> {
+  const status = document.getElementById("status") as HTMLDivElement | null;
+  const setStatus = (msg: string) => {
+    if (!status) return;
+    status.style.display = "block";
+    status.innerHTML = `<span class="spinner"></span>&nbsp;&nbsp;${esc(msg)}`;
+  };
+
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Swapping…";
+
+  try {
+    const profile = await getProfile();
+    const plan    = await latestPlan();
+    if (!profile || !plan) throw new Error("Missing profile or plan; cannot swap.");
+
+    setStatus("Drafting a replacement meal…");
+    const panels = await allPanels();
+    const client = new ClaudeClient(profile);
+    const { meal: replacement, model } = await client.generateMealSwap({
+      profile, plan, panels, prevMealPlan: mp, mealId,
+    });
+
+    // Splice the replacement into the days array, keeping every other slot
+    // byte-identical. The replacement's id was forced back to mealId in
+    // generateMealSwap(), so the slot lookup below is unambiguous.
+    const days = mp.days.map(dm => {
+      if (dm.breakfast.id === mealId) return { ...dm, breakfast: replacement };
+      if (dm.lunch.id     === mealId) return { ...dm, lunch:     replacement };
+      if (dm.dinner.id    === mealId) return { ...dm, dinner:    replacement };
+      if (dm.snack?.id    === mealId) return { ...dm, snack:     replacement };
+      return dm;
+    });
+
+    const grocery = recomputeGrocery(days);
+
+    await saveMealPlan({
+      planId: mp.planId,
+      weekStart: mp.weekStart,
+      generatedAt: Date.now(),
+      model,
+      days,
+      grocery,
+    });
+
+    // Same WebKit-IndexedDB-race fix the compose() path uses: route() through
+    // the SPA router rather than poking location.hash, which on WebKit can
+    // suppress the hashchange when the hash hasn't actually changed.
+    if (status) { status.style.display = "none"; status.innerHTML = ""; }
+    await route();
+  } catch (err: any) {
+    btn.disabled = false;
+    btn.textContent = originalLabel ?? "Swap";
+    if (!status) return;
+    status.style.display = "block";
+    const isTrunc = err instanceof TruncatedResponseError;
+    const raw = isTrunc ? err.raw : extractRawFromMessage(err.message);
+    status.innerHTML = errorCard({
+      title: "Swap failed — the original meal is unchanged",
+      message: err.message ?? String(err),
+      ...(raw ? { raw } : {}),
+    });
+  }
 }
 
 function renderDayBlock(dm: DayMeals): string {
@@ -251,7 +336,7 @@ function mealCard(m: Meal, label: string): string {
 
 function mealDetail(m: Meal, label: string): string {
   return `
-    <article class="meal-detail meal-detail--${esc(m.effort)}">
+    <article class="meal-detail meal-detail--${esc(m.effort)}" data-meal-id="${esc(m.id)}">
       <header class="meal-detail__head">
         <div class="meal-detail__label">${esc(label)} · ${esc(m.effort)} · ${m.timeMinutes} min · ${m.servings} serving${m.servings === 1 ? "" : "s"}${m.cuisine ? ` · ${esc(m.cuisine)}` : ""}</div>
         <h3 class="meal-detail__title">${esc(m.title)}</h3>
@@ -276,6 +361,15 @@ function mealDetail(m: Meal, label: string): string {
       </div>
 
       ${m.hits.length ? `<div class="meal-detail__hits">Targets: ${m.hits.map(esc).join(", ")}</div>` : ""}
+
+      <div class="meal-detail__actions">
+        <button class="btn btn--ghost meal-detail__swap"
+                type="button"
+                data-action="swap"
+                data-meal-id="${esc(m.id)}">
+          Swap
+        </button>
+      </div>
     </article>
   `;
 }
