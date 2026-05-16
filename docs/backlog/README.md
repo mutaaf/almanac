@@ -59,16 +59,19 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0006 | Per-marker "Why is this a problem?" expansion | P1 | groomed | plan |
-| 0007 | First plan from intake alone (no labs required) | P0 | proposed | onboarding |
-| 0008 | Weekly recap — "this week in your protocol" | P1 | proposed | today |
-| 0009 | Side-by-side draw comparison with shared-marker deltas | P1 | proposed | progress |
-| 0004 | Apple Health import (CSV/XML, on-device) | P2 | proposed | infra |
-| 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | proposed | plan |
+| 0011 | Marker hero share card — one-marker, phone-shaped image for social | P1 | groomed | growth |
+| 0012 | Next-draw projection — what we'd expect to see if you tested today | P1 | proposed | progress |
+| 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | proposed | plan |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
+| 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
 | 0002 | User-extensible marker database | P1 | shipped | labs |
 | 0003 | Single-meal swap with constraint preservation | P1 | shipped | meals |
+| 0006 | Per-marker "Why is this a problem?" expansion | P1 | shipped | plan |
+| 0008 | Weekly recap — "this week in your protocol" | P1 | shipped | today |
+| 0009 | Side-by-side draw comparison with shared-marker deltas | P1 | shipped | progress |
+| 0004 | Apple Health import (CSV/XML, on-device) | P2 | shipped | infra |
+| 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | shipped | plan |
 
 ## Hand-off discipline
 
