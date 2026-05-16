@@ -2,15 +2,15 @@
 // (in localStorage, never transmitted) so the user can see exactly what the
 // AI work cost — and verify that prompt caching is doing its job.
 //
-// What's stored: the kind of call (plan / meals / extract), the model, all
-// four token counts (input / cache-create / cache-read / output), the
+// What's stored: the kind of call (plan / meals / extract / swap), the model,
+// all four token counts (input / cache-create / cache-read / output), the
 // stop_reason, and a wall-clock timestamp. Last 50 calls.
 
 import type Anthropic from "@anthropic-ai/sdk";
 
 export interface CallRecord {
   at: number;                              // ms epoch
-  kind: "plan" | "meals" | "extract";
+  kind: "plan" | "meals" | "extract" | "swap";
   model: string;
   inputTokens: number;
   cacheCreateTokens: number;

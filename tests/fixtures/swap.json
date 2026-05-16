@@ -1,0 +1,19 @@
+{
+  "id": "d0-d",
+  "title": "Sardines on whole-grain toast with chickpea-cucumber salad",
+  "description": "Tinned sardines mashed with lemon and fresh dill on whole-grain toast, alongside a chickpea-cucumber salad. Same omega-3 hit as salmon, same effort.",
+  "effort": "assembly",
+  "timeMinutes": 10,
+  "servings": 2,
+  "ingredients": [
+    "2 tins sardines in olive oil",
+    "2 slices whole-grain bread",
+    "1 cup cucumber, diced",
+    "1 can chickpeas",
+    "lemon",
+    "fresh dill"
+  ],
+  "hits": ["triglycerides", "vit_d_25oh"],
+  "cuisine": "Mediterranean",
+  "tags": ["high-omega-3", "no-cook"]
+}

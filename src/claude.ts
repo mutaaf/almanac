@@ -10,7 +10,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type {
-  Profile, Panel, Plan, CheckIn, Result, MealPlan, Day, MarkerDef,
+  Profile, Panel, Plan, CheckIn, Result, MealPlan, Meal, Day, MarkerDef,
 } from "./types";
 import { findMarker } from "./data/markers";
 import { getAllMarkers } from "./data/userMarkers";
@@ -195,6 +195,66 @@ Output format:
 `.trim();
 
 /* ============================================================================
+   MEAL-SWAP GENERATION (single meal replacement)
+   ============================================================================ */
+
+// SWAP_VOICE is a tight 1-meal variant of MEAL_VOICE. It re-uses the same
+// editorial register and the same dietary-pattern / eat-list / avoid-list
+// constraints, but asks for exactly one Meal back instead of the whole week.
+// The string literal "SWAP_VOICE" is included verbatim so the test mock and
+// the future review agent can sniff it from the system prompt.
+const SWAP_VOICE = `
+[SWAP_VOICE]
+
+You are replacing exactly one meal in an already-composed 7-day Almanac plan
+for the reader. The other 20 meals stay as they are.
+
+Inputs you'll receive:
+  - The reader's profile (age, sex, body composition, conditions/meds, goals)
+  - Their dietary pattern (halal / pescatarian / cuisines / dislikes / allergies)
+  - The Plan's eatList and avoidList (already cached from the original week
+    generation — re-read; do not invent new constraints)
+  - The relevant Marker findings (so the replacement can be tied to biology)
+  - The current week's other meals (for variety — do not echo a title that
+    already appears elsewhere in the week)
+  - The ONE meal being replaced, with its slot label
+    (breakfast / lunch / dinner / snack) and the markerKeys it had been
+    hitting, plus a reason for the swap if the reader supplied one
+
+Operating principles (identical to the week generator, applied to one meal):
+  1. Honor the dietary pattern absolutely. No pork if halal, no land animals
+     if pescatarian, etc. The avoidList is non-negotiable.
+  2. Match the slot. A breakfast swap returns a breakfast, not a dinner.
+  3. Preserve the markerKeys the original meal was hitting unless biology
+     genuinely says otherwise — the rest of the week was balanced around
+     this slot covering those targets.
+  4. Match the effort tier and approximate time of the original. A weeknight
+     dinner should not be replaced by a 90-minute weekend braise.
+  5. Concrete ingredients with shoppable quantities. No "some greens".
+  6. Vary from the rest of the week's titles. Don't repeat a dish the
+     reader already has scheduled.
+
+Output format:
+  Return ONLY a single JSON object representing the replacement Meal —
+  no prose, no markdown fences, no wrapping object. The shape is exactly:
+
+  interface Meal {
+    id: string;            // REUSE the id of the meal being replaced
+                           //   (so the day slot stays unambiguous)
+    title: string;         // 5–10 words
+    description: string;   // 1–2 sentences
+    effort: "assembly" | "weeknight" | "weekend" | "batch";
+    timeMinutes: number;
+    servings: number;
+    ingredients: string[]; // each line shoppable
+    steps?: string[];      // brief; max 6 lines, numbered
+    hits: string[];        // markerKey ids
+    cuisine?: string;
+    tags?: string[];
+  }
+`.trim();
+
+/* ============================================================================
    Public API
    ============================================================================ */
 
@@ -211,6 +271,14 @@ export interface GenerateMealPlanInput {
   weekStart: Day;
   panels: Panel[];          // for the marker reference
   previousMealPlan?: MealPlan;
+}
+
+export interface GenerateMealSwapInput {
+  profile: Profile;
+  plan: Plan;
+  panels: Panel[];          // for the marker reference
+  prevMealPlan: MealPlan;   // the current week (we read the slot + variety from it)
+  mealId: string;           // id of the Meal being replaced
 }
 
 export class ClaudeClient {
@@ -360,6 +428,117 @@ export class ClaudeClient {
     const mealPlan = normalizeMealPlan(parsed, days);
     return { mealPlan, model, raw };
   }
+
+  /* ---------- generateMealSwap ------------------------------------------- */
+
+  /**
+   * Replace a single Meal in an existing week's plan. The id of the original
+   * is preserved so the day-slot it lives in stays unambiguous. The static
+   * prefix — system prompt + eat list + avoid list + profile + marker
+   * reference — is identical to what `generateMealPlan` cached during the
+   * original week generation, so the swap call is mostly output tokens.
+   */
+  async generateMealSwap(input: GenerateMealSwapInput): Promise<{
+    meal: Meal;
+    model: string;
+    raw: string;
+  }> {
+    const model = this.profile.model || "claude-sonnet-4-6";
+
+    const system: Anthropic.TextBlockParam[] = [
+      { type: "text", text: SWAP_VOICE, cache_control: { type: "ephemeral" } },
+    ];
+
+    const catalog = await getAllMarkers();
+
+    const profileBlock = formatProfile(input.profile);
+    const markerRef    = formatMarkerReference(input.panels, catalog);
+    const eatAvoid     = formatEatAvoid(input.plan);
+
+    // Same shape and order as the meal-plan generator's preamble — that's
+    // what lets the swap call read from the cache primed by the earlier
+    // `generateMealPlan`. If you reorder or edit either site, keep them in
+    // lock-step or the cache hit evaporates.
+    const preamble = [profileBlock, markerRef, eatAvoid].join("\n\n");
+
+    // Find the slot + original meal so we can give Claude the exact context.
+    const { dayMeals, slot, original } = locateMeal(input.prevMealPlan, input.mealId);
+
+    const otherTitles = input.prevMealPlan.days.flatMap(dm => [
+      dm.breakfast.id !== input.mealId ? `  ${dm.day} breakfast: ${dm.breakfast.title}` : "",
+      dm.lunch.id     !== input.mealId ? `  ${dm.day} lunch:     ${dm.lunch.title}`     : "",
+      dm.dinner.id    !== input.mealId ? `  ${dm.day} dinner:    ${dm.dinner.title}`    : "",
+      dm.snack && dm.snack.id !== input.mealId ? `  ${dm.day} snack:     ${dm.snack.title}` : "",
+    ].filter(Boolean)).join("\n");
+
+    const fresh = [
+      `# The meal to replace`,
+      `Day:    ${dayMeals.day}`,
+      `Slot:   ${slot}`,
+      `Id:     ${original.id}   (keep this exact id in your response)`,
+      `Original title:       ${original.title}`,
+      `Original description: ${original.description}`,
+      `Original effort:      ${original.effort} · ${original.timeMinutes} min · ${original.servings} serving${original.servings === 1 ? "" : "s"}`,
+      original.cuisine ? `Original cuisine:     ${original.cuisine}` : "",
+      `Markers it was hitting: ${original.hits.join(", ") || "(none recorded)"}`,
+      ``,
+      `# Other meals already scheduled this week (do not repeat a title)`,
+      otherTitles,
+      ``,
+      `# Task`,
+      `Return a single Meal JSON (no prose, no fences) that replaces the meal`,
+      `above. Reuse the id "${original.id}". Match the slot (${slot}) and a`,
+      `comparable effort tier. Hit the same markers unless you have a clear`,
+      `nutritional reason to switch. Honor the eat list, the avoid list, and`,
+      `the dietary pattern absolutely.`,
+    ].filter(Boolean).join("\n");
+
+    const messages: Anthropic.MessageParam[] = [{
+      role: "user",
+      content: [
+        { type: "text", text: preamble, cache_control: { type: "ephemeral" } },
+        { type: "text", text: fresh },
+      ],
+    }];
+
+    // max_tokens kept tight — one meal is a few hundred tokens of output, not
+    // sixteen thousand. Cheaper, snappier, fewer truncation risks.
+    const resp = await this.client.messages.create({
+      model, max_tokens: 2000, system, messages,
+    });
+
+    recordCall("swap", model, resp);
+    assertNotTruncated(resp);
+    const raw = textOf(resp);
+    const parsed = parseJson(raw);
+    // normalizeMeal returns a value structurally identical to Meal — its
+    // conditional spreads keep optional fields off when absent. Cast at the
+    // boundary; the runtime guarantees are in normalizeMeal itself.
+    const meal = normalizeMeal(parsed, original.id) as Meal;
+    // Force the id to the original — the system prompt asks for it, but a
+    // belt-and-braces overwrite costs nothing and removes the only failure
+    // mode that would otherwise orphan the slot.
+    meal.id = original.id;
+    return { meal, model, raw };
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Helper for the swap path                                                  */
+/* -------------------------------------------------------------------------- */
+
+function locateMeal(mp: MealPlan, mealId: string): {
+  dayMeals: MealPlan["days"][number];
+  slot: "breakfast" | "lunch" | "dinner" | "snack";
+  original: Meal;
+} {
+  for (const dm of mp.days) {
+    if (dm.breakfast.id === mealId) return { dayMeals: dm, slot: "breakfast", original: dm.breakfast };
+    if (dm.lunch.id     === mealId) return { dayMeals: dm, slot: "lunch",     original: dm.lunch };
+    if (dm.dinner.id    === mealId) return { dayMeals: dm, slot: "dinner",    original: dm.dinner };
+    if (dm.snack && dm.snack.id === mealId) return { dayMeals: dm, slot: "snack", original: dm.snack };
+  }
+  throw new Error(`Meal id "${mealId}" not found in current week.`);
 }
 
 /* -------------------------------------------------------------------------- */

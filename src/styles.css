@@ -2087,6 +2087,23 @@ body {
   color: var(--ink-faint);
   letter-spacing: 0.04em;
 }
+.meal-detail__actions {
+  margin-top: 1.2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  display: flex;
+  justify-content: flex-end;
+}
+.meal-detail__swap {
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.55rem 1.4rem;
+}
+.meal-detail__swap[disabled] {
+  opacity: 0.55;
+  cursor: progress;
+}
 
 /* ---- meal tiles (Today screen) ----------------------------------------- */
 .meal-tiles {
