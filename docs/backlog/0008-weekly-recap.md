@@ -1,7 +1,7 @@
 ---
 id: 0008
 title: Weekly recap — "this week in your protocol"
-status: proposed
+status: in-progress
 priority: P1
 area: today
 created: 2026-05-15
@@ -67,4 +67,4 @@ This is the retention feature, plain and stated. A daily-only app loses its week
 
 ## Implementation log
 
-(empty — pick up via `/ship 0008`)
+- 2026-05-15 — Dev agent picked up the ticket on branch `feat/0008-weekly-recap`. Status flipped to `in-progress`. Next step: failing E2E spec covering the six acceptance branches before any source change.

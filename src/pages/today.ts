@@ -10,9 +10,50 @@ import { mount, h, esc, longDate } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, today, latestPlan, latestMealPlan,
-  checkInFor, upsertCheckIn, recentCheckIns,
+  checkInFor, upsertCheckIn, recentCheckIns, isoWeek,
 } from "../db";
 import type { CheckIn, Habit, Meal, DayMeals } from "../types";
+
+/* -------------------------------------------------------------------------- */
+/*  Sunday recap card                                                         */
+/* -------------------------------------------------------------------------- */
+/*
+ * On Sundays only, the Today screen leads with a small editorial card that
+ * surfaces the weekly recap. Tapping "Open recap" routes to #/recap; tapping
+ * "Not this week" stores a dismissal flag in localStorage under the ISO week
+ * key so the card stays gone for the rest of the week and reappears next
+ * Sunday. The decision is made entirely from the local clock — no Anthropic.
+ */
+
+const RECAP_DISMISSED_PREFIX = "almanac.recap.dismissed.";
+
+function isSundayLocal(): boolean { return new Date().getDay() === 0; }
+
+function recapCardActive(): boolean {
+  if (!isSundayLocal()) return false;
+  const key = RECAP_DISMISSED_PREFIX + isoWeek(new Date());
+  return localStorage.getItem(key) !== "true";
+}
+
+function renderRecapCard(): string {
+  return `
+    <aside class="recap-card" role="note">
+      <div class="recap-card__eyebrow">A Sunday note</div>
+      <div class="recap-card__body">
+        <p class="recap-card__lede">
+          The week is winding down. Read what actually happened — adherence, meals
+          on plan, the signal that moved most — before you plan the next one.
+        </p>
+        <div class="recap-card__actions">
+          <a href="#/recap" class="btn btn--accent">Open recap</a>
+          <button type="button" class="recap-card__dismiss" data-action="dismiss-recap">
+            Not this week
+          </button>
+        </div>
+      </div>
+    </aside>
+  `;
+}
 
 export async function renderToday(): Promise<void> {
   const profile = await getProfile();
@@ -45,6 +86,8 @@ export async function renderToday(): Promise<void> {
     ? renderMealsRow(todays, ate)
     : renderMealsEmpty(!!mp && mp.planId === plan.id);
 
+  const recapCardHtml = recapCardActive() ? renderRecapCard() : "";
+
   const frag = h(`
     <div class="reveal">
       ${masth}
@@ -53,6 +96,8 @@ export async function renderToday(): Promise<void> {
         <h1 class="headline" style="margin-top: 0.4rem; max-width: 22ch;">
           ${greeting(profile.ownerName)}.
         </h1>
+
+        ${recapCardHtml}
 
         <section style="margin-top: 2rem;">
           <div class="section-mark">Today's meals</div>
@@ -95,6 +140,15 @@ export async function renderToday(): Promise<void> {
   `);
 
   mount(frag);
+
+  // Sunday recap card dismissal — flips the ISO-week-keyed localStorage flag
+  // and yanks the card from the DOM in one beat. The flag survives reloads,
+  // so the card stays gone for the rest of this week.
+  document.querySelector("[data-action='dismiss-recap']")?.addEventListener("click", () => {
+    const key = RECAP_DISMISSED_PREFIX + isoWeek(new Date());
+    localStorage.setItem(key, "true");
+    document.querySelector(".recap-card")?.remove();
+  });
 
   for (const card of document.querySelectorAll(".habit-check"))
     card.addEventListener("click", () => card.classList.toggle("is-done"));
