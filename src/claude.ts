@@ -880,6 +880,49 @@ function formatEatAvoid(plan: Plan): string {
   ].join("\n");
 }
 
+/**
+ * Derive an editorial adherence tier from a 14-day check-in window + the
+ * active plan's habit stack. Extracted as a pure helper (ticket 0012) so the
+ * Progress page's projection card and the plan-generation prompt agree on
+ * what "easy / moderate / advanced" means without drifting.
+ *
+ *   - "easy"     when ≥ 70% of habit-stack-days are held
+ *   - "moderate" when ≥ 40%
+ *   - "advanced" when ≥ 90% (overrides easy; this is the "running it tight" tier)
+ *
+ * Returns null when there's no prior plan or no check-ins to score against —
+ * the caller decides what to render in that branch.
+ *
+ * "Habit-stack-days" = days in the window × habits in the stack. A 14-day
+ * window with a 5-habit stack has 70 possible hits.
+ */
+export function tierForCheckIns(
+  checkins: CheckIn[],
+  prior?: Plan,
+): { tier: "easy" | "moderate" | "advanced"; held: number; possible: number; percent: number } | null {
+  if (!prior || !checkins.length) return null;
+  const habits = prior.habitStack.habits;
+  if (habits.length === 0) return null;
+
+  const habitIds = new Set(habits.map(h => h.id));
+  let held = 0;
+  for (const c of checkins) {
+    for (const id of c.habitsCompleted) if (habitIds.has(id)) held++;
+  }
+  const possible = checkins.length * habits.length;
+  if (possible === 0) return null;
+  const percent = held / possible;
+
+  // The tier is the most generous level the user clears. Order matters:
+  // advanced overrides easy when both are true.
+  let tier: "easy" | "moderate" | "advanced";
+  if      (percent >= 0.9) tier = "advanced";
+  else if (percent >= 0.7) tier = "easy";
+  else                     tier = "moderate";
+
+  return { tier, held, possible, percent };
+}
+
 function formatAdherence(checkins: CheckIn[], prior?: Plan): string {
   // The continuous-signals rolling-averages block ALWAYS runs when there's
   // import data — it's useful with or without a prior plan to compare habits

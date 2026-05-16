@@ -17,23 +17,35 @@ export interface ThermPoint {
 /**
  * Horizontal "thermometer" showing where a value sits relative to its lab
  * and functional ranges. Renders into a fixed viewBox for crisp scaling.
+ *
+ * Optional `projectionBand` (ticket 0012) overlays a stroked-only oxblood
+ * rectangle on the scale to communicate the plausible-range band for the
+ * next draw. We deliberately leave it unfilled so the existing
+ * functional-range band remains the dominant visual; the projection is
+ * editorial framing, not a competing primary signal.
  */
 export function thermometer(opts: {
   marker: MarkerDef;
   value: number;
   width?: number;
   height?: number;
+  projectionBand?: { low: number; high: number };
 }): string {
   const w = opts.width ?? 320;
   const h = opts.height ?? 44;
   const m = opts.marker;
 
-  // Determine the scale: span every bound + value, with 12% padding either side.
+  // Determine the scale: span every bound + value (+ projection band edges
+  // when present, so a downward projection can't push the band off-canvas),
+  // with 12% padding either side.
   const refs: number[] = [opts.value];
   if (m.labRange?.low  != null) refs.push(m.labRange.low);
   if (m.labRange?.high != null) refs.push(m.labRange.high);
   if (m.optimalRange.low  != null) refs.push(m.optimalRange.low);
   if (m.optimalRange.high != null) refs.push(m.optimalRange.high);
+  if (opts.projectionBand) {
+    refs.push(opts.projectionBand.low, opts.projectionBand.high);
+  }
 
   const min = Math.min(...refs);
   const max = Math.max(...refs);
@@ -63,6 +75,25 @@ export function thermometer(opts: {
                     width="${Math.max(2, xFor(optHigh) - xFor(optLow))}"
                     height="16" fill="rgba(47,74,46,0.22)" />`;
 
+  // Projection-band overlay (ticket 0012) — stroked-only oxblood rectangle,
+  // taller than the lab/functional bars so it reads as a "where it could go"
+  // frame rather than another category band. No fill: the existing optimal
+  // band stays the dominant visual.
+  const projection = opts.projectionBand
+    ? (() => {
+        const pLow  = opts.projectionBand!.low;
+        const pHigh = opts.projectionBand!.high;
+        const x = xFor(pLow);
+        const wWidth = Math.max(2, xFor(pHigh) - xFor(pLow));
+        const y = h/2 - 13;
+        const hHeight = 26;
+        return `<rect class="therm__projection-band" x="${x}" y="${y}"
+                       width="${wWidth}" height="${hHeight}"
+                       fill="none" stroke="var(--oxblood)" stroke-width="1.2"
+                       stroke-dasharray="3 2" />`;
+      })()
+    : "";
+
   // Current value indicator: tick + filled dot + label below.
   const vx = Math.max(8, Math.min(w - 8, xFor(opts.value)));
   const tick = `<line x1="${vx}" x2="${vx}" y1="${h/2 - 12}" y2="${h/2 + 12}" stroke="var(--ink)" stroke-width="1.4" />`;
@@ -81,6 +112,7 @@ export function thermometer(opts: {
     <svg class="therm" viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" aria-hidden="true">
       ${labBar}
       ${optBar}
+      ${projection}
       ${track}
       ${labels.join("")}
       ${tick}

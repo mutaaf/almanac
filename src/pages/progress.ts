@@ -6,16 +6,17 @@
 // comparison render path — the picker and trends step aside so the comparison
 // is the only thing on screen.
 
-import { mount, h, esc } from "../ui";
+import { mount, h, esc, openSlideover } from "../ui";
 import { masthead, foot } from "../chrome";
-import { getProfile, allPanels, getPanel, recentCheckIns } from "../db";
+import { getProfile, allPanels, getPanel, recentCheckIns, latestPlan, getProjectionsFor } from "../db";
 import { findMarker } from "../data/markers";
 import { getAllMarkers } from "../data/userMarkers";
 import { thermometer } from "../viz";
 import { route } from "../main";
 import { computeComparison, type ComparisonRow } from "../progress/compare";
+import { computeProjection, evaluateLanded, type ProjectionBand, type LandedVerdict } from "../progress/projection";
 import { generateMarkerCardPng, markerCardFilename, shareOrDownload } from "../share/marker-card";
-import type { CheckIn, MarkerDef, Panel, Result } from "../types";
+import type { CheckIn, MarkerDef, Panel, Plan, ProjectionSnapshot, Result } from "../types";
 
 interface Series {
   markerKey: string;
@@ -42,8 +43,10 @@ export async function renderProgress(): Promise<void> {
   const panels = await allPanels();
   // Last 90 days of check-ins for the "Continuous signals" section (ticket
   // 0004). Read once here so we don't fan out to multiple Dexie roundtrips
-  // inside the render pass.
+  // inside the render pass. The projection module (ticket 0012) consumes
+  // the most-recent 14 of these as its adherence window.
   const checkins = await recentCheckIns(90);
+  const plan = await latestPlan();
 
   // Sort oldest → newest for trend reading.
   const ordered = [...panels].sort((a, b) => a.drawnAt.localeCompare(b.drawnAt));
@@ -93,6 +96,12 @@ export async function renderProgress(): Promise<void> {
   `).join("");
 
   const continuousHtml = renderContinuousSignals(checkins);
+  // The projection module needs the most-recent 14 days; `recentCheckIns`
+  // already gave us up to 90 newest-first, so the slice is cheap.
+  const projectionItems = panels.length === 0
+    ? []
+    : await buildProjectionItems(ordered, checkins.slice(0, 14), plan);
+  const projectionHtml = renderProjectionSection(projectionItems);
 
   const singletonHtml = singletons.length === 0 ? "" : `
     <section style="margin-top: 2.4rem;">
@@ -117,6 +126,7 @@ export async function renderProgress(): Promise<void> {
           What is <em>moving</em>.
         </h1>
         ${pickerHtml}
+        ${projectionHtml}
         ${panels.length === 0
           ? `<div class="quiet">No labs yet. <a href="#/labs">Add a panel</a>.</div>`
           : panels.length === 1
@@ -130,6 +140,7 @@ export async function renderProgress(): Promise<void> {
 
   mount(frag);
   wirePicker();
+  wireProjectionCards(projectionItems);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -648,6 +659,286 @@ function continuousSparkline(s: ContinuousSeries): string {
       <path d="${path}" fill="none" stroke="var(--ink)" stroke-width="1.4" />
       ${dots}
     </svg>
+  `;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Between-draws projection section (ticket 0012)                            */
+/* -------------------------------------------------------------------------- */
+/*
+ * The section sits above the trend list. It iterates the most recent panel's
+ * results and asks the projection module for a band per marker; markers
+ * without a curated `responsiveness` entry produce no band and don't show
+ * up at all. Markers that DO have a curated entry but whose adherence is
+ * below the threshold render the editorial empty-state card so the user
+ * sees an honest "hold the easy tier" message instead of a fake number.
+ *
+ * Post-upload evaluation: when a snapshot is persisted against the PRIOR
+ * latest panel (saved by labs.ts on a successful new-panel insert), we
+ * surface an `.projection-eval` row using the snapshot's band vs the value
+ * that just arrived. This replaces the projection card for that marker on
+ * the same render — the snapshot IS the evaluation.
+ */
+
+interface ProjectionItem {
+  marker: MarkerDef;
+  result: Result;
+  drawnAt: string;
+  /** Present when the snapshot persisted against the prior panel has been
+   *  evaluated against a newly-arrived panel value. */
+  evaluation?: {
+    snapshot: ProjectionSnapshot;
+    currentValue: number;
+    verdict: LandedVerdict;
+  };
+  /** Present when there is no evaluation AND the projection math returned
+   *  a band. Null branch means "adherence below threshold". */
+  band?: ProjectionBand | null;
+}
+
+async function buildProjectionItems(
+  orderedPanels: Panel[],
+  checkins14d: CheckIn[],
+  plan: Plan | undefined,
+): Promise<ProjectionItem[]> {
+  const newest = orderedPanels[orderedPanels.length - 1];
+  if (!newest) return [];
+  // Prior panel — needed to surface evaluation rows for snapshots that were
+  // persisted at the moment THIS newest panel was uploaded. Snapshots are
+  // keyed by the PRIOR panel's id (the panel they were computed FROM).
+  const prior = orderedPanels.length >= 2
+    ? orderedPanels[orderedPanels.length - 2]
+    : undefined;
+  const evaluations = prior
+    ? await getProjectionsFor(prior.id!)
+    : [];
+  const evalsByKey = new Map<string, ProjectionSnapshot>();
+  for (const e of evaluations) evalsByKey.set(e.markerKey, e);
+
+  const items: ProjectionItem[] = [];
+  for (const r of newest.results) {
+    const marker = findMarker(r.markerKey);
+    if (!marker?.responsiveness) continue;
+
+    // If we have a snapshot for the prior panel + a value for this marker
+    // on the newest panel, this is an evaluation row, not a projection card.
+    const snap = evalsByKey.get(r.markerKey);
+    if (snap) {
+      items.push({
+        marker, result: r, drawnAt: newest.drawnAt,
+        evaluation: { snapshot: snap, currentValue: r.value, verdict: evaluateLanded(snap, r.value) },
+      });
+      continue;
+    }
+
+    const band = computeProjection(marker, r, checkins14d, plan);
+    items.push({ marker, result: r, drawnAt: newest.drawnAt, band });
+  }
+  return items;
+}
+
+function renderProjectionSection(items: ProjectionItem[]): string {
+  if (items.length === 0) return "";
+  return `
+    <section class="projection-section" aria-label="Between draws — what we'd expect">
+      <div class="section-mark">Between draws · what we'd expect</div>
+      <div class="projection-list">
+        ${items.map(renderProjectionItem).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderProjectionItem(it: ProjectionItem): string {
+  if (it.evaluation) return renderEvaluationRow(it);
+  return renderProjectionCard(it);
+}
+
+function renderProjectionCard(it: ProjectionItem): string {
+  const m = it.marker;
+  const name = m.shortName ?? m.name;
+  const r = m.responsiveness!;
+  const weeks = `${r.weeksToEffect[0]}–${r.weeksToEffect[1]} weeks`;
+
+  if (!it.band) {
+    // Adherence below threshold — render the editorial empty state.
+    return `
+      <button class="projection-card projection-card--empty"
+              type="button"
+              data-marker-key="${esc(m.key)}"
+              data-state="empty"
+              aria-label="${esc(name)} — not enough adherence to project yet">
+        <header class="projection-card__head">
+          <div class="projection-card__name">${esc(name)}</div>
+          <div class="projection-card__latest">
+            <span class="projection-card__num">${esc(formatValue(it.result.value))}</span>
+            <span class="projection-card__unit">${esc(it.result.unit)}</span>
+            <span class="projection-card__date">${esc(it.drawnAt)}</span>
+          </div>
+        </header>
+        <p class="projection-card__band-note">
+          Hold the easy tier for 7 of 14 days to start projecting where this marker lands.
+        </p>
+        <p class="projection-card__weeks">Typically moves over ${esc(weeks)}.</p>
+      </button>
+    `;
+  }
+
+  const b = it.band;
+  const therm = thermometer({
+    marker: m, value: it.result.value, height: 44,
+    projectionBand: { low: b.low, high: b.high },
+  });
+  return `
+    <button class="projection-card"
+            type="button"
+            data-marker-key="${esc(m.key)}"
+            data-state="ok"
+            aria-label="${esc(name)} — projected range for next draw">
+      <header class="projection-card__head">
+        <div class="projection-card__name">${esc(name)}</div>
+        <div class="projection-card__latest">
+          <span class="projection-card__num">${esc(formatValue(it.result.value))}</span>
+          <span class="projection-card__unit">${esc(it.result.unit)}</span>
+          <span class="projection-card__date">${esc(it.drawnAt)}</span>
+        </div>
+      </header>
+      <div class="projection-card__therm">${therm}</div>
+      <p class="projection-card__band-note">
+        Holding the <strong>${esc(b.tier)}</strong> tier ·
+        <span class="projection-card__tally">${b.daysHeld} of ${b.daysPossible} habit-days</span> ·
+        likely range at your next draw <strong>${esc(formatValue(b.low))}–${esc(formatValue(b.high))} ${esc(it.result.unit)}</strong>.
+      </p>
+      <p class="projection-card__weeks">Typically moves over ${esc(weeks)}.</p>
+    </button>
+  `;
+}
+
+function renderEvaluationRow(it: ProjectionItem): string {
+  const m = it.marker;
+  const name = m.shortName ?? m.name;
+  const e = it.evaluation!;
+  const verdictClass =
+    e.verdict === "in-range"   ? "projection-eval--in-range" :
+    e.verdict === "under-range" ? "projection-eval--under"    :
+                                  "projection-eval--over";
+  const verdictText =
+    e.verdict === "in-range"   ? "within range" :
+    e.verdict === "under-range" ? "under range; consider what slipped" :
+                                  "over range; the move overshot";
+  return `
+    <article class="projection-eval ${verdictClass}" data-marker-key="${esc(m.key)}">
+      <header class="projection-card__head">
+        <div class="projection-card__name">${esc(name)}</div>
+        <div class="projection-card__latest">
+          <span class="projection-card__num">${esc(formatValue(e.currentValue))}</span>
+          <span class="projection-card__unit">${esc(it.result.unit)}</span>
+          <span class="projection-card__date">${esc(it.drawnAt)}</span>
+        </div>
+      </header>
+      <p class="projection-card__band-note">
+        Projected <strong>${esc(formatValue(e.snapshot.low))}–${esc(formatValue(e.snapshot.high))} ${esc(it.result.unit)}</strong>.
+        Landed at <strong>${esc(formatValue(e.currentValue))} ${esc(it.result.unit)}</strong>
+        — <em>${esc(verdictText)}</em>.
+      </p>
+    </article>
+  `;
+}
+
+function wireProjectionCards(items: ProjectionItem[]): void {
+  // Only the .projection-card button (not the .projection-eval row) opens
+  // a slideover — the evaluation row is its own self-contained statement.
+  const byKey = new Map<string, ProjectionItem>();
+  for (const it of items) byKey.set(it.marker.key, it);
+
+  const section = document.querySelector(".projection-section");
+  if (!section) return;
+  section.addEventListener("click", (ev) => {
+    const btn = (ev.target as HTMLElement | null)?.closest<HTMLButtonElement>(".projection-card");
+    if (!btn) return;
+    const key = btn.dataset.markerKey;
+    if (!key) return;
+    const it = byKey.get(key);
+    if (!it) return;
+    openSlideover(renderProjectionSlideoverHtml(it), {
+      label: `${it.marker.name} — projection evidence`,
+      returnFocusTo: btn,
+    });
+  });
+}
+
+function renderProjectionSlideoverHtml(it: ProjectionItem): string {
+  const m = it.marker;
+  const r = m.responsiveness!;
+  const weeks = `${r.weeksToEffect[0]}–${r.weeksToEffect[1]} weeks`;
+  const dirCopy =
+    r.direction === "increase" ? `expects ${esc(m.name)} to rise by ${r.magnitude.low}–${r.magnitude.high} ${esc(r.magnitude.unit ?? m.unit)} over ${weeks} on a sustained tier`
+  : r.direction === "decrease" ? `expects ${esc(m.name)} to fall by ${r.magnitude.low}–${r.magnitude.high} ${esc(r.magnitude.unit ?? m.unit)} over ${weeks} on a sustained tier`
+  :                              `expects ${esc(m.name)} to move ${r.magnitude.low}–${r.magnitude.high} ${esc(r.magnitude.unit ?? m.unit)} toward the optimum over ${weeks} on a sustained tier`;
+
+  if (!it.band) {
+    // Empty branch — no band, the slideover surfaces the rule and the
+    // editorial "hold the easy tier" instruction.
+    return `
+      <div class="slideover__sections">
+        <section class="slideover__section">
+          <div class="slideover__heading">Marker</div>
+          <div class="slideover__marker-name">${esc(m.name)}</div>
+          <p class="slideover__marker-desc">${esc(m.description)}</p>
+        </section>
+        <section class="slideover__section">
+          <div class="slideover__heading">Why no band yet</div>
+          <p>
+            Hold the easy tier for 7 of 14 days to start projecting where
+            this marker lands. Below that, the projection would be wishful;
+            we'd rather show nothing than a number we don't trust.
+          </p>
+        </section>
+        <section class="slideover__section">
+          <div class="slideover__heading">Time-to-effect citation</div>
+          <p>Common functional-medicine practice ${dirCopy}.</p>
+        </section>
+        <section class="slideover__section">
+          <p style="font-style: italic; color: var(--ink-soft); margin: 0;">
+            This is a plausible range, not a prediction. Your next draw is the only ground truth.
+          </p>
+        </section>
+      </div>
+    `;
+  }
+
+  const b = it.band;
+  return `
+    <div class="slideover__sections">
+      <section class="slideover__section">
+        <div class="slideover__heading">Marker</div>
+        <div class="slideover__marker-name">${esc(m.name)}</div>
+        <p class="slideover__marker-desc">${esc(m.description)}</p>
+      </section>
+      <section class="slideover__section">
+        <div class="slideover__heading">What you've been holding</div>
+        <p>
+          You've held the <strong>${esc(b.tier)}</strong> tier of your habit stack —
+          <strong>${b.daysHeld} of ${b.daysPossible} habit-days held</strong>
+          (last 14 days, of ${b.daysPossible} possible).
+        </p>
+      </section>
+      <section class="slideover__section">
+        <div class="slideover__heading">Time-to-effect citation</div>
+        <p>Common functional-medicine practice ${dirCopy}.</p>
+        <p>
+          Latest reading: <strong>${esc(formatValue(it.result.value))} ${esc(it.result.unit)}</strong>
+          drawn ${esc(it.drawnAt)}. Projected band for the next draw:
+          <strong>${esc(formatValue(b.low))}–${esc(formatValue(b.high))} ${esc(it.result.unit)}</strong>
+          over the next ${esc(weeks)}.
+        </p>
+      </section>
+      <section class="slideover__section">
+        <p style="font-style: italic; color: var(--ink-soft); margin: 0;">
+          This is a plausible range, not a prediction. Your next draw is the only ground truth.
+        </p>
+      </section>
+    </div>
   `;
 }
 

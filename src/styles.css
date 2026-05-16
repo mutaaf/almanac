@@ -3440,3 +3440,156 @@ body {
 }
 
 @page { size: Letter; margin: 0.5in; }
+
+/* =============================================================================
+   BETWEEN-DRAWS PROJECTION (ticket 0012)
+   Sits above the trend list on #/progress. The card is a button so the
+   slideover open lives in the standard click affordance — no separate "info"
+   chip. The empty branch (adherence below threshold) keeps the same shell
+   but drops the thermometer and surfaces an editorial instruction instead.
+   ============================================================================= */
+
+.projection-section {
+  margin-top: 2.4rem;
+  margin-bottom: 1.4rem;
+}
+
+.projection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 0.8rem;
+}
+
+.projection-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.1rem 1.2rem;
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--oxblood);
+  font-family: var(--body);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 180ms var(--ease), border-color 180ms var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.projection-card:hover,
+.projection-card:focus-visible {
+  background: var(--paper);
+  border-color: var(--ink-faint);
+  border-left-color: var(--oxblood-deep);
+}
+
+.projection-card--empty {
+  border-left-color: var(--ink-faint);
+}
+
+.projection-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1.2rem;
+}
+
+.projection-card__name {
+  font-family: var(--display);
+  font-size: 1.25rem;
+  font-style: italic;
+  color: var(--ink);
+  flex: 1 1 auto;
+}
+
+.projection-card__latest {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  color: var(--ink-soft);
+}
+
+.projection-card__num {
+  font-family: var(--mono);
+  font-size: 0.96rem;
+  color: var(--ink);
+}
+
+.projection-card__unit {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+
+.projection-card__date {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  margin-left: 0.4rem;
+}
+
+.projection-card__therm {
+  margin: 0.25rem 0 0.25rem;
+}
+.projection-card__therm .therm { width: 100%; }
+
+.projection-card__band-note {
+  font-family: var(--display);
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.projection-card__band-note strong {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.projection-card__tally {
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  color: var(--ink);
+}
+
+.projection-card__weeks {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  margin: 0;
+}
+
+/* Evaluation row — uses the same card shell with a verdict-tinted left edge.
+   In-range borrows the existing functional-band green; under/over use oxblood
+   so the under-/over- semantics share the regression color the comparison
+   page already established. No new color tokens. */
+.projection-eval {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.1rem 1.2rem;
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--rule);
+  font-family: var(--body);
+  color: var(--ink);
+}
+
+.projection-eval--in-range { border-left-color: #2F4A2E; }
+.projection-eval--under    { border-left-color: var(--oxblood); }
+.projection-eval--over     { border-left-color: var(--oxblood); }
+
+.projection-eval em {
+  font-style: italic;
+  color: var(--ink);
+}
+
+@media (max-width: 720px) {
+  .projection-card,
+  .projection-eval {
+    padding: 0.95rem 1rem;
+  }
+}

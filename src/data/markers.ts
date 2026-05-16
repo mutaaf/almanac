@@ -13,6 +13,38 @@
 //
 // Values are written in adult, fasting-draw assumptions unless otherwise
 // noted. Sex-specific markers carry the `sex` field.
+//
+// ---------------------------------------------------------------------------
+// Responsiveness entries (ticket 0012)
+// ---------------------------------------------------------------------------
+// The optional `responsiveness` field powers the between-draws projection
+// card on #/progress. Numbers below are conservative consensus reads from
+// functional-medicine practice — they are NOT statistical posteriors. The
+// product is determinism and editorial honesty; the band is a literature
+// consensus, not a fitted model. Curated entries are limited to markers
+// where the move-window + plausible-magnitude pair is broadly defensible:
+//
+//   ferritin    — 8–12 wks, +15 to +40 ng/mL on a sustained iron-rich tier
+//                 (Beard 2001; Cook 1990 on absorption windows).
+//   ApoB        — 8–12 wks, −10 to −25 mg/dL on a sustained sat-fat-reduction
+//                 + soluble-fiber tier (Mensink 2003 meta-analysis).
+//   hs-CRP      — 6–10 wks, −0.5 to −2.0 mg/L on a sustained anti-inflammatory
+//                 + omega-3 + weight-stable tier (Esposito 2004; Calder 2013).
+//   fasting     — 6–10 wks, −2 to −5 uIU/mL on a sustained carb-quality
+//   insulin       improvement tier (typical clinical observation; lower for
+//                 already-low baselines).
+//   HbA1c       — 10–12 wks, −0.2 to −0.6 % on a sustained metabolic-tier
+//                 (half-life of red cells is ~120 days).
+//   vit D 25-OH — 10–12 wks, +10 to +25 ng/mL on D3 + sun (~1000 IU yields
+//                 ~10 ng/mL move in deficient adults; Heaney 2003).
+//   omega-3 idx — 12–16 wks, +2 to +5 % on 2–3 g EPA+DHA/day (Harris 2010).
+//   free T3     — 6–10 wks, +0.2 to +0.5 pg/mL when nutritional cofactors
+//                 (selenium, iodine, zinc) and stress load improve.
+//   Mg RBC      — 8–12 wks, +0.3 to +0.8 mg/dL on a sustained mag-rich
+//                 + supplementation tier.
+//
+// "Magnitude" is unsigned; the projection module applies sign from
+// `direction` and from the user's current side of the optimal range.
 
 import type { MarkerDef } from "../types";
 
@@ -39,6 +71,11 @@ export const MARKERS: MarkerDef[] = [
     labRange:     { high: 5.6 },
     optimalRange: { low: 4.6, high: 5.3 },
     description: "Three-month average glucose. <5.3% is a marker of metabolic resilience; lab cutoff for prediabetes is 5.7%.",
+    responsiveness: {
+      weeksToEffect: [10, 12],
+      direction: "decrease",
+      magnitude: { low: 0.2, high: 0.6, unit: "%" },
+    },
   },
   {
     key: "fasting_insulin",
@@ -49,6 +86,11 @@ export const MARKERS: MarkerDef[] = [
     labRange:     { low: 2,   high: 25 },
     optimalRange: { low: 2,   high: 5  },
     description: "How hard the pancreas is working. Functional optimum is 2–5; >7 with normal glucose still flags insulin resistance.",
+    responsiveness: {
+      weeksToEffect: [6, 10],
+      direction: "decrease",
+      magnitude: { low: 2, high: 5, unit: "uIU/mL" },
+    },
   },
   {
     key: "homa_ir",
@@ -106,6 +148,11 @@ export const MARKERS: MarkerDef[] = [
     labRange:     { high: 100 },
     optimalRange: { high: 80  },
     description: "Particle count for atherogenic lipids — the better cardiovascular predictor than LDL-C alone.",
+    responsiveness: {
+      weeksToEffect: [8, 12],
+      direction: "decrease",
+      magnitude: { low: 10, high: 25, unit: "mg/dL" },
+    },
   },
   {
     key: "lp_a",
@@ -150,6 +197,11 @@ export const MARKERS: MarkerDef[] = [
     labRange:     { low: 2.3, high: 4.2 },
     optimalRange: { low: 3.0, high: 3.8 },
     description: "Active thyroid hormone. Low-normal T3 with high-normal rT3 signals stress-driven conversion problems.",
+    responsiveness: {
+      weeksToEffect: [6, 10],
+      direction: "increase",
+      magnitude: { low: 0.2, high: 0.5, unit: "pg/mL" },
+    },
   },
   {
     key: "reverse_t3",
@@ -242,6 +294,11 @@ export const MARKERS: MarkerDef[] = [
     labRange:     { low: 30, high: 100 },
     optimalRange: { low: 50, high: 80  },
     description: "Hormone-like vitamin. 50–80 ng/mL supports immune, bone, and metabolic function.",
+    responsiveness: {
+      weeksToEffect: [10, 12],
+      direction: "increase",
+      magnitude: { low: 10, high: 25, unit: "ng/mL" },
+    },
   },
   {
     key: "vit_b12",
@@ -286,6 +343,11 @@ export const MARKERS: MarkerDef[] = [
     labRange:     { low: 30, high: 400 },
     optimalRange: { low: 70, high: 150 },
     description: "Iron storage. >200 in men flags inflammation or overload; <70 often presents as fatigue.",
+    responsiveness: {
+      weeksToEffect: [8, 12],
+      direction: "either",
+      magnitude: { low: 15, high: 40, unit: "ng/mL" },
+    },
   },
   {
     key: "ferritin_f",
@@ -297,6 +359,11 @@ export const MARKERS: MarkerDef[] = [
     labRange:     { low: 13, high: 150 },
     optimalRange: { low: 50, high: 100 },
     description: "Cycling and post-menopausal women have very different needs; <50 is the most common 'in-range but low' finding.",
+    responsiveness: {
+      weeksToEffect: [8, 12],
+      direction: "either",
+      magnitude: { low: 15, high: 40, unit: "ng/mL" },
+    },
   },
   {
     key: "iron_serum",
@@ -327,6 +394,11 @@ export const MARKERS: MarkerDef[] = [
     labRange:     { low: 4.2, high: 6.8 },
     optimalRange: { low: 6.0, high: 6.5 },
     description: "Tissue magnesium. Serum mag is normal-looking until tissue stores are very depleted.",
+    responsiveness: {
+      weeksToEffect: [8, 12],
+      direction: "increase",
+      magnitude: { low: 0.3, high: 0.8, unit: "mg/dL" },
+    },
   },
   {
     key: "zinc_plasma",
@@ -349,6 +421,11 @@ export const MARKERS: MarkerDef[] = [
     labRange:     { high: 3.0 },
     optimalRange: { high: 1.0 },
     description: "Smoldering inflammation marker. Strongly tied to cardiovascular risk and metabolic stress.",
+    responsiveness: {
+      weeksToEffect: [6, 10],
+      direction: "decrease",
+      magnitude: { low: 0.5, high: 2.0, unit: "mg/L" },
+    },
   },
   {
     key: "fibrinogen",
@@ -484,6 +561,11 @@ export const MARKERS: MarkerDef[] = [
     optimalRange: { low: 8 },
     higherIsBetter: true,
     description: "EPA+DHA in red cells. >8% is the best-evidenced cardio-protective range.",
+    responsiveness: {
+      weeksToEffect: [12, 16],
+      direction: "increase",
+      magnitude: { low: 2, high: 5, unit: "%" },
+    },
   },
 
   /* ---------- Lipids — the rest of the panel ---------------------------- */
