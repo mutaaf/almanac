@@ -1,7 +1,7 @@
 ---
 id: 0009
 title: Side-by-side draw comparison with shared-marker deltas
-status: in-progress
+status: shipped
 priority: P1
 area: progress
 created: 2026-05-15
@@ -67,3 +67,18 @@ This is the artifact our highest-LTV cohort (specialty-medicine users, the cohor
   picker → compare flow, intersection logic, cross-boundary badges, the
   empty-intersection state, the user-defined-marker case, and the
   no-Anthropic-egress invariant.
+- 2026-05-16 — shipped via PR #16. CI green: Typecheck + build, E2E
+  (chromium), E2E (mobile-webkit). Files touched:
+  - `src/pages/progress.ts` — branch on `?compare=` for the side-by-side
+    render path, picker UI at the top of the default view, `route()`-based
+    navigation, and the renderRow / renderEmpty / renderRowsByCategory
+    helpers.
+  - `src/progress/compare.ts` (new) — pure `computeComparison(earlier,
+    later, markers)` returning ordered rows + improved / regressed tally.
+  - `src/styles.css` — `.compare-picker`, `.compare-summary`,
+    `.compare-row`, `.compare-row__badge--{improved,regressed}`, and the
+    720px mobile reflow.
+  - `tests/e2e/compare.spec.ts` (new) — seven scenarios covering every
+    acceptance bullet on this ticket.
+  - `docs/backlog/0009-side-by-side-draw-comparison.md` — status flips
+    and this log.
