@@ -1,0 +1,36 @@
+{
+  "snapshot": "Ferritin sits below the male functional floor and red-cell indices are running small — the picture lines up with iron-restricted erythropoiesis even with hemoglobin still in range. The plan below leans on heme-iron foods, paired with vitamin-C produce at the same meal for absorption.\n\nA separate observation: cooking patterns suggest the easiest dinner-window habit is a 10-minute walk after the last bite. That habit is the cheapest cardiometabolic lever available and goes into the stack as the second move.",
+
+  "insights": [
+    { "title": "Iron-restricted erythropoiesis pattern", "detail": "Ferritin at 32 ng/mL sits well below the male functional floor of 70, and MCV at 86 fL is below the functional 88. Even with hemoglobin still in lab range, this is the picture that often presents as fatigue, exercise intolerance, and brain fog.", "priority": "high", "markerKey": "ferritin_m" },
+    { "title": "Post-meal walking is the cheapest lever you have", "detail": "Independent of the iron picture: a 10-minute walk after dinner consistently moves post-meal glucose and triglyceride disposal in the right direction. Worth pinning as a daily habit while iron repletion runs its 8-12 week course.", "priority": "medium" }
+  ],
+
+  "eatList": [
+    { "id": "red-meat",     "food": "Lean red meat (grass-fed beef, lamb)",   "frequency": "2x per week", "portion": "4-5 oz cooked", "why": "Most absorbable form of iron; addresses ferritin directly.", "markerKeys": ["ferritin_m"], "examples": ["grass-fed sirloin","lamb shoulder","beef liver (once monthly)"] },
+    { "id": "lentils-vitc", "food": "Lentils paired with a vitamin-C produce (bell pepper, tomato, citrus)", "frequency": "3x per week", "portion": "1 cup cooked lentils + 1 cup of the produce", "why": "Non-heme iron with vitamin C at the same meal multiplies absorption.", "markerKeys": ["ferritin_m"], "examples": ["dal with roasted tomato","lentil salad with red pepper","lentil soup with lemon"] }
+  ],
+
+  "avoidList": [
+    { "id": "tea-with-meals", "food": "Strong tea or coffee within an hour of an iron-rich meal", "why": "Tannins blunt non-heme iron absorption substantially.", "swap": "Tea between meals; water or sparkling water at the table." }
+  ],
+
+  "lifestyle": [
+    { "id": "post-meal-walk", "title": "10-minute walk after dinner", "why": "Improves post-meal glucose and triglyceride disposal.", "how": "Right after eating, around the block or up and down the stairs.", "tier": "easy", "expectedImpact": "Steadier afternoons within two weeks." }
+  ],
+
+  "supplements": [],
+
+  "habitStack": {
+    "intro": "Five small actions that compound across the week.",
+    "habits": [
+      { "id": "h-redmeat", "title": "Plan one red-meat dinner",        "cue": "When you write the week's meals", "why": "Locks in the heme-iron dose for ferritin." },
+      { "id": "h-walk",    "title": "10-min walk after dinner",        "cue": "Right after the last bite",       "why": "Cheapest post-meal glucose lever there is." },
+      { "id": "h-citrus",  "title": "Vitamin-C produce with lentils",  "cue": "On lentil nights",                "why": "Multiplies non-heme iron absorption." }
+    ]
+  },
+
+  "retest": [
+    { "markerKeys": ["ferritin_m","mcv","mch"], "whenWeeks": 12, "reason": "Iron repletion through food typically resolves the picture over 8-12 weeks." }
+  ]
+}

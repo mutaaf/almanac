@@ -463,6 +463,10 @@ export class ClaudeClient {
     const raw = textOf(resp);
     const parsed = parseJson(raw);
     const plan = normalizePlan(parsed);
+    // Stitch provenance from the rule engine onto the LLM-emitted insights,
+    // ticket 0013. Only rule-fired insights get a `provenance` field; the
+    // ones Claude adds beyond the pre-computed set stay bare.
+    plan.insights = attachProvenance(plan.insights, programmatic);
     return { plan, model, raw };
   }
 
@@ -739,6 +743,78 @@ function assertNotTruncated(resp: Anthropic.Message): void {
       .map(b => b.text).join("\n");
     throw new TruncatedResponseError(resp.model, raw);
   }
+}
+
+/* ============================================================================
+   Provenance stitcher (ticket 0013)
+   ============================================================================
+   For each rule-fired pre-computed insight, find the matching entry in the
+   LLM-emitted insights array and attach its provenance. Matches by title
+   substring first (the prompt asks the model to incorporate verbatim or
+   refined, so a substring match in either direction is usually exact) and
+   falls back to markerKey overlap with the rule's `supportingMarkers`.
+
+   LLM-only insights — the ones with no matching pre-computed insight —
+   remain bare. That's the design: provenance is for deterministic findings,
+   and the absence of the chip is the signal.
+
+   Each pre-computed insight matches at most ONE LLM insight, and a matched
+   LLM insight cannot be re-matched by a later pre-computed entry. That
+   keeps the per-card chip a 1:1 affordance.
+*/
+
+function attachProvenance(
+  llmInsights: Plan["insights"],
+  programmatic: import("./insights").PreComputedInsight[],
+): Plan["insights"] {
+  if (!llmInsights.length || !programmatic.length) return llmInsights;
+
+  // Work on a shallow copy so we never mutate the parsed plan in place.
+  const out = llmInsights.map(i => ({ ...i }));
+  const claimed = new Set<number>();
+
+  for (const pre of programmatic) {
+    if (!pre.provenance) continue;
+    const idx = findMatchingInsight(out, pre, claimed);
+    if (idx < 0) continue;
+    out[idx]!.provenance = pre.provenance;
+    claimed.add(idx);
+  }
+  return out;
+}
+
+function findMatchingInsight(
+  llmInsights: Array<{ title: string; markerKey?: string }>,
+  pre: import("./insights").PreComputedInsight,
+  claimed: Set<number>,
+): number {
+  const norm = (s: string) => s.toLowerCase().trim();
+  const preTitle = norm(pre.title);
+
+  // Pass 1: exact case-insensitive title match.
+  for (let i = 0; i < llmInsights.length; i++) {
+    if (claimed.has(i)) continue;
+    if (norm(llmInsights[i]!.title) === preTitle) return i;
+  }
+
+  // Pass 2: bidirectional substring on the title.
+  for (let i = 0; i < llmInsights.length; i++) {
+    if (claimed.has(i)) continue;
+    const llmTitle = norm(llmInsights[i]!.title);
+    if (llmTitle.includes(preTitle) || preTitle.includes(llmTitle)) return i;
+  }
+
+  // Pass 3: markerKey overlap — the LLM cited one of the markers that
+  // triggered the rule. The weakest match; useful when the model rewords
+  // the title completely.
+  const preMarkers = new Set(pre.supportingMarkers);
+  for (let i = 0; i < llmInsights.length; i++) {
+    if (claimed.has(i)) continue;
+    const mk = llmInsights[i]!.markerKey;
+    if (mk && preMarkers.has(mk)) return i;
+  }
+
+  return -1;
 }
 
 /* ============================================================================

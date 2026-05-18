@@ -193,13 +193,25 @@ export async function installMocks(page: Page): Promise<MockStats> {
         return;
       }
 
-      // Default: plan generation.
+      // Default: plan generation. The pre-computed-insights block is part of
+      // the user message, so a panel that fires the iron-restricted rule
+      // surfaces the rule's title in the prompt. Sniff for it and serve the
+      // provenance fixture — the LLM response then carries the right insight
+      // titles for the stitch in claude.ts to attach provenance against.
+      const planUserText = (body.messages?.[0]?.content as any[] | undefined)
+        ?.filter((b) => b?.type === "text")
+        ?.map((b) => b.text as string)
+        ?.join("\n") ?? "";
+      const planFixture = /iron-restricted erythropoiesis/i.test(planUserText)
+        ? "plan-with-provenance.json"
+        : "plan.json";
+
       stats.planCalls++;
       const cached = stats.planCalls > 1;
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(buildResponse(body.model, readFixture("plan.json"), {
+        body: JSON.stringify(buildResponse(body.model, readFixture(planFixture), {
           cacheRead: cached ? 2400 : 0, cacheCreate: cached ? 0 : 1200,
         })),
       });

@@ -9,7 +9,8 @@
 // pasting screenshots: the rules are curated functional-medicine patterns,
 // they look across panels (timeline awareness), and they fire deterministically.
 
-import type { Panel, Profile, Result } from "./types";
+import type { Panel, Profile, Result, InsightProvenance } from "./types";
+import { findMarker } from "./data/markers";
 
 export interface PreComputedInsight {
   id: string;
@@ -19,6 +20,14 @@ export interface PreComputedInsight {
   supportingMarkers: string[];     // markerKeys that triggered the rule
   category: "pattern" | "trend";
   evidence?: string;               // human-readable values that fired the rule
+  /**
+   * Hydrated provenance for the Plan-page "Why this fired" slideover.
+   * Populated by `computeInsights()` from the same RuleContext the rule
+   * itself evaluated against, so the slideover can render the exact
+   * values + units + draw dates without going back to the rule engine.
+   * Ticket 0013.
+   */
+  provenance?: InsightProvenance;
 }
 
 interface RuleContext {
@@ -46,11 +55,15 @@ const RULES: Rule[] = [
     id: "iron_restricted_erythropoiesis",
     category: "pattern",
     evaluate: (ctx) => {
-      const ferritin = ctx.latest(ctx.profile.sex === "male" ? "ferritin_m" : "ferritin_f");
+      const ferritinKey = ctx.profile.sex === "male" ? "ferritin_m" : "ferritin_f";
+      const rbcKey      = ctx.profile.sex === "male" ? "rbc_count_m" : "rbc_count_f";
+      const hgbKey      = ctx.profile.sex === "male" ? "hemoglobin_m" : "hemoglobin_f";
+
+      const ferritin = ctx.latest(ferritinKey);
       const mcv  = ctx.latest("mcv");
       const mch  = ctx.latest("mch");
-      const rbc  = ctx.latest(ctx.profile.sex === "male" ? "rbc_count_m" : "rbc_count_f");
-      const hgb  = ctx.latest(ctx.profile.sex === "male" ? "hemoglobin_m" : "hemoglobin_f");
+      const rbc  = ctx.latest(rbcKey);
+      const hgb  = ctx.latest(hgbKey);
 
       // Need at least ferritin + one red-cell index.
       if (!ferritin) return null;
@@ -59,17 +72,21 @@ const RULES: Rule[] = [
         : ferritin.value < 50;
       if (!lowFerritin) return null;
 
-      const supportingHits: string[] = ["ferritin"];
+      // Use canonical marker keys so the provenance UI (ticket 0013) can
+      // resolve each entry back to a value / unit / draw date via
+      // `RuleContext.latest()`. The keys must match `MARKERS[]` in
+      // `src/data/markers.ts`.
+      const supportingHits: string[] = [ferritinKey];
       const evidence: string[] = [`ferritin ${ferritin.value} ng/mL`];
       let signals = 0;
 
       if (mcv && mcv.value < 88) { signals++; supportingHits.push("mcv"); evidence.push(`MCV ${mcv.value} fL`); }
       if (mch && mch.value < 28) { signals++; supportingHits.push("mch"); evidence.push(`MCH ${mch.value} pg`); }
       if (rbc && rbc.value < (ctx.profile.sex === "male" ? 4.8 : 4.4)) {
-        signals++; supportingHits.push("rbc"); evidence.push(`RBC ${rbc.value}`);
+        signals++; supportingHits.push(rbcKey); evidence.push(`RBC ${rbc.value}`);
       }
       if (hgb && hgb.value < (ctx.profile.sex === "male" ? 14 : 13)) {
-        signals++; supportingHits.push("hgb"); evidence.push(`Hgb ${hgb.value} g/dL`);
+        signals++; supportingHits.push(hgbKey); evidence.push(`Hgb ${hgb.value} g/dL`);
       }
 
       if (signals < 1) return null;
@@ -385,6 +402,88 @@ function trendingMonotonic(
 }
 
 /* ============================================================================
+   Rule glosses — one short editorial paragraph per rule
+   ============================================================================
+   These render verbatim in the Plan-page provenance slideover. Voice: plain
+   English, ~2 sentences, no jargon without a gloss. The `satisfies` clause
+   below is what enforces coverage — adding a rule to RULES[] or TREND_RULES[]
+   without a gloss here breaks the typecheck.
+*/
+
+type RuleId =
+  | (typeof RULES)[number]["id"]
+  | (typeof TREND_RULES)[number]["id"];
+
+const RULE_GLOSSES = {
+  iron_restricted_erythropoiesis:
+    "Ferritin below the functional floor with at least one red-cell index trending small is the classic picture of iron-restricted erythropoiesis — the body is still making red cells, but it's running short on the iron to fill them. Food-first repletion (heme iron paired with vitamin C at the same meal) typically resolves the pattern over 8 to 12 weeks.",
+  subclinical_hypothyroid:
+    "TSH above the functional ceiling, especially with one of the peripheral hormones running low, points to early or stress-driven hypothyroid drift before it would meet a clinical diagnosis. It's the picture worth a full antibody panel and a careful look at energy availability, sleep, and stress before any pharmacology enters the conversation.",
+  insulin_resistance:
+    "Insulin, glucose, A1c, triglycerides, and HDL together tell the story of how hard the body is working to keep blood sugar in line — three or more out of optimal range is the pattern, not noise. Protein-forward meals, lower refined-carb load, post-meal walking, and resistance training usually reverse it before any medication is needed.",
+  atherogenic_dyslipidemia:
+    "Particle-count markers (ApoB) together with the TG/HDL ratio and elevated LDL form the picture of true atherogenic risk — beyond what a single total-cholesterol number conveys. Soluble fiber, omega-3 at therapeutic doses, fewer refined carbs, and weight-bearing exercise all lower ApoB measurably in 12 weeks.",
+  b12_folate_insufficiency:
+    "B12 and folate sit at the center of methylation; when both run low — especially with elevated homocysteine or macrocytosis — the deficiency is reaching tissue level, not just serum. Methylated cofactors (methylcobalamin and methylfolate), pasture-raised eggs, sardines, and dark leafy greens are the food levers.",
+  inflammation_triad:
+    "Multiple inflammation-adjacent markers running high together is the signature of chronic, smoldering inflammation rather than an acute event the body is clearing. The fastest levers are removing seed-oil-heavy ultraprocessed foods, sleeping seven-plus hours, and addressing visceral adiposity if present.",
+  persistent_high_total_chol:
+    "Three consecutive draws above the functional ceiling rules out lab noise and a one-bad-day result — this is a pattern. Soluble fiber, plant sterols, omega-3, and reducing saturated fat are the highest-leverage food moves; an ApoB or Lp(a) test gives the next layer of detail.",
+  persistent_high_ldl:
+    "Two consecutive draws of LDL above 130 says the elevation is durable, not measurement noise. ApoB or LDL particle count answers the next question — particle number and concentration matter more than the calculated LDL alone — and 12 weeks of dietary change is the right re-test interval.",
+  trending_down_ferritin:
+    "Iron stores falling across consecutive draws is a real trajectory, not lab variability. The common causes are occult blood loss, low dietary heme intake, and gut absorption issues — a clinician conversation is warranted if the trend doesn't reverse with food.",
+  trending_up_a1c:
+    "Three-month average glucose climbing across draws is the earliest signal of metabolic drift, even while still inside lab range. Protein-forward meals, post-meal walks, and resistance training reverse this in most cases before it becomes a clinical concern.",
+} as const satisfies Record<RuleId, string>;
+
+/**
+ * Build the hydrated InsightProvenance for a PreComputedInsight emitted by
+ * the rule engine. Resolves each markerKey to its current value / unit /
+ * draw date via the same RuleContext the rule itself evaluated against.
+ *
+ * Returns undefined if no supporting marker has a resolvable latest value —
+ * which shouldn't happen for any rule in RULES/TREND_RULES today, but the
+ * guard keeps the type honest and protects the UI from rendering an empty dl.
+ */
+function buildProvenance(
+  ins: Omit<PreComputedInsight, "provenance">,
+  ctx: RuleContext,
+): InsightProvenance | undefined {
+  const supportingMarkers: InsightProvenance["supportingMarkers"] = [];
+  for (const key of ins.supportingMarkers) {
+    const latest = ctx.latest(key);
+    if (!latest) continue;
+    const def = findMarker(key);
+    const unit = latest.result.unit || def?.unit || "";
+    supportingMarkers.push({
+      markerKey: key,
+      value: latest.value,
+      unit,
+      drawnAt: latest.panel.drawnAt,
+    });
+  }
+  if (supportingMarkers.length === 0) return undefined;
+  return {
+    ruleId: ins.id,
+    category: ins.category,
+    supportingMarkers,
+    evidence: ins.evidence ?? "",
+  };
+}
+
+/**
+ * Look up the editorial gloss paragraph for a rule id. Returns "" for rules
+ * not registered in RULE_GLOSSES — which the typecheck prevents at compile
+ * time but the runtime fallback keeps the UI from crashing if the data ever
+ * drifts (e.g. an old persisted plan with a since-removed rule id).
+ */
+export function glossForRule(ruleId: string): string {
+  const g = (RULE_GLOSSES as Record<string, string>)[ruleId];
+  return g ?? "";
+}
+
+/* ============================================================================
    Public API
    ============================================================================ */
 
@@ -424,11 +523,19 @@ export function computeInsights(panels: Panel[], profile: Profile): PreComputedI
 
   for (const rule of RULES) {
     const hit = rule.evaluate(ctx);
-    if (hit) out.push({ id: rule.id, category: "pattern", ...hit });
+    if (hit) {
+      const bare = { id: rule.id, category: "pattern" as const, ...hit };
+      const provenance = buildProvenance(bare, ctx);
+      out.push(provenance ? { ...bare, provenance } : bare);
+    }
   }
   for (const rule of TREND_RULES) {
     const hit = rule.evaluate(ctx);
-    if (hit) out.push({ id: rule.id, category: "trend", ...hit });
+    if (hit) {
+      const bare = { id: rule.id, category: "trend" as const, ...hit };
+      const provenance = buildProvenance(bare, ctx);
+      out.push(provenance ? { ...bare, provenance } : bare);
+    }
   }
 
   const order = (p: "high" | "medium" | "low") => p === "high" ? 0 : p === "medium" ? 1 : 2;

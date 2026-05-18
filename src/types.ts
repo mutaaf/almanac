@@ -140,6 +140,34 @@ export interface Insight {
   title: string;
   detail: string;
   priority: "high" | "medium" | "low";
+  /**
+   * Optional provenance attached when this insight was emitted by the
+   * deterministic rule engine in `src/insights.ts`. Carries everything the
+   * Plan page needs to render the "Why this fired" slideover without going
+   * back to the rule engine — the rule id, the rule category, the markers
+   * that triggered the rule (with their values + units + draw date), and
+   * the rule's evidence string verbatim.
+   *
+   * LLM-only insights (the ones Claude adds beyond what the rule engine
+   * produced) carry no `provenance`; the absence is the signal.
+   *
+   * Ticket 0013.
+   */
+  provenance?: InsightProvenance;
+}
+
+export interface InsightProvenance {
+  ruleId: string;
+  category: "pattern" | "trend";
+  supportingMarkers: Array<{
+    markerKey: string;
+    value: number;
+    unit: string;
+    drawnAt: Day;
+    /** Optional plain-English threshold description, e.g. "functional floor 50 ng/mL". */
+    threshold?: string;
+  }>;
+  evidence: string;
 }
 
 /**

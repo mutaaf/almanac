@@ -8,6 +8,7 @@
 // every time they open the plan.
 
 import { mount, h, esc, longDate, errorCard, openSlideover, closeSlideover } from "../ui";
+import { glossForRule } from "../insights";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, latestPlan, savePlan, recentCheckIns,
@@ -300,6 +301,10 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
   // Print or share — the audience-toggle panel + the generate handler.
   wireShareControl(plan, profile, panels);
 
+  // Provenance chips render in both modes (ticket 0013) — wire here so the
+  // handler is attached regardless of which view paints.
+  wireProvenanceChips(plan);
+
   // Dashboard-only handlers.
   if (mode === "dashboard") {
     wireDashboardHandlers(plan, ci, panels);
@@ -419,8 +424,11 @@ function wireShareControl(plan: Plan, profile: Profile, panels: Panel[]): void {
    ============================================================================ */
 
 function renderEditorial(plan: Plan, haveMeals: boolean, mealsGeneratedAt?: number): string {
-  const insights = [...plan.insights].sort((a, b) =>
-    priorityOrder(a.priority) - priorityOrder(b.priority));
+  // Preserve original indices so provenance chips can map back to the
+  // unsorted plan.insights[] entry the wiring expects.
+  const insights = plan.insights
+    .map((insight, originalIndex) => ({ insight, originalIndex }))
+    .sort((a, b) => priorityOrder(a.insight.priority) - priorityOrder(b.insight.priority));
 
   return `
     <h1 class="headline" style="margin-top: 0.4rem;"><em>The protocol.</em></h1>
@@ -434,10 +442,11 @@ function renderEditorial(plan: Plan, haveMeals: boolean, mealsGeneratedAt?: numb
     <section style="margin-top: 2.4rem;">
       <div class="section-mark">What stands out</div>
       <ul class="insight-list">
-        ${insights.map(i => `
+        ${insights.map(({ insight: i, originalIndex }) => `
           <li class="insight insight--${esc(i.priority)}">
             <div class="insight__title">${esc(i.title)}</div>
             <div class="insight__detail">${esc(i.detail)}</div>
+            ${provenanceChipHtml(i, originalIndex)}
           </li>
         `).join("")}
       </ul>
@@ -489,8 +498,11 @@ function renderDashboard(
   todayCheckIn: CheckIn | undefined,
   haveMeals: boolean,
 ): string {
-  const insights = [...plan.insights].sort((a, b) =>
-    priorityOrder(a.priority) - priorityOrder(b.priority));
+  // Preserve original indices so provenance chips can map back to the
+  // unsorted plan.insights[] entry the wiring expects.
+  const insights = plan.insights
+    .map((insight, originalIndex) => ({ insight, originalIndex }))
+    .sort((a, b) => priorityOrder(a.insight.priority) - priorityOrder(b.insight.priority));
 
   // Build a per-marker timeline so cards can show sparklines + thermometers.
   const series = buildMarkerSeries(panels);
@@ -518,7 +530,7 @@ function renderDashboard(
         <span class="dash-section__hint">tap a card to see the supporting markers</span>
       </header>
       <div class="dash-insights">
-        ${insights.map(i => renderInsightCard(i, series)).join("")}
+        ${insights.map(({ insight: i, originalIndex }) => renderInsightCard(i, series, originalIndex)).join("")}
       </div>
     </section>
 
@@ -666,7 +678,7 @@ function renderHeroCard(markerKey: string, series: Map<string, MarkerSeries>): s
   `;
 }
 
-function renderInsightCard(i: Insight, series: Map<string, MarkerSeries>): string {
+function renderInsightCard(i: Insight, series: Map<string, MarkerSeries>, originalIndex: number): string {
   // The insight may carry a single markerKey; show its thermometer when present.
   const m = i.markerKey ? findMarker(i.markerKey) : undefined;
   const s = i.markerKey ? series.get(i.markerKey) : undefined;
@@ -684,7 +696,10 @@ function renderInsightCard(i: Insight, series: Map<string, MarkerSeries>): strin
 
   // The chevron sits OUTSIDE <details> so closed-state UA styling doesn't
   // hide it. Both live inside a positioning wrapper so the button can be
-  // pinned to the top-right corner.
+  // pinned to the top-right corner. The provenance chip lives inside the
+  // wrapper but OUTSIDE the <details> so it remains visible whether the
+  // card is collapsed or expanded — the rule attribution belongs at the
+  // top level of the card.
   return `
     <div class="insight-card-wrap">
       <details class="insight-card insight-card--${esc(i.priority)}">
@@ -703,6 +718,7 @@ function renderInsightCard(i: Insight, series: Map<string, MarkerSeries>): strin
         </div>
       </details>
       ${whyChevron}
+      ${provenanceChipHtml(i, originalIndex)}
     </div>
   `;
 }
@@ -1048,6 +1064,109 @@ function retestHtml(plan: Plan): string {
 
 function priorityOrder(p: "high" | "medium" | "low"): number {
   return p === "high" ? 0 : p === "medium" ? 1 : 2;
+}
+
+/* ============================================================================
+   Provenance chip + slideover (ticket 0013)
+   ============================================================================
+   Rule-fired insights carry an optional `provenance` field. When present we
+   render a small "Why this fired" chip underneath the insight; tapping it
+   opens a slideover that names the rule id, the supporting markers (value,
+   unit, draw date), the evidence string, the editorial gloss for that rule,
+   and a footer attributing the finding to the deterministic rule engine.
+   LLM-only insights carry no provenance and render no chip — the absence
+   is the signal.
+*/
+
+const PROVENANCE_FOOTER =
+  "This finding was produced by a deterministic rule, not by the language model.";
+
+function provenanceChipHtml(insight: Insight, idx: number): string {
+  if (!insight.provenance) return "";
+  return `<button
+    type="button"
+    class="insight__provenance-chip"
+    role="button"
+    data-provenance-idx="${esc(idx)}"
+    aria-label="Why this fired — ${esc(insight.title)}"
+  >Why this fired</button>`;
+}
+
+function renderProvenanceSlideover(insight: Insight, opener: HTMLElement): void {
+  const prov = insight.provenance;
+  if (!prov) return;
+  const gloss = glossForRule(prov.ruleId);
+
+  const markersHtml = prov.supportingMarkers.map(m => {
+    const def = findMarker(m.markerKey);
+    const display = def?.shortName ?? def?.name ?? m.markerKey;
+    return `
+      <div class="provenance-markers__row">
+        <dt class="provenance-markers__key">
+          <span class="provenance-markers__name">${esc(display)}</span>
+          <code class="provenance-markers__code">${esc(m.markerKey)}</code>
+          <span class="provenance-markers__value">${esc(m.value)} <span class="provenance-markers__unit">${esc(m.unit)}</span></span>
+        </dt>
+        <dd class="provenance-markers__meta">
+          <span class="provenance-markers__drawn">drawn ${esc(m.drawnAt)}</span>
+          ${m.threshold ? `<span class="provenance-markers__threshold">${esc(m.threshold)}</span>` : ""}
+        </dd>
+      </div>
+    `;
+  }).join("");
+
+  const html = `
+    <div class="provenance-slideover">
+      <section class="slideover__section">
+        <h2 class="slideover__heading">The rule</h2>
+        <div class="provenance-rule-line">
+          <code class="provenance-rule-id">rule: ${esc(prov.ruleId)}</code>
+          <span class="provenance-rule-category">· ${esc(prov.category)}</span>
+        </div>
+      </section>
+
+      <section class="slideover__section">
+        <h2 class="slideover__heading">Supporting markers</h2>
+        <dl class="provenance-markers">
+          ${markersHtml}
+        </dl>
+        ${prov.evidence ? `<p class="provenance-evidence">Evidence: ${esc(prov.evidence)}</p>` : ""}
+      </section>
+
+      ${gloss ? `
+        <section class="slideover__section">
+          <h2 class="slideover__heading">Why this rule fires</h2>
+          <p class="provenance-gloss">${esc(gloss)}</p>
+        </section>
+      ` : ""}
+
+      <p class="provenance-footer">${esc(PROVENANCE_FOOTER)}</p>
+    </div>
+  `;
+
+  openSlideover(html, {
+    label: `Why this fired — ${insight.title}`,
+    returnFocusTo: opener,
+  });
+}
+
+/**
+ * Bind click handlers for every `.insight__provenance-chip` currently in the
+ * DOM. Looks up the insight by its position in `plan.insights[]` so the
+ * mapping stays stable across both Read and Dashboard renders.
+ */
+function wireProvenanceChips(plan: Plan): void {
+  for (const btn of document.querySelectorAll<HTMLElement>(".insight__provenance-chip")) {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const idx = Number(btn.dataset.provenanceIdx);
+      if (!Number.isFinite(idx)) return;
+      const insight = plan.insights[idx];
+      if (!insight || !insight.provenance) return;
+      renderProvenanceSlideover(insight, btn);
+    });
+  }
 }
 
 function parseFreq(s: string): number {
