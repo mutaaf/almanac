@@ -1,7 +1,7 @@
 ---
 id: 0013
 title: Insight engine provenance — show every rule's evidence on the Plan page
-status: proposed
+status: in-progress
 priority: P2
 area: plan
 created: 2026-05-16
@@ -67,4 +67,4 @@ Each box maps 1:1 to a Playwright test scenario.
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- **2026-05-18 — picked up by implementation-dev.** Flipped status to `in-progress`. Plan: extend `Insight` with optional `provenance`, attach it inside `claude.ts` after parsing the LLM-returned plan by matching the LLM-emitted insight against the rule engine's pre-computed insights (rule-id-or-title fallback), then render a "Why this fired" chip on `#/plan` that opens a slideover via the existing `openSlideover` primitive. Editorial gloss paragraphs live next to `RULES[]` and `TREND_RULES[]` in `src/insights.ts`, enforced via a `satisfies Record<RuleId, string>` so the typecheck breaks if any rule lacks a gloss. Test goes to `tests/e2e/provenance.spec.ts` against a new fixture `plan-with-provenance.json` with a panel that fires `iron_restricted_erythropoiesis` (ferritin_m=32, MCV=86 → high priority via two signals).
