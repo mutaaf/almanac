@@ -2748,6 +2748,163 @@ body {
   border-color: var(--oxblood);
 }
 
+/* =============================================================================
+   INSIGHT PROVENANCE — "Why this fired" chip + slideover (ticket 0013)
+   The chip is small-caps eyebrow in the ink token. Provenance is informational,
+   not a call to action — so it is NOT oxblood. The slideover repurposes the
+   existing slideover primitive but supplies its own dl/footer/typography.
+   ============================================================================= */
+.insight__provenance-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.55rem;
+  padding: 0.18rem 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dotted var(--ink-faint);
+  font-family: var(--body);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition: color 160ms var(--ease), border-bottom-color 160ms var(--ease);
+}
+.insight__provenance-chip:hover,
+.insight__provenance-chip:focus-visible {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+  outline: none;
+}
+.insight__provenance-chip:focus-visible {
+  outline: 1px solid var(--ink-faint);
+  outline-offset: 3px;
+}
+
+/* ---- Slideover body --------------------------------------------------- */
+.provenance-slideover {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6rem;
+}
+
+.provenance-rule-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+.provenance-rule-id {
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  color: var(--ink);
+  background: var(--paper-deep);
+  border: 1px solid var(--paper-edge);
+  padding: 0.18rem 0.45rem;
+  letter-spacing: 0.02em;
+}
+.provenance-rule-category {
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.provenance-markers {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--paper-edge);
+}
+.provenance-markers__row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.6rem 1.1rem;
+  align-items: baseline;
+  padding: 0.55rem 0;
+  border-bottom: 1px dotted var(--paper-edge);
+}
+.provenance-markers__key {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.provenance-markers__name {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+.provenance-markers__code {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}
+.provenance-markers__value {
+  font-family: var(--display);
+  font-size: 1.05rem;
+  color: var(--ink);
+  font-weight: 500;
+}
+.provenance-markers__unit {
+  font-family: var(--body);
+  font-size: 0.7rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.04em;
+}
+.provenance-markers__meta {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.15rem;
+  text-align: right;
+}
+.provenance-markers__drawn {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  color: var(--ink-faint);
+  letter-spacing: 0.02em;
+}
+.provenance-markers__threshold {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.provenance-evidence {
+  margin: 0.6rem 0 0;
+  font-family: var(--body);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.01em;
+}
+
+.provenance-gloss {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 1.08rem;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.provenance-footer {
+  margin: 0.8rem 0 0;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--paper-edge);
+  font-family: var(--body);
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--ink-faint);
+  line-height: 1.5;
+}
+
 @keyframes slideover-fade {
   from { opacity: 0; }
   to   { opacity: 1; }
