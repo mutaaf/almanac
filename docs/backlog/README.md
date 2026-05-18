@@ -61,7 +61,6 @@ owner: gtm-innovation
 |----|-------|----------|--------|------|
 | 0011 | Marker hero share card — one-marker, phone-shaped image for social | P1 | groomed | growth |
 | 0012 | Next-draw projection — what we'd expect to see if you tested today | P1 | proposed | progress |
-| 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | proposed | plan |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
@@ -72,6 +71,7 @@ owner: gtm-innovation
 | 0009 | Side-by-side draw comparison with shared-marker deltas | P1 | shipped | progress |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | shipped | infra |
 | 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | shipped | plan |
+| 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | shipped | plan |
 
 ## Hand-off discipline
 
