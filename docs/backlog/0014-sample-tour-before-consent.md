@@ -1,7 +1,7 @@
 ---
 id: 0014
 title: Sample tour before consent — let prospects see the artifact before trusting it
-status: proposed
+status: in-progress
 priority: P1
 area: growth
 created: 2026-05-18
@@ -82,3 +82,12 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 ## Implementation log
 
 (Appended by the implementation-dev agent during execution.)
+
+### 2026-05-18 — start
+
+Branch `feat/0014-sample-tour` created. Status moved to `in-progress`. Plan:
+write `tests/e2e/sample-tour.spec.ts` first, extend `tests/e2e/privacy.spec.ts`
+with a full tour-traversal allow-list assertion, then build the sample fixture
++ tour state module + db read/write shims + router branch + welcome button +
+banner + inline tour-notice helper. No schema migration, no egress widening,
+no new deps.
