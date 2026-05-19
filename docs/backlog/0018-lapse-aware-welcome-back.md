@@ -1,7 +1,7 @@
 ---
 id: 0018
 title: Lapse-aware welcome-back surface — the re-engagement page for the user who came back after a long quiet
-status: groomed
+status: in-progress
 priority: P1
 area: today
 created: 2026-05-19
@@ -86,4 +86,5 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-19 — implementation-dev: picked up. Branch `feat/0018-lapse-aware-welcome-back`. Plan: Dexie v7 `sessions` table; `src/pages/welcome-back.ts` new module with pure `computeWelcomeBackState` + `renderWelcomeBack`; router hook in `src/main.ts` that records the load's session, reads the prior `at`, computes state, redirects once when route is `#/today` and not dismissed for today; `formatAdherence(checkins, opts?)` gains `opts.syntheticSkipDays?: number` exported from `src/claude.ts`; `src/pages/plan.ts` reads `recompose=lapse-aware` and threads the gap days into the prompt; one new `.welcome-back` block in `src/styles.css` reusing recap-card / print-sheet tokens; tests in `tests/e2e/welcome-back.spec.ts` driving Dexie + the once-per-load router redirect.
+
