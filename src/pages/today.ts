@@ -11,9 +11,11 @@ import { masthead, foot } from "../chrome";
 import {
   getProfile, today, latestPlan, latestMealPlan,
   checkInFor, upsertCheckIn, recentCheckIns, isoWeek,
+  allPanels, getProjectionsFor, weekRange,
 } from "../db";
 import { isTour } from "../sample/state";
-import type { CheckIn, Habit, Meal, DayMeals } from "../types";
+import { pickQuietDayNote } from "../today/quiet-card";
+import type { CheckIn, Habit, Meal, DayMeals, QuietDayNote } from "../types";
 
 /* -------------------------------------------------------------------------- */
 /*  Sunday recap card                                                         */
@@ -56,6 +58,43 @@ function renderRecapCard(): string {
   `;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Quiet-day card (ticket 0015)                                              */
+/* -------------------------------------------------------------------------- */
+/*
+ * The Mon–Sat counterpart to the Sunday recap card. The picker
+ * (`pickQuietDayNote`) is pure; this function only renders. The wrapping
+ * `aside` re-uses the recap-card styles and adds the `--quiet` variant so
+ * the dismissal link styling can differ ("Not today" vs "Not this week")
+ * without divergent layout. When `note` is null, returns an empty string —
+ * the card is omitted from the DOM rather than rendered as a placeholder.
+ */
+
+const QUIET_DISMISSED_PREFIX = "almanac.quiet.dismissed.";
+
+function quietCardDismissedToday(today: string): boolean {
+  try { return localStorage.getItem(QUIET_DISMISSED_PREFIX + today) === "true"; }
+  catch { return false; }
+}
+
+function renderQuietCard(note: QuietDayNote): string {
+  return `
+    <aside class="recap-card recap-card--quiet" role="note">
+      <div class="recap-card__eyebrow">A note for today</div>
+      <div class="recap-card__body">
+        <p class="recap-card__headline">${esc(note.headline)}</p>
+        <p class="recap-card__lede">${esc(note.body)}</p>
+        <div class="recap-card__actions">
+          <a href="${esc(note.cta.href)}" class="btn btn--accent" data-action="quiet-cta" data-kind="${esc(note.kind)}">${esc(note.cta.label)}</a>
+          <button type="button" class="recap-card__dismiss" data-action="dismiss-quiet">
+            Not today
+          </button>
+        </div>
+      </div>
+    </aside>
+  `;
+}
+
 export async function renderToday(): Promise<void> {
   const profile = await getProfile();
   if (!profile) { location.hash = "#/onboarding"; return; }
@@ -89,6 +128,28 @@ export async function renderToday(): Promise<void> {
 
   const recapCardHtml = recapCardActive() ? renderRecapCard() : "";
 
+  // The quiet-day card (ticket 0015) only renders Mon–Sat AND only when the
+  // recap card isn't already taking the slot. The recap is a calendar-aligned
+  // ritual; the quiet card is the everyday fallback — never both.
+  let quietCardHtml = "";
+  if (!recapCardActive() && !quietCardDismissedToday(day)) {
+    const panels = await allPanels();
+    const latestPanelId = panels[0]?.id;       // newest-first by drawnAt
+    const projections = latestPanelId != null
+      ? await getProjectionsFor(latestPanelId)
+      : [];
+    const [mondayIso] = weekRange(new Date());
+    const note = pickQuietDayNote({
+      today: day,
+      plan,
+      checkins14: recent,
+      ...(mp && mp.planId === plan.id ? { mealPlan: mp } : {}),
+      projections,
+      sampleWeekStart: mondayIso,
+    });
+    if (note) quietCardHtml = renderQuietCard(note);
+  }
+
   const frag = h(`
     <div class="reveal">
       ${masth}
@@ -99,13 +160,14 @@ export async function renderToday(): Promise<void> {
         </h1>
 
         ${recapCardHtml}
+        ${quietCardHtml}
 
         <section style="margin-top: 2rem;">
           <div class="section-mark">Today's meals</div>
           ${mealsHtml}
         </section>
 
-        <section style="margin-top: 2.6rem;">
+        <section data-scroll="habits" style="margin-top: 2.6rem;">
           <div class="section-mark">Habit stack</div>
           <p class="lede" style="max-width: 60ch; margin: 0 0 0.9rem;">${esc(plan.habitStack.intro)}</p>
           <ol class="habit-checks">
@@ -149,6 +211,27 @@ export async function renderToday(): Promise<void> {
     const key = RECAP_DISMISSED_PREFIX + isoWeek(new Date());
     localStorage.setItem(key, "true");
     document.querySelector(".recap-card")?.remove();
+  });
+
+  // Quiet-day card (ticket 0015): dismissal is per-DAY, keyed by today's ISO
+  // date so a fresh computation runs tomorrow. The "Open habits" CTA on the
+  // adherence-at-risk variant is a same-page scroll — intercept it so the
+  // browser doesn't reload Today and burn the existing render.
+  document.querySelector("[data-action='dismiss-quiet']")?.addEventListener("click", () => {
+    const key = QUIET_DISMISSED_PREFIX + day;
+    try { localStorage.setItem(key, "true"); } catch { /* private mode is fine */ }
+    document.querySelector(".recap-card--quiet")?.remove();
+  });
+
+  // Same-page scroll for the adherence-at-risk CTA. Other CTAs (Plan a retest,
+  // Swap this slot) are real navigations and fall through to the default
+  // anchor behavior.
+  document.querySelector("[data-action='quiet-cta']")?.addEventListener("click", (ev) => {
+    const a = ev.currentTarget as HTMLAnchorElement;
+    if (a.dataset.kind !== "adherence-at-risk") return;
+    ev.preventDefault();
+    document.querySelector("[data-scroll='habits']")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
   for (const card of document.querySelectorAll(".habit-check"))

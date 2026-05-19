@@ -431,3 +431,29 @@ export interface ProjectionSnapshot {
   weeksOut: [number, number];
   createdAt: number;
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Quiet-day note (ticket 0015)                                              */
+/* -------------------------------------------------------------------------- */
+/*
+ * Returned by `pickQuietDayNote()` (in `src/today/quiet-card.ts`) when a
+ * between-cadence note should surface above Today's meals on a Mon–Sat
+ * morning. One note, one CTA — never two. The precedence chain enforces a
+ * single kind per render so the card stays editorial.
+ *
+ * The shape is intentionally pure-presentational: a kind tag for analytics-
+ * free debugging, a one-line headline, a one-sentence body in the editorial
+ * voice, and exactly one CTA with a stable label + href. The page layer
+ * renders this without re-deriving anything.
+ */
+export type QuietDayNoteKind =
+  | "adherence-at-risk"
+  | "projection-window"
+  | "meal-skipped-pattern";
+
+export interface QuietDayNote {
+  kind: QuietDayNoteKind;
+  headline: string;
+  body: string;
+  cta: { label: string; href: string };
+}
