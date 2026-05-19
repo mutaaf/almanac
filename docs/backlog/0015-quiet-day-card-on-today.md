@@ -1,7 +1,7 @@
 ---
 id: 0015
 title: Quiet-day card on Today — a reason to open the app on a Wednesday
-status: in-progress
+status: shipped
 priority: P1
 area: today
 created: 2026-05-18
@@ -82,3 +82,42 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 ### 2026-05-18 — implementation-dev
 
 Picked up. Branch `feat/0015-quiet-day-card`. Status flipped to in-progress.
+
+### 2026-05-18 — implementation-dev · shipped
+
+PR #32 merged after CI green on chromium, mobile-webkit, typecheck + build,
+and Vercel. Files touched:
+
+- `src/today/quiet-card.ts` (new) — the pure `pickQuietDayNote()` picker
+  with the three rule predicates and the linear precedence chain.
+- `src/types.ts` — added the `QuietDayNote` + `QuietDayNoteKind` shapes.
+  `QuietDayState` stayed private to the picker module per the ticket.
+- `src/pages/today.ts` — wired the picker after the recap-card branch
+  (recap wins on Sundays), rendered the `.recap-card--quiet` variant in
+  the same DOM slot, wired the `Not today` dismissal + the same-page
+  scroll for the adherence-at-risk CTA. Tagged the habit-stack section
+  with `data-scroll="habits"` so the scroll selector is stable.
+- `src/styles.css` — one new block, `.recap-card--quiet
+  .recap-card__headline`. The shared `.recap-card` skeleton handles
+  layout; no new color tokens.
+- `src/sample/fixture.ts` — tightened the check-in matrix so `h-fish`
+  satisfies the adherence-at-risk predicate on the tour (zero hits in
+  the recent 7 days, three in the prior 7). The tour now demonstrates
+  the new card to pre-consent visitors.
+- `tests/e2e/quiet-card.spec.ts` (new) — 10 scenarios, one per
+  acceptance bullet. Green on both chromium and mobile-webkit.
+
+Key decisions:
+
+- The `meal-skipped-pattern` predicate walks the meal plan's upcoming
+  days (`>= today`) and looks back at the prior two matching-weekday
+  check-ins. This keeps the CTA day-link pointing at a day the user
+  can act on rather than at a day already in the past.
+- The `adherence-at-risk` predicate counts days where the habit is
+  absent (including days with NO check-in at all) as skipped. That
+  matches the editorial intent — a missed day is a missed day whether
+  or not the user opened the app.
+- The same-page scroll on the adherence CTA was intentionally wired
+  through `preventDefault()` rather than a hash-route round-trip, so
+  the existing Today render isn't burned and the smooth-scroll lands
+  on the same DOM that just rendered the card.
