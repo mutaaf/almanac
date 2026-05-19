@@ -58,7 +58,7 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0001 | Auto-split panels by drawn date | P1 | groomed | labs |
+| 0001 | Auto-split panels by drawn date | P1 | in-progress | labs |
 | 0002 | User-extensible marker database | P1 | groomed | labs |
 | 0003 | Single-meal swap with constraint preservation | P1 | proposed | meals |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | proposed | infra |

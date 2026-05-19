@@ -1,11 +1,11 @@
 ---
 id: 0001
 title: Auto-split panels by drawn date
-status: groomed
+status: in-progress
 priority: P1
 area: labs
 created: 2026-05-14
-owner: gtm-innovation
+owner: implementation-dev
 ---
 
 ## User story
@@ -53,4 +53,4 @@ The screenshot a friend wants to see is the Progress page with 12 months of tren
 
 ## Implementation log
 
-(empty — pick up via `/ship 0001`)
+- 2026-05-19: Picked up. Branched `feat/0001-auto-split-panels-by-date`.
