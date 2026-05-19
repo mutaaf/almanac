@@ -17,6 +17,7 @@ import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import { listUserMarkers, addUserMarker, getAllMarkers } from "../data/userMarkers";
 import { computeProjection } from "../progress/projection";
 import { route } from "../main";
+import { isSharedView } from "../share/shared-state";
 import type { MarkerCategory, MarkerDef, Panel, ProjectionSnapshot, Result } from "../types";
 
 /* The staging set lives outside render so paste handlers can mutate it
@@ -32,6 +33,12 @@ let staged: File[] = [];
 const PASTE_KEY = "__almanacPasteListener__";
 
 export async function renderLabs(): Promise<void> {
+  // Shared-view (ticket 0017): labs were not part of the shared payload.
+  // Render the editorial empty state and return.
+  if (isSharedView()) {
+    return paintSharedNotIncluded();
+  }
+
   const profile = await getProfile();
   if (!profile) { location.hash = "#/onboarding"; return; }
 
@@ -293,6 +300,31 @@ function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/**
+ * Render the "This was not shared with you" empty state for Labs under
+ * shared-view (ticket 0017). Lab data was never part of the shared
+ * payload; the recipient's IndexedDB is also bypassed.
+ */
+async function paintSharedNotIncluded(): Promise<void> {
+  const masth = await masthead("#/labs");
+  const frag = h(`
+    <div class="reveal">
+      ${masth}
+      <section class="page">
+        <div class="eyebrow">Labs</div>
+        <div class="shared-empty" role="status">
+          <h2 class="shared-empty__title">This was not shared with you.</h2>
+          <p class="shared-empty__body">
+            Lab panels were not part of the shared link — they are the most personal data Almanac carries, and the share artifact never includes them. Open Plan or Meals above to read what was shared.
+          </p>
+        </div>
+      </section>
+      ${foot("ii")}
+    </div>
+  `);
+  mount(frag);
 }
 
 async function extractStaged(): Promise<void> {

@@ -3964,3 +3964,133 @@ body {
     text-underline-offset: 2px;
   }
 }
+
+/* =============================================================================
+   Shareable protocol link (ticket 0017)
+   The "Share this protocol" affordance sits in the Plan page's footer next to
+   "Print or share"; tapping it opens a small modal listing what the link will
+   and will not carry. The recipient lands inside Almanac in shared-view mode,
+   where out-of-scope routes show the editorial "This was not shared with you"
+   block (.shared-empty). The masthead banner re-uses .tour-banner — no new
+   visual tokens — and only the editorial copy differs.
+   ============================================================================= */
+
+.share-protocol__btn {
+  /* Sits next to .print-share__btn. Same chip rhythm; the data-action attr is
+     what differentiates them in the JS handler. Minimum 44×44 tap target on
+     mobile so iOS HIG passes. */
+  min-height: 44px;
+}
+
+.share-modal-root {
+  /* Fullscreen overlay that hosts the modal and its backdrop. */
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.share-modal-root .modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 18, 16, 0.45);
+}
+
+.share-modal {
+  /* Cream paper, ink hairline, generous padding. Borrows from the existing
+     .modal / .slideover idiom on the Plan page (provenance slideover). */
+  position: relative;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  max-width: 32rem;
+  width: 100%;
+  padding: 1.6rem 1.8rem;
+  font-family: var(--body);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  box-shadow: 0 18px 48px rgba(20, 18, 16, 0.18);
+}
+
+.share-modal__title {
+  font-family: var(--display);
+  font-size: 1.6rem;
+  margin: 0;
+  letter-spacing: 0.01em;
+}
+
+.share-modal__body {
+  margin: 0;
+  font-size: 0.96rem;
+  line-height: 1.5;
+  color: var(--ink);
+}
+
+.share-modal__longline {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.share-modal__actions {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.share-modal__confirm {
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  min-height: 1.2em;
+}
+
+/* Editorial empty state for out-of-scope routes under shared-view —
+   Progress, Labs, Recap, and the Meals page when no meal plan was shared. */
+.shared-empty {
+  margin-top: 1.6rem;
+  padding: 1.4rem 1.6rem;
+  border: 1px dashed var(--rule);
+  background: var(--paper-deep);
+}
+
+.shared-empty__title {
+  font-family: var(--display);
+  font-size: 1.4rem;
+  margin: 0 0 0.6rem;
+}
+
+.shared-empty__body {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 0.96rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 60ch;
+}
+
+/* Inline decode-failure notice on the welcome page. Same paper + ink tone
+   as the tour-notice; sits above the welcome headline so the first thing
+   the recipient sees is the explanation. */
+.share-decode-error {
+  font-family: var(--body);
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink);
+  color: var(--ink);
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.2rem;
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .share-modal {
+    padding: 1.2rem 1.2rem;
+  }
+}

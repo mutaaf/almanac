@@ -1,7 +1,7 @@
 ---
 id: 0017
 title: Shareable protocol link — text a friend your actual protocol without a backend
-status: groomed
+status: in-progress
 priority: P1
 area: growth
 created: 2026-05-19
@@ -87,4 +87,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-19 — picked up by implementation-dev. Branch `feat/0017-shareable-protocol-link`. Mirroring the 0014 tour-mode plumbing for the shared-view branch.

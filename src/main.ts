@@ -12,6 +12,14 @@
 // are bypassed and the page renders against the fixture (via the read shims
 // in src/db.ts). Routing TO #/welcome explicitly calls `exitTour()` so the
 // next render reinstates the gate — the only escape hatch from the tour.
+//
+// Ticket 0017 — shareable protocol link. A fourth branch sits next to the
+// tour branch: when `isSharedView()` is true (set by a successful decode of
+// a `#/shared?p=...` URL), the same gate-bypass treatment applies, and the
+// read shims in src/db.ts return the decoded payload instead of the user's
+// IndexedDB. The `#/shared` route is handled here too — it decodes, enters
+// shared-view, and routes to `#/today`. Routing TO `#/welcome` always
+// clears shared-view (just like it clears tour) so the consent gate is back.
 
 import { getProfile } from "./db";
 import { renderWelcome, consentAcknowledged } from "./pages/welcome";
@@ -24,23 +32,58 @@ import { renderProgress }   from "./pages/progress";
 import { renderRecap }      from "./pages/recap";
 import { renderSettings }   from "./pages/settings";
 import { isTour, exitTour } from "./sample/state";
+import {
+  isSharedView, enterSharedView, exitSharedView,
+} from "./share/shared-state";
+import { decodeProtocolPayload } from "./share/protocol-link";
+
+/**
+ * localStorage key the welcome page reads to render the inline "your shared
+ * link did not decode" notice. Set by the router's `#/shared` branch on
+ * decode failure, cleared by the welcome page itself after rendering once.
+ */
+const SHARED_DECODE_ERROR_KEY = "almanac.sharedDecodeError";
 
 export async function route(): Promise<void> {
   const hash = location.hash || "#/today";
   const path = hash.split("?")[0] ?? hash;
 
-  // Tour branch — keep this above the consent gate. A tour visitor lands on
-  // every page without acknowledging consent and without an IndexedDB
-  // profile; the read shims in src/db.ts serve the fixture instead. The
-  // ONLY exit is routing TO #/welcome — the banner's CTA does exactly that.
+  // The `#/shared` route is the recipient's entry point. Decode the payload,
+  // enter shared-view, and hand off to `#/today`. On decode failure, set the
+  // sentinel localStorage flag and route to `#/welcome` where the welcome
+  // page surfaces the inline notice. Never touches IndexedDB.
+  if (path === "#/shared") {
+    const q = (hash.split("?")[1] ?? "").split("#")[0] ?? "";
+    const params = new URLSearchParams(q);
+    const encoded = params.get("p") ?? "";
+    const state = await decodeProtocolPayload(encoded);
+    if (!state) {
+      try { localStorage.setItem(SHARED_DECODE_ERROR_KEY, "true"); } catch { /* private mode */ }
+      // Clear any prior shared-view so a malformed retry from inside a
+      // session still lands on a fresh welcome.
+      exitSharedView();
+      location.hash = "#/welcome";
+      return;
+    }
+    enterSharedView(state);
+    location.hash = "#/today";
+    return;
+  }
+
+  // Tour and shared-view branches — keep them above the consent gate.
+  // A visitor in either mode lands on every page without acknowledging
+  // consent and without an IndexedDB profile; the read shims in src/db.ts
+  // serve the fixture / payload instead. The ONLY exit is routing TO
+  // `#/welcome`, which clears both flags.
   if (path === "#/welcome") {
     // Whether we entered #/welcome via the banner or via a direct visit, we
-    // always clear the tour flag here so the gate is back in force on the
+    // always clear both flags here so the gate is back in force on the
     // next render. Idempotent — clearing an already-clear flag is a no-op.
     exitTour();
+    exitSharedView();
     return renderWelcome();
   }
-  if (isTour()) {
+  if (isTour() || isSharedView()) {
     return dispatch(path);
   }
 

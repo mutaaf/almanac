@@ -17,11 +17,13 @@ import {
 import { route } from "../main";
 import { ClaudeClient, TruncatedResponseError } from "../claude";
 import type {
-  Plan, EatItem, AvoidItem, Recommendation, Panel, Profile, CheckIn, Insight,
+  Plan, EatItem, AvoidItem, Recommendation, Panel, Profile, CheckIn, Insight, MealPlan,
 } from "../types";
 import { findMarker } from "./../data/markers";
 import { thermometer, sparkline, ring } from "../viz";
 import { mountAndPrint, removeMountedSheet, type Audience } from "../print/protocol";
+import { encodeProtocolPayload } from "../share/protocol-link";
+import { isSharedView } from "../share/shared-state";
 
 type ViewMode = "read" | "dashboard";
 const VIEW_KEY = "almanac.plan.view";
@@ -247,6 +249,15 @@ async function waitForPlanCommit(id: number, timeoutMs = 2000): Promise<void> {
    ============================================================================ */
 
 async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void> {
+  // Shared-view (ticket 0017): render the bare eat / avoid / habit shape
+  // from the decoded payload. No re-compose button, no share button (a
+  // shared protocol is read-only by definition), no print button. The
+  // editorial Read mode is the only surface — the dashboard's visualizations
+  // depend on panels + check-ins that shared-view does not carry.
+  if (isSharedView()) {
+    return paintShared(plan);
+  }
+
   const masth = await masthead("#/plan");
   const panels = await allPanels();
   const mealPlan = await latestMealPlan();
@@ -311,6 +322,52 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
   }
 }
 
+/**
+ * Render the Plan page against a shared payload (ticket 0017). Reads from
+ * the synthetic Plan that `latestPlan()` returned (its eat/avoid/habit are
+ * populated, every other field is empty). The render is intentionally a
+ * trimmed-down editorial — eat list, avoid list, habit stack, no recompose
+ * controls, no share button, no print button. The masthead carries the
+ * shared-view banner so the recipient knows what they're reading.
+ */
+async function paintShared(plan: Plan): Promise<void> {
+  const masth = await masthead("#/plan");
+  const frag = h(`
+    <div class="reveal">
+      ${masth}
+      <article class="page">
+        <div class="eyebrow">A shared protocol</div>
+        <h1 class="headline" style="margin-top: 0.4rem;">
+          The <em>protocol.</em>
+        </h1>
+        <div class="ornament"><span class="dot"></span></div>
+
+        <section class="prose dash-snapshot">
+          <p class="dash-snapshot__lede">A friend sent you the food prescription, the avoid list, and the daily habits from their plan. Tap Today and Meals above to see the rest.</p>
+        </section>
+
+        <section style="margin-top: 2.6rem;">
+          <div class="section-mark">Eat — the food prescription</div>
+          ${plan.eatList.length === 0
+            ? `<div class="quiet">Nothing was shared in this section.</div>`
+            : plan.eatList.map(eatRowProse).join("")}
+        </section>
+
+        <section style="margin-top: 2.6rem;">
+          <div class="section-mark">Reduce or replace</div>
+          ${plan.avoidList.length === 0
+            ? `<div class="quiet">Nothing flagged for avoidance.</div>`
+            : plan.avoidList.map(avoidRow).join("")}
+        </section>
+
+        ${habitsHtml(plan)}
+      </article>
+      ${foot("iii")}
+    </div>
+  `);
+  mount(frag);
+}
+
 function renderViewToggle(mode: ViewMode): string {
   const opt = (m: ViewMode, label: string) =>
     `<button class="view-toggle__opt ${m === mode ? "is-active" : ""}" data-mode="${m}">${label}</button>`;
@@ -334,10 +391,18 @@ function renderShareControl(): string {
   // The control is a single button that toggles an `aria-expanded` flag on
   // the wrapping element; the panel itself lives next to the button and is
   // shown via the `is-open` class.
+  //
+  // Ticket 0017 — the second button next to "Print or share" opens the
+  // shareable-protocol-link modal. The two affordances sit in the same row
+  // so a user reaching for one sees the other; the editorial copy on the
+  // modal is what disambiguates them.
   return `
     <div class="print-share">
       <button type="button" class="print-share__btn" aria-expanded="false" aria-controls="print-share-panel">
         Print or share
+      </button>
+      <button type="button" class="print-share__btn share-protocol__btn" data-action="share-protocol">
+        Share this protocol
       </button>
       <div class="print-share-panel" id="print-share-panel" hidden>
         <fieldset class="print-share-panel__group">
@@ -417,6 +482,95 @@ function wireShareControl(plan: Plan, profile: Profile, panels: Panel[]): void {
   // sheet on render so a previously-printed variant doesn't ghost into the
   // next paint as a stray DOM fragment.
   removeMountedSheet();
+
+  // Ticket 0017 — wire the second affordance (the shareable-protocol-link
+  // modal). Lives next to the print-share toggle; the modal is rendered on
+  // open via the same `.modal` idiom 0010 uses for the print dialog.
+  document.querySelector<HTMLButtonElement>("[data-action='share-protocol']")
+    ?.addEventListener("click", () => {
+      void openProtocolShareModal(plan);
+    });
+}
+
+/* ============================================================================
+   Share this protocol — modal + encode + share-sheet/clipboard handoff
+   (ticket 0017)
+   ============================================================================
+   The modal is a centered `.modal` overlay (mirrors the existing print-share
+   panel CSS tokens). The encoded payload is computed lazily on Continue so
+   a user who Cancels never pays the gzip cost. The 8000-char threshold is
+   evaluated on open; when over, the modal switches to the "Copy long link"
+   branch (no share-sheet attempt — long URLs do not survive iMessage).
+*/
+
+async function openProtocolShareModal(plan: Plan): Promise<void> {
+  // The Plan object includes the synthetic meal plan in shared-view mode
+  // (which would never reach this branch — shared-view hides the share
+  // button), or undefined when the host hasn't generated meals yet. In the
+  // long-payload test the spec writes a synthetic meal plan into a window
+  // global; we read that first when present so the test can exercise the
+  // long branch without driving the full meal-plan compose path.
+  const overrideMp = (window as unknown as { __almanacShareTestInflate?: MealPlan }).__almanacShareTestInflate;
+  const mealPlan = overrideMp ?? await latestMealPlan();
+  const usableMealPlan = mealPlan && (overrideMp || mealPlan.planId === plan.id) ? mealPlan : undefined;
+
+  // Encode upfront so the long-payload branch can read the length. The
+  // encoded string is reused on Continue — no double work.
+  const encoded = await encodeProtocolPayload(plan, usableMealPlan);
+  const url = `${location.origin}/#/shared?p=${encoded}`;
+  const isLong = encoded.length > 8000;
+
+  const modalCopy = "This will create a link that contains your eat list, avoid list, habits, and meal plan. "
+    + "It will not contain your name, your labs, your goals, your API key, or any insights about your biology. "
+    + "The link works on any phone that opens it.";
+  const longLine = "Your protocol is longer than most messaging apps allow in one link. Tap to copy instead of share.";
+
+  const continueLabel = isLong ? "Copy long link" : "Continue";
+  const html = `
+    <div class="modal-backdrop" data-share-close></div>
+    <div class="modal share-modal" role="dialog" aria-modal="true" aria-label="Share this protocol">
+      <h2 class="share-modal__title">Share this protocol</h2>
+      <p class="share-modal__body">${esc(modalCopy)}</p>
+      ${isLong ? `<p class="share-modal__longline">${esc(longLine)}</p>` : ""}
+      <div class="share-modal__actions">
+        <button type="button" class="btn btn--accent" data-share-continue>${esc(continueLabel)}</button>
+        <button type="button" class="btn btn--ghost" data-share-cancel>Cancel</button>
+      </div>
+      <div class="share-modal__confirm" role="status" aria-live="polite"></div>
+    </div>
+  `;
+
+  const wrap = document.createElement("div");
+  wrap.className = "share-modal-root";
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  wrap.querySelector("[data-share-close]")?.addEventListener("click", close);
+  wrap.querySelector("[data-share-cancel]")?.addEventListener("click", close);
+  wrap.querySelector("[data-share-continue]")?.addEventListener("click", async () => {
+    // Long branch always copies — long URLs blow up in messaging apps.
+    if (!isLong && typeof navigator !== "undefined"
+        && typeof navigator.canShare === "function" && navigator.canShare({ url })) {
+      try {
+        await navigator.share({ url });
+        close();
+        return;
+      } catch {
+        // Fall through to the clipboard path on share-sheet failure.
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      const confirm = wrap.querySelector<HTMLElement>(".share-modal__confirm");
+      if (confirm) confirm.textContent = "Link copied. Paste it anywhere.";
+    } catch {
+      // Last resort: stash the URL on a visible input the user can copy
+      // manually. Vanishingly rare; never reached in CI.
+      const confirm = wrap.querySelector<HTMLElement>(".share-modal__confirm");
+      if (confirm) confirm.textContent = "Could not access the clipboard. Long-press the link to copy.";
+    }
+  });
 }
 
 /* ============================================================================

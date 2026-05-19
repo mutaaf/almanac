@@ -12,9 +12,18 @@ import {
 import { ClaudeClient, TruncatedResponseError } from "../claude";
 import { recomputeGrocery } from "../meals/grocery";
 import { route } from "../main";
+import { isSharedView } from "../share/shared-state";
 import type { MealPlan, Meal, DayMeals, Effort } from "../types";
 
 export async function renderMeals(): Promise<void> {
+  // Shared-view (ticket 0017): when the recipient lands on Meals, render the
+  // shared payload's meal plan if one exists; otherwise show the editorial
+  // empty state ("This was not shared with you."). Never the "generate the
+  // week" CTA — shared-view cannot write.
+  if (isSharedView()) {
+    return paintShared();
+  }
+
   const profile = await getProfile();
   if (!profile) { location.hash = "#/onboarding"; return; }
 
@@ -35,6 +44,65 @@ export async function renderMeals(): Promise<void> {
 }
 
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Render Meals against a shared payload (ticket 0017). When the payload
+ * carries a meal plan, the standard `paint()` is reused with no day focus
+ * and the reroll button is hidden via the absence of `wireShareControl`-
+ * style controls. When the payload omits the meal plan, surface the
+ * editorial empty state. Neither branch writes anything.
+ */
+async function paintShared(): Promise<void> {
+  const mp = await latestMealPlan();
+  const masth = await masthead("#/meals");
+  if (!mp) {
+    const frag = h(`
+      <div class="reveal">
+        ${masth}
+        <section class="page">
+          <div class="eyebrow">Meals</div>
+          <div class="shared-empty" role="status">
+            <h2 class="shared-empty__title">This was not shared with you.</h2>
+            <p class="shared-empty__body">
+              Your friend did not share their meal plan. Open Plan above to read the eat list, the avoid list, and the habit stack they did share.
+            </p>
+          </div>
+        </section>
+        ${foot("iv")}
+      </div>
+    `);
+    mount(frag);
+    return;
+  }
+  // The standard `paint()` already handles a real MealPlan. Re-use it but
+  // strip the day-strip's links to focused-day URLs (the focus mode would
+  // re-route through the router which would re-enter shared-view paint —
+  // perfectly fine), and skip the reroll button (we don't render the
+  // generate flow for shared-view). Easiest: render a minimal week view.
+  const tdy = today();
+  const frag = h(`
+    <div class="reveal">
+      ${masth}
+      <section class="page">
+        <div class="eyebrow">Meals · week of ${esc(mp.weekStart)}</div>
+        <h1 class="headline" style="margin-top: 0.4rem;">A friend's <em>week</em>.</h1>
+
+        <div class="day-strip" style="margin-top: 2rem;">
+          ${mp.days.map(dm => `
+            <a class="day-strip__cell ${dm.day === tdy ? "is-today" : ""}" href="#/meals?day=${esc(dm.day)}">
+              <div class="day-strip__dow">${esc(dowOf(dm.day))}</div>
+              <div class="day-strip__num">${esc(dm.day.slice(8))}</div>
+            </a>
+          `).join("")}
+        </div>
+
+        ${mp.days.map(renderDayBlock).join("")}
+      </section>
+      ${foot("iv")}
+    </div>
+  `);
+  mount(frag);
+}
 
 async function paintNoPlan(): Promise<void> {
   const masth = await masthead("#/meals");
