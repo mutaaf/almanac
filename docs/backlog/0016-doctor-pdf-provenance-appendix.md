@@ -1,7 +1,7 @@
 ---
 id: 0016
 title: Provenance appendix on the doctor PDF — auditable rule trail in the clinical hand-off
-status: in-progress
+status: shipped
 priority: P2
 area: plan
 created: 2026-05-18
@@ -82,3 +82,8 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 ## Implementation log
 
 - 2026-05-18 — Picked up by implementation-dev. Branch `feat/0016-doctor-pdf-provenance-appendix`. Plan: extend `tests/e2e/print.spec.ts` with appendix scenarios (snapshot the friend PDF first so the byte-equal assertion has a baseline), add a `renderProvenanceAppendix(plan)` helper to `src/print/template.ts` called from `renderForDoctor()` only, and add the appendix classes in `src/styles.css` alongside the existing `.print-sheet__*` block.
+- 2026-05-19 — Shipped via PR #34 (squash-merged). Files touched:
+  - `src/print/template.ts` — `renderForDoctor()` now calls `renderProvenanceAppendix(plan)` after the panels summary. New private helpers `renderProvenanceAppendix`, `renderProvenanceRow`, `renderProvenanceMarkerTable`; module constant `PROVENANCE_FOOTER_LINE` carries the closing copy verbatim. Imports `glossForRule` from `src/insights.ts`.
+  - `src/styles.css` — appendix classes (`.provenance-appendix`, `__rule`, `__rule-head`, `__title`, `__rule-id`, `__markers`, `__evidence`, `__gloss`, `__footer`) added alongside the other `.print-sheet__*` rules; re-uses ink/cream/oxblood tokens; `page-break-inside: avoid` keeps each per-rule block intact across print pages.
+  - `tests/e2e/print.spec.ts` — two new describe blocks. First: panel that fires the iron-restricted erythropoiesis rule; asserts the appendix renders with one entry (LLM-only insight filtered out), the rule id is in a `<code>` tag with `ruleId · category`, the supporting-marker table has five columns + em-dash threshold cells, the evidence string is verbatim, the gloss is non-empty, the closing line is verbatim, the friend PDF carries no provenance markup, the doctor PDF still excludes goals/conditions/API-key/meal-plan, generation fires zero new Anthropic calls + no new egress, and mobile-webkit still has the toggle + share button wired. Second: lipid panel that fires no rule; asserts the appendix is fully omitted (no markup, no "Rule provenance" eyebrow). Two test refactors used `.evaluate()` snapshots to collapse ~15 polling assertions into a single round-trip so the new tests stay stable under CI's 2-worker contention.
+  - PR: https://github.com/mutaaf/almanac/pull/34 — CI green (chromium 4m26s, mobile-webkit 10m3s, typecheck+build 17s).
