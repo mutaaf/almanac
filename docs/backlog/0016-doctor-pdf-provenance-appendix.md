@@ -1,11 +1,11 @@
 ---
 id: 0016
 title: Provenance appendix on the doctor PDF — auditable rule trail in the clinical hand-off
-status: proposed
+status: in-progress
 priority: P2
 area: plan
 created: 2026-05-18
-owner: gtm-innovation
+owner: implementation-dev
 ---
 
 ## User story
@@ -81,4 +81,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-18 — Picked up by implementation-dev. Branch `feat/0016-doctor-pdf-provenance-appendix`. Plan: extend `tests/e2e/print.spec.ts` with appendix scenarios (snapshot the friend PDF first so the byte-equal assertion has a baseline), add a `renderProvenanceAppendix(plan)` helper to `src/print/template.ts` called from `renderForDoctor()` only, and add the appendix classes in `src/styles.css` alongside the existing `.print-sheet__*` block.

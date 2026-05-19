@@ -3593,6 +3593,98 @@ body {
   text-transform: uppercase;
 }
 
+/* ---- Rule provenance appendix (ticket 0016, doctor PDF only) ----
+   Appended after the panel-summary section when the plan carries any
+   rule-emitted insights. Tokens are re-used — no new color variables. */
+.print-sheet .provenance-appendix {
+  margin-top: 0.7rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--paper-edge);
+}
+.print-sheet .provenance-appendix__rule {
+  margin-top: 0.45rem;
+  padding: 0.35rem 0 0.4rem 0.55rem;
+  border-left: 2px solid var(--oxblood);
+  page-break-inside: avoid;
+}
+.print-sheet .provenance-appendix__rule + .provenance-appendix__rule {
+  margin-top: 0.55rem;
+}
+.print-sheet .provenance-appendix__rule-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+}
+.print-sheet .provenance-appendix__title {
+  font-family: var(--body);
+  font-size: 10pt;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+.print-sheet .provenance-appendix__rule-id {
+  font-family: var(--mono);
+  font-size: 8.5pt;
+  letter-spacing: 0.02em;
+  color: var(--ink-soft);
+  background: var(--paper);
+  border: 1px solid var(--paper-edge);
+  padding: 1px 5px;
+}
+.print-sheet .provenance-appendix__markers {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.2rem 0 0.3rem;
+  font-family: var(--body);
+  font-size: 9pt;
+  color: var(--ink);
+}
+.print-sheet .provenance-appendix__markers th,
+.print-sheet .provenance-appendix__markers td {
+  text-align: left;
+  padding: 2px 6px 2px 0;
+  border-bottom: 1px dotted var(--paper-edge);
+  vertical-align: top;
+}
+.print-sheet .provenance-appendix__markers th {
+  font-size: 7.5pt;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 500;
+  border-bottom: 1px solid var(--paper-edge);
+}
+.print-sheet .provenance-appendix__markers td {
+  font-family: var(--mono);
+  font-size: 9pt;
+}
+.print-sheet .provenance-appendix__markers td:first-child {
+  font-family: var(--body);
+}
+.print-sheet .provenance-appendix__evidence {
+  font-family: var(--mono);
+  font-size: 9pt;
+  color: var(--ink-soft);
+  margin: 0.15rem 0;
+}
+.print-sheet .provenance-appendix__gloss {
+  font-family: var(--display);
+  font-size: 10.5pt;
+  line-height: 1.4;
+  color: var(--ink);
+  margin: 0.2rem 0 0.2rem;
+}
+.print-sheet .provenance-appendix__footer {
+  font-family: var(--body);
+  font-size: 8pt;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  font-style: italic;
+  margin: 0.15rem 0 0;
+}
+
 /* The print-only stylesheet: hide the SPA chrome and unhide the print-sheet
    wrapper. `body *` is the cheapest way to make sure nothing the page or a
    future feature added stays visible alongside the sheet. */
