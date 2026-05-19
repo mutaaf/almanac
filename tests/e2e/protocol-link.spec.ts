@@ -74,19 +74,31 @@ async function openShareModal(page: Page): Promise<void> {
 }
 
 /**
- * Read a clipboard text value through Playwright's permission-granted
- * navigator.clipboard.readText(). Chromium grants clipboard-read by default
- * for localhost; WebKit needs an explicit permissions grant before the call.
- * Tests that need this call grantPermission in their `beforeEach`.
+ * Read the URL the SUT captured into the window global. Works identically on
+ * chromium and mobile-webkit because both branches (share sheet + clipboard)
+ * are stubbed in `stubNavigatorShare` to write the URL into `__shareUrl` —
+ * we never call `navigator.clipboard.readText()`, which mobile-webkit
+ * blocks without an OS-level permission.
  */
-async function readClipboard(page: Page): Promise<string> {
-  return page.evaluate(async () => navigator.clipboard.readText());
+async function readShareUrl(page: Page): Promise<string> {
+  return page.evaluate(
+    () => (window as unknown as { __shareUrl?: string }).__shareUrl ?? "",
+  );
 }
 
 /**
- * Stub navigator.share + navigator.canShare so the "Continue" button falls
- * through to the clipboard branch reliably. Some browsers/contexts ship the
- * share API; we don't want the OS share sheet to actually open in CI.
+ * Stub navigator.share + navigator.canShare + navigator.clipboard so both
+ * branches of the "Continue" handler capture the URL into a window global
+ * (`__shareUrl`) and a call counter (`__shareCalls` / `__clipboardCalls`).
+ *
+ * Stubbing the clipboard is critical for mobile-webkit support: the real
+ * `navigator.clipboard.writeText` requires an OS-level permission WebKit
+ * does not recognize via Playwright's `grantPermissions` API. Replacing
+ * the function with a capturing stub gives us a deterministic, cross-
+ * browser way to assert "the right URL would have been written".
+ *
+ * `accept` controls what `canShare({ url })` returns — `true` exercises
+ * the share-sheet branch, `false` exercises the clipboard fallback.
  */
 async function stubNavigatorShare(page: Page, accept: boolean = false): Promise<void> {
   await page.evaluate((acc) => {
@@ -95,41 +107,51 @@ async function stubNavigatorShare(page: Page, accept: boolean = false): Promise<
       writable: true,
       value: () => acc,
     });
-    (window as unknown as { __shareCalls: number }).__shareCalls = 0;
+    const g = window as unknown as {
+      __shareCalls: number;
+      __clipboardCalls: number;
+      __shareUrl?: string;
+    };
+    g.__shareCalls = 0;
+    g.__clipboardCalls = 0;
     Object.defineProperty(navigator, "share", {
       configurable: true,
       writable: true,
       value: async (data: { url: string }) => {
-        (window as unknown as { __shareCalls: number }).__shareCalls++;
-        (window as unknown as { __shareUrl?: string }).__shareUrl = data.url;
+        g.__shareCalls++;
+        g.__shareUrl = data.url;
         return undefined;
+      },
+    });
+    // Stub clipboard.writeText to capture the URL without needing OS perms.
+    // The original method on WebKit throws without a user-gesture-bound
+    // permissions grant the harness can't provide.
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      writable: true,
+      value: {
+        writeText: async (text: string) => {
+          g.__clipboardCalls++;
+          g.__shareUrl = text;
+        },
+        readText: async () => g.__shareUrl ?? "",
       },
     });
   }, accept);
 }
 
-/**
- * Read the URL the "Continue" button placed on the clipboard, regardless of
- * which branch fired (share sheet vs clipboard).
- */
-async function readShareUrl(page: Page): Promise<string> {
-  // The share button writes both the share-sheet URL AND the clipboard URL
-  // through the same primitive; we read whichever surface is available.
-  const fromShare = await page.evaluate(
-    () => (window as unknown as { __shareUrl?: string }).__shareUrl ?? "",
-  );
-  if (fromShare) return fromShare;
-  return readClipboard(page);
-}
-
 test.describe("Shareable protocol link (ticket 0017)", () => {
 
-  test.beforeEach(async ({ context }) => {
+  test.beforeEach(async ({ context, browserName }) => {
     // Clipboard read + write permissions for the recipient flow and the
-    // copy-to-clipboard branch. Chromium accepts the names directly; WebKit
-    // silently ignores unknown ones, which is fine — its clipboard API is
-    // accessible without an explicit grant on localhost.
-    await context.grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => undefined);
+    // copy-to-clipboard branch. Chromium accepts these directly; WebKit
+    // does not recognize the permission names and throws on any future
+    // `newPage` call from the same context if we even ask. Gate on
+    // browserName so WebKit skips the call entirely — its clipboard API
+    // is accessible on localhost without an explicit grant.
+    if (browserName === "chromium") {
+      await context.grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => undefined);
+    }
   });
 
   /* ---------- Plan footer surfaces a Share affordance ----------------- */
@@ -182,7 +204,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
     await page.getByRole("button", { name: /^cancel$/i }).click();
     await expect(page.locator(".share-modal")).toHaveCount(0);
     // No clipboard write, no share invocation.
-    const clip = await readClipboard(page).catch(() => "");
+    const clip = await readShareUrl(page).catch(() => "");
     expect(clip).not.toMatch(/#\/shared/);
     const shareCalls = await page.evaluate(
       () => (window as unknown as { __shareCalls?: number }).__shareCalls ?? 0,
@@ -231,7 +253,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
       /link copied\. paste it anywhere\./i,
     );
 
-    const url = await readClipboard(page);
+    const url = await readShareUrl(page);
     expect(url).toMatch(/#\/shared\?p=[A-Za-z0-9_-]+/);
   });
 
@@ -362,7 +384,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
     await stubNavigatorShare(page, false);
     await openShareModal(page);
     await page.getByRole("button", { name: /^continue$/i }).click();
-    const url = await readClipboard(page);
+    const url = await readShareUrl(page);
 
     // Wipe browser state so the recipient is a fresh visitor: no consent,
     // no profile, no IndexedDB rows beyond what Dexie auto-creates.
@@ -407,7 +429,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
     await stubNavigatorShare(page, false);
     await openShareModal(page);
     await page.getByRole("button", { name: /^continue$/i }).click();
-    const url = await readClipboard(page);
+    const url = await readShareUrl(page);
 
     await page.goto("/");
     await page.evaluate(() => {
@@ -437,7 +459,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
     await stubNavigatorShare(page, false);
     await openShareModal(page);
     await page.getByRole("button", { name: /^continue$/i }).click();
-    const url = await readClipboard(page);
+    const url = await readShareUrl(page);
 
     await page.goto("/");
     await page.evaluate(() => {
@@ -469,7 +491,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
     await stubNavigatorShare(page, false);
     await openShareModal(page);
     await page.getByRole("button", { name: /^continue$/i }).click();
-    const url = await readClipboard(page);
+    const url = await readShareUrl(page);
 
     // Snapshot how many calls the seed (onboard + manual panel + compose)
     // already accumulated, so we can prove the shared-view sweep adds zero.
@@ -509,7 +531,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
     await stubNavigatorShare(page, false);
     await openShareModal(page);
     await page.getByRole("button", { name: /^continue$/i }).click();
-    const url = await readClipboard(page);
+    const url = await readShareUrl(page);
 
     await page.goto("/");
     await page.evaluate(() => {
@@ -564,7 +586,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
     await stubNavigatorShare(page, false);
     await openShareModal(page);
     await page.getByRole("button", { name: /^continue$/i }).click();
-    const url = await readClipboard(page);
+    const url = await readShareUrl(page);
 
     await page.goto("/");
     await page.evaluate(() => {
@@ -651,7 +673,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
     await stubNavigatorShare(page, false);
     await openShareModal(page);
     await page.getByRole("button", { name: /^continue$/i }).click();
-    const url = await readClipboard(page);
+    const url = await readShareUrl(page);
 
     await page.goto("/");
     await page.evaluate(() => {
@@ -694,7 +716,7 @@ test.describe("Shareable protocol link (ticket 0017)", () => {
     await stubNavigatorShare(page, false);
     await openShareModal(page);
     await page.getByRole("button", { name: /^continue$/i }).click();
-    const url = await readClipboard(page);
+    const url = await readShareUrl(page);
 
     // Truncate the recipient's egress list AFTER the seed so we measure only
     // the shared-view leg.
