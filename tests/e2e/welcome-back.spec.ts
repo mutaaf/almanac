@@ -365,6 +365,10 @@ test.describe("Welcome back · CTAs", () => {
   });
 
   test("'Re-compose with the time off counted' lands on #/plan?recompose=lapse-aware and the synthetic skip days appear in the prompt", async ({ page }) => {
+    // Heavier setup than the other welcome-back tests: full onboarding + panel
+    // + first compose + second compose under the lapse-aware flag, plus a
+    // request-capture wait. Generous timeout for parallel-worker load on CI.
+    test.setTimeout(120_000);
     const stats = await setup(page);
     await seedSessionGap(page, 42);
 
@@ -378,7 +382,13 @@ test.describe("Welcome back · CTAs", () => {
     );
 
     await page.getByRole("link", { name: /re-compose with the time off counted/i }).click();
-    await expect(page).toHaveURL(/#\/plan\?recompose=lapse-aware/);
+    // The link routes to #/plan?recompose=lapse-aware. The plan page reads the
+    // query flag and immediately strips it via history.replaceState so a
+    // reload doesn't re-trigger — tolerate either form to avoid racing the
+    // replaceState. The compose call itself is the user-visible proof: a
+    // second plan row lands in Dexie and the synthetic-skip-days line shows
+    // up in the request body (asserted below).
+    await expect(page).toHaveURL(/#\/plan/);
     // The plan page auto-fires compose when the recompose query flag is set.
     await waitForDb(page, "plans", (n) => n >= 2, { timeoutMs: 30_000 });
 
