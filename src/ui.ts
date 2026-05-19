@@ -43,6 +43,69 @@ export function roman(n: number): string {
 }
 
 /**
+ * Render the inline tour-notice surfaced when a user taps a write action
+ * during the sample tour (ticket 0014). Lives next to `errorCard()` because
+ * it shares the same single-block-of-prose layout pattern, but uses the ink
+ * token rather than the oxblood error token — the message is informational
+ * ("this write was a no-op") rather than a failure.
+ *
+ * The notice is rendered into the page's `#status` slot (or whatever local
+ * slot the calling page uses for transient feedback). It is a sibling of
+ * errorCard(), not an alias: the CSS class is `.tour-notice`, not
+ * `.error-card`, so the tone reads correctly.
+ */
+export function tourNotice(message: string): string {
+  return `
+    <div class="tour-notice" role="status">
+      <div class="tour-notice__title">This is the sample tour.</div>
+      <p class="tour-notice__msg">${esc(message)}</p>
+    </div>
+  `;
+}
+
+/**
+ * Find the most plausible status slot on the current page and replace its
+ * contents with the tour notice. Used by the db.ts write guards so each
+ * page's existing `<div id="status">` block becomes the surface for the
+ * informational notice without each page having to opt in.
+ *
+ * Falls back to a transient toast appended at the bottom of the page when
+ * no status slot exists (e.g. on the Settings page).
+ */
+export function surfaceInlineTourNotice(
+  message = "Start your own to write data.",
+): void {
+  if (typeof document === "undefined") return;
+  const html = tourNotice(message);
+  const status = document.getElementById("status");
+  if (status) {
+    status.style.display = "block";
+    status.innerHTML = html;
+    return;
+  }
+  // Settings has multiple specific status slots; pick the most recently
+  // active one as a heuristic, otherwise append a transient floating notice.
+  const localStatuses = ["set-status", "io-status", "save-status", "import-health-status"];
+  for (const id of localStatuses) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.innerHTML = html;
+      // Make sure it's visible (some status spans have minimal styling).
+      (el as HTMLElement).style.display = "block";
+      return;
+    }
+  }
+  // Last resort — append a floating toast to <main>.
+  const host = document.querySelector(".page") ?? document.body;
+  const wrap = document.createElement("div");
+  wrap.className = "tour-notice-floating";
+  wrap.innerHTML = html;
+  host.appendChild(wrap);
+  // Auto-remove after 4s so it doesn't pile up across multiple writes.
+  setTimeout(() => wrap.remove(), 4000);
+}
+
+/**
  * Render a structured error card. Used by the plan / meals / labs flows
  * when a generation fails. `raw` is shown collapsed behind a disclosure;
  * `actions` is HTML for any retry / dismiss buttons (or an empty string).

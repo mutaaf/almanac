@@ -1,7 +1,20 @@
 // Local-first storage. All persistence lives here.
+//
+// Sample-tour shim (ticket 0014): every read used by the page layer consults
+// `isTour()` first and returns the in-memory fixture's value when the flag
+// is set. Every write checks `isTour()` at the top and surfaces an inline
+// notice instead of touching Dexie. The shim is thin on purpose — we want
+// the existing call sites in the page layer to keep their signatures so a
+// reviewer can read the diff and see "the read just got a tour branch".
 
 import Dexie, { type Table } from "dexie";
 import type { Profile, Panel, Plan, MealPlan, CheckIn, Day, MarkerDef, ProjectionSnapshot } from "./types";
+import {
+  isTour,
+  tourProfile, tourPanels, tourPanel, tourPlan, tourAllPlans,
+  tourMealPlan, tourCheckIns, tourCheckInFor, tourProjectionsFor,
+} from "./sample/state";
+import { surfaceInlineTourNotice } from "./ui";
 
 export interface ExtractCacheEntry {
   hash: string;            // SHA-256 of the staged files (in order)
@@ -177,13 +190,15 @@ export function weekRange(d: Date): [Day, Day] {
 /* -------------------------------------------------------------------------- */
 
 export async function getProfile(): Promise<Profile | undefined> {
+  if (isTour()) return tourProfile();
   return db.profile.get("singleton");
 }
 
 export async function saveProfile(
   p: Omit<Profile, "id" | "createdAt" | "updatedAt"> & Partial<Pick<Profile, "createdAt">>,
 ): Promise<void> {
-  const existing = await getProfile();
+  if (isTour()) { surfaceInlineTourNotice(); return; }
+  const existing = await db.profile.get("singleton");
   await db.profile.put({
     id: "singleton",
     createdAt: existing?.createdAt ?? Date.now(),
@@ -197,28 +212,40 @@ export async function saveProfile(
 /* -------------------------------------------------------------------------- */
 
 export async function addPanel(p: Omit<Panel, "id" | "createdAt">): Promise<number> {
+  if (isTour()) { surfaceInlineTourNotice(); return -1; }
   return db.panels.add({ ...p, createdAt: Date.now() });
 }
 export async function updatePanel(id: number, p: Partial<Panel>): Promise<void> {
+  if (isTour()) { surfaceInlineTourNotice(); return; }
   await db.panels.update(id, p);
 }
-export async function getPanel(id: number): Promise<Panel | undefined> { return db.panels.get(id); }
+export async function getPanel(id: number): Promise<Panel | undefined> {
+  if (isTour()) return tourPanel(id);
+  return db.panels.get(id);
+}
 export async function allPanels(): Promise<Panel[]> {
+  if (isTour()) return tourPanels();
   return db.panels.orderBy("drawnAt").reverse().toArray();
 }
-export async function deletePanel(id: number): Promise<void> { await db.panels.delete(id); }
+export async function deletePanel(id: number): Promise<void> {
+  if (isTour()) { surfaceInlineTourNotice(); return; }
+  await db.panels.delete(id);
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Plans                                                                     */
 /* -------------------------------------------------------------------------- */
 
 export async function latestPlan(): Promise<Plan | undefined> {
+  if (isTour()) return tourPlan();
   return db.plans.orderBy("generatedAt").reverse().first();
 }
 export async function savePlan(p: Omit<Plan, "id">): Promise<number> {
+  if (isTour()) { surfaceInlineTourNotice(); return -1; }
   return db.plans.add(p);
 }
 export async function allPlans(): Promise<Plan[]> {
+  if (isTour()) return tourAllPlans();
   return db.plans.orderBy("generatedAt").reverse().toArray();
 }
 
@@ -227,15 +254,25 @@ export async function allPlans(): Promise<Plan[]> {
 /* -------------------------------------------------------------------------- */
 
 export async function latestMealPlan(): Promise<MealPlan | undefined> {
+  if (isTour()) return tourMealPlan();
   return db.mealPlans.orderBy("generatedAt").reverse().first();
 }
 export async function mealPlanForPlan(planId: number): Promise<MealPlan | undefined> {
+  if (isTour()) {
+    const mp = await tourMealPlan();
+    return mp.planId === planId ? mp : undefined;
+  }
   return db.mealPlans.where("planId").equals(planId).reverse().sortBy("generatedAt").then(a => a[0]);
 }
 export async function saveMealPlan(m: Omit<MealPlan, "id">): Promise<number> {
+  if (isTour()) { surfaceInlineTourNotice(); return -1; }
   return db.mealPlans.add(m);
 }
 export async function allMealPlans(): Promise<MealPlan[]> {
+  if (isTour()) {
+    const mp = await tourMealPlan();
+    return [mp];
+  }
   return db.mealPlans.orderBy("generatedAt").reverse().toArray();
 }
 
@@ -244,9 +281,11 @@ export async function allMealPlans(): Promise<MealPlan[]> {
 /* -------------------------------------------------------------------------- */
 
 export async function checkInFor(day: Day): Promise<CheckIn | undefined> {
+  if (isTour()) return tourCheckInFor(day);
   return db.checkins.where("day").equals(day).first();
 }
 export async function upsertCheckIn(c: Omit<CheckIn, "id" | "createdAt">): Promise<void> {
+  if (isTour()) { surfaceInlineTourNotice(); return; }
   await db.transaction("rw", db.checkins, async () => {
     const existing = await db.checkins.where("day").equals(c.day).first();
     if (existing?.id != null) await db.checkins.update(existing.id, { ...c });
@@ -254,6 +293,7 @@ export async function upsertCheckIn(c: Omit<CheckIn, "id" | "createdAt">): Promi
   });
 }
 export async function recentCheckIns(days = 14): Promise<CheckIn[]> {
+  if (isTour()) return tourCheckIns(days);
   return db.checkins.orderBy("day").reverse().limit(days).toArray();
 }
 
@@ -268,6 +308,7 @@ export async function recentCheckIns(days = 14): Promise<CheckIn[]> {
  * "Projected X. Landed at Y." evaluation row.
  */
 export async function getProjectionsFor(panelId: number): Promise<ProjectionSnapshot[]> {
+  if (isTour()) return tourProjectionsFor(panelId);
   return db.projections.where("panelId").equals(panelId).toArray();
 }
 
@@ -278,6 +319,7 @@ export async function getProjectionsFor(panelId: number): Promise<ProjectionSnap
  * user last" semantic; the latest write wins.
  */
 export async function saveProjections(snapshots: ProjectionSnapshot[]): Promise<void> {
+  if (isTour()) return;   // best-effort persistence — no notice (background path)
   if (!snapshots.length) return;
   await db.projections.bulkPut(snapshots);
 }
