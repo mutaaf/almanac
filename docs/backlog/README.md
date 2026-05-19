@@ -59,9 +59,11 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0014 | Sample tour before consent — let prospects see the artifact before trusting it | P1 | proposed | growth |
-| 0015 | Quiet-day card on Today — a reason to open the app on a Wednesday | P1 | proposed | today |
+| 0017 | Two new cross-marker rules — thyroid × inflammation, and early-metabolic × atherogenic | P1 | proposed | plan |
+| 0018 | Shareable protocol link — a hash-encoded tour of your actual protocol, no install required | P1 | proposed | growth |
 | 0016 | Provenance appendix on the doctor PDF — auditable rule trail in the clinical hand-off | P2 | proposed | plan |
+| 0019 | Protocol-anniversary milestone card — Day 30, 60, 90 since plan composition | P2 | proposed | today |
+| 0020 | Rule citations on the provenance slideover and the doctor PDF appendix | P2 | proposed | plan |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
@@ -72,6 +74,8 @@ owner: gtm-innovation
 | 0009 | Side-by-side draw comparison with shared-marker deltas | P1 | shipped | progress |
 | 0011 | Marker hero share card — one-marker, phone-shaped image for social | P1 | shipped | growth |
 | 0012 | Next-draw projection — what we'd expect to see if you tested today | P1 | shipped | progress |
+| 0014 | Sample tour before consent — let prospects see the artifact before trusting it | P1 | shipped | growth |
+| 0015 | Quiet-day card on Today — a reason to open the app on a Wednesday | P1 | shipped | today |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | shipped | infra |
 | 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | shipped | plan |
 | 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | shipped | plan |
