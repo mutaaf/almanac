@@ -1,7 +1,7 @@
 ---
 id: 0017
 title: Shareable protocol link — text a friend your actual protocol without a backend
-status: in-progress
+status: shipped
 priority: P1
 area: growth
 created: 2026-05-19
@@ -88,3 +88,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 ## Implementation log
 
 - 2026-05-19 — picked up by implementation-dev. Branch `feat/0017-shareable-protocol-link`. Mirroring the 0014 tour-mode plumbing for the shared-view branch.
+- 2026-05-19 — shipped via PR #38. Files touched: `src/share/protocol-link.ts` (new — encode/decode), `src/share/shared-state.ts` (new — sentinel + getters mirroring `src/sample/state.ts`), `src/types.ts` (added `SharedProtocolPayload`, `SharedMealPlan`, `SharedProtocolState`), `src/main.ts` (router `#/shared` branch + welcome-on-decode-fail + shared-view gate bypass), `src/chrome.ts` (banner switches on `isSharedView()`), `src/db.ts` (read shims extended), `src/pages/welcome.ts` (inline decode-failure notice), `src/pages/plan.ts` (Share affordance + modal + `paintShared`), `src/pages/today.ts` (shared-view paint), `src/pages/meals.ts` (shared-view paint), `src/pages/progress.ts` / `src/pages/labs.ts` / `src/pages/recap.ts` (editorial empty state), `src/styles.css` (modal + `.shared-empty` + `.share-decode-error`), `tests/e2e/protocol-link.spec.ts` (new — 17 tests covering every acceptance bullet on chromium + mobile-webkit). No new dependencies; no egress allow-list change.
