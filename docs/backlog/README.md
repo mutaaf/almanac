@@ -59,9 +59,12 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0014 | Sample tour before consent — let prospects see the artifact before trusting it | P1 | proposed | growth |
-| 0015 | Quiet-day card on Today — a reason to open the app on a Wednesday | P1 | proposed | today |
-| 0016 | Provenance appendix on the doctor PDF — auditable rule trail in the clinical hand-off | P2 | proposed | plan |
+| 0017 | Shareable protocol link — text a friend your actual protocol without a backend | P1 | groomed | growth |
+| 0018 | Lapse-aware welcome-back surface — the re-engagement page for the user who came back after a long quiet | P1 | groomed | today |
+| 0019 | What-if marker simulator — drag any value to see which insights would fire | P1 | groomed | plan |
+| 0014 | Sample tour before consent — let prospects see the artifact before trusting it | P1 | shipped | growth |
+| 0015 | Quiet-day card on Today — a reason to open the app on a Wednesday | P1 | shipped | today |
+| 0016 | Provenance appendix on the doctor PDF — auditable rule trail in the clinical hand-off | P2 | shipped | plan |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
