@@ -16,6 +16,7 @@ import {
   latestPlan, latestMealPlan, recentCheckIns,
   today, addDays, isoWeek, weekRange,
 } from "../db";
+import { isSharedView } from "../share/shared-state";
 import type {
   CheckIn, Plan, MealPlan, Day,
   RecapSummary, RecapAdherenceRow, RecapSignals, RecapMover,
@@ -220,6 +221,29 @@ function lowerFirst(s: string): string {
 
 export async function renderRecap(): Promise<void> {
   const masth = await masthead("#/recap");
+
+  // Shared-view (ticket 0017): the recap reads check-ins and signals that
+  // were not part of the shared payload — surface the editorial empty
+  // state and return.
+  if (isSharedView()) {
+    const frag = h(`
+      <div class="reveal">
+        ${masth}
+        <section class="page">
+          <div class="eyebrow">Weekly recap</div>
+          <div class="shared-empty" role="status">
+            <h2 class="shared-empty__title">This was not shared with you.</h2>
+            <p class="shared-empty__body">
+              The recap reads check-ins and adherence history that were not part of the shared link. Open Plan or Meals above to read what was shared.
+            </p>
+          </div>
+        </section>
+        ${foot("vi")}
+      </div>
+    `);
+    mount(frag);
+    return;
+  }
 
   const plan = await latestPlan();
   if (!plan) {

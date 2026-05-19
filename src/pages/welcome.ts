@@ -12,10 +12,11 @@
 // consent. The tour reads from a hand-curated fixture; nothing it does
 // touches IndexedDB.
 
-import { mount, h } from "../ui";
+import { mount, h, esc } from "../ui";
 import { enterTour as enterSampleTour } from "../sample/state";
 
 const KEY = "almanac.consent.v1";
+const SHARED_DECODE_ERROR_KEY = "almanac.sharedDecodeError";
 
 export function consentAcknowledged(): boolean {
   return localStorage.getItem(KEY) === "true";
@@ -30,6 +31,18 @@ export function clearConsent(): void {
 }
 
 export async function renderWelcome(): Promise<void> {
+  // Inline notice for a malformed share URL (ticket 0017). The router's
+  // `#/shared` branch sets this flag on decode failure; we render the notice
+  // here and clear the flag so a refresh of #/welcome doesn't show it again.
+  let sharedDecodeError = false;
+  try {
+    sharedDecodeError = localStorage.getItem(SHARED_DECODE_ERROR_KEY) === "true";
+    if (sharedDecodeError) localStorage.removeItem(SHARED_DECODE_ERROR_KEY);
+  } catch { /* private mode: notice doesn't surface, the welcome page still renders */ }
+  const decodeErrorBlock = sharedDecodeError
+    ? `<div class="share-decode-error" role="status">${esc("That shared link did not decode. Ask your friend to send it again.")}</div>`
+    : "";
+
   const frag = h(`
     <div>
       <header class="masthead">
@@ -41,6 +54,8 @@ export async function renderWelcome(): Promise<void> {
 
       <section class="welcome reveal">
         <div class="ornament"><span class="dot"></span></div>
+
+        ${decodeErrorBlock}
 
         <h1 class="headline" style="max-width: 22ch;">
           Before <em>we begin</em>.

@@ -16,6 +16,7 @@ import { route } from "../main";
 import { computeComparison, type ComparisonRow } from "../progress/compare";
 import { computeProjection, evaluateLanded, type ProjectionBand, type LandedVerdict } from "../progress/projection";
 import { generateMarkerCardPng, markerCardFilename, shareOrDownload } from "../share/marker-card";
+import { isSharedView } from "../share/shared-state";
 import type { CheckIn, MarkerDef, Panel, Plan, ProjectionSnapshot, Result } from "../types";
 
 interface Series {
@@ -24,6 +25,13 @@ interface Series {
 }
 
 export async function renderProgress(): Promise<void> {
+  // Shared-view (ticket 0017): Progress is out of scope — the recipient was
+  // not given access to the host's panels, check-ins, or projections.
+  // Render the editorial empty state and return.
+  if (isSharedView()) {
+    return paintSharedNotIncluded();
+  }
+
   const profile = await getProfile();
   if (!profile) { location.hash = "#/onboarding"; return; }
 
@@ -155,6 +163,31 @@ export async function renderProgress(): Promise<void> {
  * No slideover — keep the affordance self-contained, the way the ticket
  * called it out.
  */
+/**
+ * Render the "This was not shared with you" empty state for Progress under
+ * shared-view (ticket 0017). The shared payload carries no panels,
+ * check-ins, or projections; the host's trend page is out of scope.
+ */
+async function paintSharedNotIncluded(): Promise<void> {
+  const masth = await masthead("#/progress");
+  const frag = h(`
+    <div class="reveal">
+      ${masth}
+      <section class="page">
+        <div class="eyebrow">Progress</div>
+        <div class="shared-empty" role="status">
+          <h2 class="shared-empty__title">This was not shared with you.</h2>
+          <p class="shared-empty__body">
+            Lab trends were not part of the shared link. Open Plan or Meals above to read what was shared.
+          </p>
+        </div>
+      </section>
+      ${foot("v")}
+    </div>
+  `);
+  mount(frag);
+}
+
 function renderPicker(panels: Panel[]): string {
   // panels arrives newest-first from allPanels(); use that order in the UI.
   const options = panels.map(p => {

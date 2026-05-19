@@ -457,3 +457,57 @@ export interface QuietDayNote {
   body: string;
   cta: { label: string; href: string };
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Shareable protocol link (ticket 0017)                                     */
+/* -------------------------------------------------------------------------- */
+/*
+ * The bytes that travel in the URL hash when a user shares their protocol.
+ * Exactly the fields named below; everything else (profile, labs, insights,
+ * retest, check-ins, projections, the API key) is excluded by construction.
+ *
+ * The encoder JSON-stringifies an instance of this interface, gzips the
+ * string via CompressionStream("gzip"), and base64url-encodes the bytes.
+ * The decoder reverses the chain. Schema/version drift returns `null` from
+ * the decoder; the router routes such requests back to #/welcome with the
+ * "did not decode" inline notice.
+ *
+ * Versioned (`version: 1`) so a future schema bump can either reject older
+ * links (return null on a version mismatch) or migrate them in place.
+ */
+export interface SharedProtocolPayload {
+  version: 1;
+  eatList: EatItem[];
+  avoidList: AvoidItem[];
+  habitStack: HabitStack;
+  mealPlan?: SharedMealPlan;
+}
+
+/**
+ * The trimmed-down meal plan that travels in the share link. Carries only
+ * `days` and `grocery` — the host's `planId`, `weekStart`, `generatedAt`,
+ * and `model` are not part of the recipient's view of "what was shared".
+ */
+export interface SharedMealPlan {
+  days: DayMeals[];
+  grocery: GrocerySection[];
+}
+
+/**
+ * The in-memory shape held by the shared-state module after a successful
+ * decode. The decoded `SharedProtocolPayload` is wrapped in a partial Plan
+ * + MealPlan facade so the existing render functions on Today / Plan / Meals
+ * can read from it without a per-page conditional.
+ *
+ * `plan` is a synthetic, mostly-empty Plan whose only populated fields are
+ * the ones the payload carries. The Plan page's renderEditorial / renderDashboard
+ * read snapshot / insights / lifestyle / supplements / retest and gracefully
+ * skip when they're empty — the shared-view render bypasses those sections.
+ */
+export interface SharedProtocolState {
+  payload: SharedProtocolPayload;
+  /** Synthetic Plan shell built from the payload's eat / avoid / habit fields. */
+  plan: Plan;
+  /** Synthetic MealPlan shell, only when the payload carries one. */
+  mealPlan?: MealPlan;
+}

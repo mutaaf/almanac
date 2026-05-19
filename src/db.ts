@@ -14,6 +14,10 @@ import {
   tourProfile, tourPanels, tourPanel, tourPlan, tourAllPlans,
   tourMealPlan, tourCheckIns, tourCheckInFor, tourProjectionsFor,
 } from "./sample/state";
+import {
+  isSharedView,
+  sharedPlan, sharedMealPlan, sharedProfile,
+} from "./share/shared-state";
 import { surfaceInlineTourNotice } from "./ui";
 
 export interface ExtractCacheEntry {
@@ -190,14 +194,16 @@ export function weekRange(d: Date): [Day, Day] {
 /* -------------------------------------------------------------------------- */
 
 export async function getProfile(): Promise<Profile | undefined> {
-  if (isTour()) return tourProfile();
+  if (isSharedView()) return sharedProfile();
+  if (isTour())      return tourProfile();
   return db.profile.get("singleton");
 }
 
 export async function saveProfile(
   p: Omit<Profile, "id" | "createdAt" | "updatedAt"> & Partial<Pick<Profile, "createdAt">>,
 ): Promise<void> {
-  if (isTour()) { surfaceInlineTourNotice(); return; }
+  if (isSharedView()) { surfaceInlineTourNotice("This is a shared protocol. Start your own to write data."); return; }
+  if (isTour())      { surfaceInlineTourNotice(); return; }
   const existing = await db.profile.get("singleton");
   await db.profile.put({
     id: "singleton",
@@ -212,23 +218,31 @@ export async function saveProfile(
 /* -------------------------------------------------------------------------- */
 
 export async function addPanel(p: Omit<Panel, "id" | "createdAt">): Promise<number> {
-  if (isTour()) { surfaceInlineTourNotice(); return -1; }
+  if (isSharedView()) { surfaceInlineTourNotice("This is a shared protocol. Start your own to write data."); return -1; }
+  if (isTour())      { surfaceInlineTourNotice(); return -1; }
   return db.panels.add({ ...p, createdAt: Date.now() });
 }
 export async function updatePanel(id: number, p: Partial<Panel>): Promise<void> {
-  if (isTour()) { surfaceInlineTourNotice(); return; }
+  if (isSharedView()) { surfaceInlineTourNotice("This is a shared protocol. Start your own to write data."); return; }
+  if (isTour())      { surfaceInlineTourNotice(); return; }
   await db.panels.update(id, p);
 }
 export async function getPanel(id: number): Promise<Panel | undefined> {
+  // Shared-view: panel detail was not part of the share. Return undefined so
+  // the labs page renders the "This was not shared with you" empty state
+  // without touching IndexedDB.
+  if (isSharedView()) return undefined;
   if (isTour()) return tourPanel(id);
   return db.panels.get(id);
 }
 export async function allPanels(): Promise<Panel[]> {
+  if (isSharedView()) return [];
   if (isTour()) return tourPanels();
   return db.panels.orderBy("drawnAt").reverse().toArray();
 }
 export async function deletePanel(id: number): Promise<void> {
-  if (isTour()) { surfaceInlineTourNotice(); return; }
+  if (isSharedView()) { surfaceInlineTourNotice("This is a shared protocol. Start your own to write data."); return; }
+  if (isTour())      { surfaceInlineTourNotice(); return; }
   await db.panels.delete(id);
 }
 
@@ -237,14 +251,20 @@ export async function deletePanel(id: number): Promise<void> {
 /* -------------------------------------------------------------------------- */
 
 export async function latestPlan(): Promise<Plan | undefined> {
-  if (isTour()) return tourPlan();
+  if (isSharedView()) return sharedPlan();
+  if (isTour())      return tourPlan();
   return db.plans.orderBy("generatedAt").reverse().first();
 }
 export async function savePlan(p: Omit<Plan, "id">): Promise<number> {
-  if (isTour()) { surfaceInlineTourNotice(); return -1; }
+  if (isSharedView()) { surfaceInlineTourNotice("This is a shared protocol. Start your own to write data."); return -1; }
+  if (isTour())      { surfaceInlineTourNotice(); return -1; }
   return db.plans.add(p);
 }
 export async function allPlans(): Promise<Plan[]> {
+  if (isSharedView()) {
+    const p = sharedPlan();
+    return p ? [p] : [];
+  }
   if (isTour()) return tourAllPlans();
   return db.plans.orderBy("generatedAt").reverse().toArray();
 }
@@ -254,10 +274,17 @@ export async function allPlans(): Promise<Plan[]> {
 /* -------------------------------------------------------------------------- */
 
 export async function latestMealPlan(): Promise<MealPlan | undefined> {
-  if (isTour()) return tourMealPlan();
+  if (isSharedView()) return sharedMealPlan();
+  if (isTour())      return tourMealPlan();
   return db.mealPlans.orderBy("generatedAt").reverse().first();
 }
 export async function mealPlanForPlan(planId: number): Promise<MealPlan | undefined> {
+  if (isSharedView()) {
+    const mp = sharedMealPlan();
+    // The shared plan's synthetic id is 0; treat any planId lookup as a
+    // match so the Meals page reads the shared meal plan when present.
+    return mp && (mp.planId === planId || planId === 0) ? mp : sharedMealPlan();
+  }
   if (isTour()) {
     const mp = await tourMealPlan();
     return mp.planId === planId ? mp : undefined;
@@ -265,10 +292,15 @@ export async function mealPlanForPlan(planId: number): Promise<MealPlan | undefi
   return db.mealPlans.where("planId").equals(planId).reverse().sortBy("generatedAt").then(a => a[0]);
 }
 export async function saveMealPlan(m: Omit<MealPlan, "id">): Promise<number> {
-  if (isTour()) { surfaceInlineTourNotice(); return -1; }
+  if (isSharedView()) { surfaceInlineTourNotice("This is a shared protocol. Start your own to write data."); return -1; }
+  if (isTour())      { surfaceInlineTourNotice(); return -1; }
   return db.mealPlans.add(m);
 }
 export async function allMealPlans(): Promise<MealPlan[]> {
+  if (isSharedView()) {
+    const mp = sharedMealPlan();
+    return mp ? [mp] : [];
+  }
   if (isTour()) {
     const mp = await tourMealPlan();
     return [mp];
@@ -281,11 +313,13 @@ export async function allMealPlans(): Promise<MealPlan[]> {
 /* -------------------------------------------------------------------------- */
 
 export async function checkInFor(day: Day): Promise<CheckIn | undefined> {
+  if (isSharedView()) return undefined;
   if (isTour()) return tourCheckInFor(day);
   return db.checkins.where("day").equals(day).first();
 }
 export async function upsertCheckIn(c: Omit<CheckIn, "id" | "createdAt">): Promise<void> {
-  if (isTour()) { surfaceInlineTourNotice(); return; }
+  if (isSharedView()) { surfaceInlineTourNotice("This is a shared protocol. Start your own to write data."); return; }
+  if (isTour())      { surfaceInlineTourNotice(); return; }
   await db.transaction("rw", db.checkins, async () => {
     const existing = await db.checkins.where("day").equals(c.day).first();
     if (existing?.id != null) await db.checkins.update(existing.id, { ...c });
@@ -293,6 +327,7 @@ export async function upsertCheckIn(c: Omit<CheckIn, "id" | "createdAt">): Promi
   });
 }
 export async function recentCheckIns(days = 14): Promise<CheckIn[]> {
+  if (isSharedView()) return [];
   if (isTour()) return tourCheckIns(days);
   return db.checkins.orderBy("day").reverse().limit(days).toArray();
 }
@@ -308,6 +343,7 @@ export async function recentCheckIns(days = 14): Promise<CheckIn[]> {
  * "Projected X. Landed at Y." evaluation row.
  */
 export async function getProjectionsFor(panelId: number): Promise<ProjectionSnapshot[]> {
+  if (isSharedView()) return [];
   if (isTour()) return tourProjectionsFor(panelId);
   return db.projections.where("panelId").equals(panelId).toArray();
 }
@@ -319,6 +355,7 @@ export async function getProjectionsFor(panelId: number): Promise<ProjectionSnap
  * user last" semantic; the latest write wins.
  */
 export async function saveProjections(snapshots: ProjectionSnapshot[]): Promise<void> {
+  if (isSharedView()) return; // shared-view never writes
   if (isTour()) return;   // best-effort persistence — no notice (background path)
   if (!snapshots.length) return;
   await db.projections.bulkPut(snapshots);

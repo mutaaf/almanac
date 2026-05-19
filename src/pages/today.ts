@@ -14,6 +14,7 @@ import {
   allPanels, getProjectionsFor, weekRange,
 } from "../db";
 import { isTour } from "../sample/state";
+import { isSharedView } from "../share/shared-state";
 import { pickQuietDayNote } from "../today/quiet-card";
 import type { CheckIn, Habit, Meal, DayMeals, QuietDayNote } from "../types";
 
@@ -96,6 +97,15 @@ function renderQuietCard(note: QuietDayNote): string {
 }
 
 export async function renderToday(): Promise<void> {
+  // Shared-view (ticket 0017): the recipient sees a stripped-down Today —
+  // the habit stack, today's meals if shared, and the date. No streak strip
+  // (no check-ins exist), no quiet-day card (no projections / adherence
+  // history), no Sunday recap. The save-check-in path is hidden because
+  // there is nothing to save against.
+  if (isSharedView()) {
+    return paintShared();
+  }
+
   const profile = await getProfile();
   if (!profile) { location.hash = "#/onboarding"; return; }
 
@@ -355,6 +365,75 @@ function streakStrip(habits: Habit[], map: Map<string, CheckIn>): string {
     <div class="streak-strip__label">Last 14 days</div>
     <div class="streak-strip__cells">${days.join("")}</div>
   `;
+}
+
+/**
+ * Render Today against a shared payload (ticket 0017). The synthetic plan
+ * the read shim returned has only eat / avoid / habit; the meal plan may or
+ * may not be present. We render today's meals when a meal plan exists for
+ * any of the next 7 days, otherwise we show the "shared but no meal plan"
+ * empty hint. Habit stack always renders. No save button — shared-view
+ * never writes a check-in.
+ */
+async function paintShared(): Promise<void> {
+  const plan = await latestPlan();
+  const masth = await masthead("#/today");
+  if (!plan) {
+    const frag = h(`
+      <div class="reveal">
+        ${masth}
+        <section class="page">
+          <div class="eyebrow">${esc(longDate(today()))}</div>
+          <h1 class="headline" style="margin-top: 0.4rem;">A shared <em>protocol.</em></h1>
+          <p class="lede" style="max-width: 60ch; margin-top: 1rem;">
+            The shared link did not include a plan. Open Meals or Plan above to read what was shared.
+          </p>
+        </section>
+        ${foot("i")}
+      </div>
+    `);
+    mount(frag);
+    return;
+  }
+
+  const day = today();
+  const mp = await latestMealPlan();
+  const todays = mp?.days.find(d => d.day === day) ?? mp?.days[0];
+
+  const habits = plan.habitStack.habits;
+  const mealsHtml = todays
+    ? renderMealsRow(todays, new Set())
+    : `<div class="quiet" style="padding: 1.4rem 1.6rem; border: 1px dashed var(--rule); background: var(--paper-deep);">
+         No meal plan was shared. Open Plan above to read what was shared.
+       </div>`;
+
+  const frag = h(`
+    <div class="reveal">
+      ${masth}
+      <section class="page">
+        <div class="eyebrow">${esc(longDate(day))}</div>
+        <h1 class="headline" style="margin-top: 0.4rem; max-width: 26ch;">
+          A friend's <em>day.</em>
+        </h1>
+
+        <section style="margin-top: 2rem;">
+          <div class="section-mark">Today's meals</div>
+          ${mealsHtml}
+        </section>
+
+        <section style="margin-top: 2.6rem;">
+          <div class="section-mark">Habit stack</div>
+          <p class="lede" style="max-width: 60ch; margin: 0 0 0.9rem;">${esc(plan.habitStack.intro)}</p>
+          <ol class="habit-checks">
+            ${habits.map((h, i) => habitCheckRow(h, i + 1, false)).join("")}
+          </ol>
+        </section>
+      </section>
+      ${foot("i")}
+    </div>
+  `);
+
+  mount(frag);
 }
 
 async function paintNoPlan(): Promise<void> {
