@@ -6,12 +6,13 @@
 //   3. Optional how-do-you-feel signals (sleep / mood / energy).
 //   4. 14-day streak strip.
 
-import { mount, h, esc, longDate } from "../ui";
+import { mount, h, esc, longDate, tourNotice } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, today, latestPlan, latestMealPlan,
   checkInFor, upsertCheckIn, recentCheckIns, isoWeek,
 } from "../db";
+import { isTour } from "../sample/state";
 import type { CheckIn, Habit, Meal, DayMeals } from "../types";
 
 /* -------------------------------------------------------------------------- */
@@ -183,6 +184,15 @@ export async function renderToday(): Promise<void> {
       ...(Object.keys(signals).length ? { signals } : {}),
       ...(note ? { note } : {}),
     });
+
+    // Under the tour, upsertCheckIn already surfaced the inline tour notice
+    // into save-status. Don't overwrite it with "Saved." — the write was a
+    // no-op and the user needs to read the notice instead.
+    if (isTour()) {
+      const s = document.getElementById("save-status");
+      if (s) s.innerHTML = tourNotice("Start your own to save check-ins.");
+      return;
+    }
 
     const s = document.getElementById("save-status");
     if (s) s.textContent = "Saved.";

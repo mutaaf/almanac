@@ -15,9 +15,12 @@
 import { db, type UserMarker } from "../db";
 import { MARKERS } from "./markers";
 import type { MarkerDef } from "../types";
+import { isTour } from "../sample/state";
+import { surfaceInlineTourNotice } from "../ui";
 
 /** List every user-defined marker, oldest-first (creation order). */
 export async function listUserMarkers(): Promise<UserMarker[]> {
+  if (isTour()) return [];   // sample fixture defines no user markers
   return db.userMarkers.orderBy("createdAt").toArray();
 }
 
@@ -29,11 +32,13 @@ export async function listUserMarkers(): Promise<UserMarker[]> {
 export async function addUserMarker(
   m: Omit<UserMarker, "createdAt"> & Partial<Pick<UserMarker, "createdAt">>,
 ): Promise<void> {
+  if (isTour()) { surfaceInlineTourNotice(); return; }
   await db.userMarkers.put({ ...m, createdAt: m.createdAt ?? Date.now() });
 }
 
 /** Remove a user marker by canonical key. No-op if it doesn't exist. */
 export async function deleteUserMarker(key: string): Promise<void> {
+  if (isTour()) { surfaceInlineTourNotice(); return; }
   await db.userMarkers.delete(key);
 }
 

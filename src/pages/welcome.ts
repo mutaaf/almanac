@@ -6,8 +6,14 @@
 //   3. Inference uses YOUR Anthropic key, billed to YOU; we have no server.
 //
 // Acknowledgment flips a localStorage flag so subsequent visits skip the splash.
+//
+// Ticket 0014: a second always-enabled button below the consent checkbox
+// drops the visitor into a sandboxed sample tour without acknowledging
+// consent. The tour reads from a hand-curated fixture; nothing it does
+// touches IndexedDB.
 
 import { mount, h } from "../ui";
+import { enterTour as enterSampleTour } from "../sample/state";
 
 const KEY = "almanac.consent.v1";
 
@@ -102,9 +108,15 @@ export async function renderWelcome(): Promise<void> {
           </span>
         </label>
 
-        <div style="display: flex; gap: 1rem; margin-top: 1.6rem; flex-wrap: wrap;">
+        <div style="display: flex; gap: 1rem; margin-top: 1.6rem; flex-wrap: wrap; align-items: center;">
           <button id="continue" class="btn btn--accent" disabled>Continue to onboarding</button>
+          <button id="enter-tour" class="btn btn--ghost" type="button">Take a tour with sample data</button>
         </div>
+        <p class="welcome__tour-note">
+          The tour renders a fictional reader's Almanac — fully populated, read-only.
+          Nothing is written. No key is used. You can close the tour at any time and
+          start your own.
+        </p>
       </section>
 
       <footer class="foot">
@@ -126,5 +138,14 @@ export async function renderWelcome(): Promise<void> {
     if (!cb?.checked) return;
     ackConsent();
     location.hash = "#/onboarding";
+  });
+
+  // Sample tour (ticket 0014). Always enabled; does NOT call ackConsent().
+  // Setting the tour flag tells the router on the next render to bypass
+  // both the consent gate AND the profile gate so the visitor lands on
+  // a fully-populated Almanac driven by the fixture in src/sample/.
+  document.getElementById("enter-tour")?.addEventListener("click", () => {
+    enterSampleTour();
+    location.hash = "#/today";
   });
 }

@@ -7,7 +7,7 @@
 
 import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
-import { onboard, addManualPanel, composePlan } from "../helpers/flows";
+import { onboard, addManualPanel, composePlan, enterTour } from "../helpers/flows";
 
 const ALLOWED_HOSTS = [
   "127.0.0.1", "localhost",
@@ -47,6 +47,33 @@ test.describe("Privacy contract", () => {
     // The key is in an input[type=password] — its value lives in IndexedDB only.
     const html = await page.content();
     expect(html).not.toContain("sk-ant-canary-VALUE-12345");
+  });
+
+  test("the sample tour (ticket 0014) never widens the egress allow-list", async ({ page }) => {
+    const stats = await installMocks(page);
+    await enterTour(page);
+    // Visit every page reachable on the tour. Each must paint without an
+    // off-allow-list request, and the egress URL list must satisfy the same
+    // allow-list assertion the consented path satisfies.
+    for (const route of ["#/today", "#/plan", "#/meals", "#/progress", "#/recap", "#/labs"]) {
+      await page.goto(`/${route}`);
+      await page.locator(".wordmark, .headline").first().waitFor();
+    }
+    // Also exercise the compare and panel-detail leaf routes — the tour's
+    // fixture has two panels with id 1 and 2.
+    await page.goto("/#/progress?compare=1,2");
+    await page.locator(".compare-summary, .compare-empty, .headline").first().waitFor();
+    await page.goto("/#/labs?id=1");
+    await page.locator(".eyebrow, .headline").first().waitFor();
+
+    const offending = stats.outboundUrls.filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
   });
 
   test("import of a malformed export does not crash the app", async ({ page }) => {

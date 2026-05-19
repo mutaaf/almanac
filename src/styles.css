@@ -3750,3 +3750,106 @@ body {
     padding: 0.95rem 1rem;
   }
 }
+
+/* =============================================================================
+   Sample tour (ticket 0014)
+   A slim full-bleed banner above the masthead, plus a quiet welcome-page
+   secondary affordance, plus an informational notice the db.ts write-guards
+   surface when a tour visitor taps a write action.
+   ============================================================================= */
+
+.tour-banner {
+  /* Cream-on-ink, Inter Tight, small caps tracking, ~1.4rem tall. One sharp
+     hairline at the bottom mirrors the rule token used elsewhere. */
+  width: 100%;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--body);
+  font-size: 0.74rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  padding: 0.55rem var(--gutter);
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+}
+
+.tour-banner__msg {
+  color: var(--paper);
+}
+
+.tour-banner__cta {
+  color: var(--paper);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+.tour-banner__cta:hover,
+.tour-banner__cta:focus-visible {
+  color: var(--paper-deep);
+}
+
+/* The "Take a tour with sample data" note that sits under the consent
+   checkbox on the welcome screen — quieter than the consent points so it
+   reads as an alternative, not a parallel CTA. */
+.welcome__tour-note {
+  margin: 1rem 0 0;
+  max-width: 60ch;
+  font-family: var(--body);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  font-style: italic;
+}
+
+/* Inline tour notice — surfaced by surfaceInlineTourNotice() into a page's
+   existing #status slot. Ink tone (NOT oxblood) — the message is
+   informational, not a failure. Mirrors errorCard()'s shape but uses the
+   neutral rule + ink combination so it reads as a note. */
+.tour-notice {
+  font-family: var(--body);
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink);
+  color: var(--ink);
+  padding: 1rem 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.tour-notice__title {
+  font-size: 0.74rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.tour-notice__msg {
+  font-size: 0.98rem;
+  color: var(--ink);
+  margin: 0;
+}
+
+.tour-notice-floating {
+  /* Used when the page has no status slot — Settings is the main case. */
+  margin-top: 1.2rem;
+}
+
+@media (max-width: 720px) {
+  .tour-banner {
+    font-size: 0.68rem;
+    letter-spacing: 0.16em;
+    padding: 0.5rem 0.9rem;
+    gap: 0.7rem;
+  }
+  .tour-banner__cta {
+    text-underline-offset: 2px;
+  }
+}

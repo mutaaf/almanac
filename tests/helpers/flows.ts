@@ -143,6 +143,42 @@ export async function waitForDb(
 }
 
 /**
+ * Enter the sample tour (ticket 0014). Starts from "/", taps the welcome
+ * page's "Take a tour with sample data" button, and waits for the masthead
+ * to settle on #/today. The tour flag (`localStorage["almanac.tour"]`) is
+ * set as a side effect; the consent flag is NOT — touring is not consenting.
+ *
+ * Used by the sample-tour spec and the privacy-spec extension. Does not
+ * touch IndexedDB; the tour reads from a hand-curated fixture.
+ */
+export async function enterTour(page: Page): Promise<void> {
+  await page.goto("/");
+  await expect(page).toHaveURL(/#\/welcome$/);
+  await page.getByRole("button", { name: /take a tour with sample data/i }).click();
+  await expect(page).toHaveURL(/#\/today$/);
+  // Wait for the tour banner — it's the deterministic sentinel that the
+  // tour-flag-aware router has actually painted, not just that the hash
+  // changed.
+  await page.locator(".tour-banner").waitFor();
+}
+
+/**
+ * Exit the sample tour by clicking the banner's "Start your own" link.
+ * Leaves the page on #/welcome with the consent checkbox unticked. Counterpart
+ * to `enterTour`. Idempotent — if the banner isn't visible, it just visits
+ * /welcome and returns.
+ */
+export async function exitTour(page: Page): Promise<void> {
+  const banner = page.locator(".tour-banner a[href='#/welcome']");
+  if (await banner.isVisible().catch(() => false)) {
+    await banner.click();
+    await expect(page).toHaveURL(/#\/welcome$/);
+    return;
+  }
+  await page.goto("/#/welcome");
+}
+
+/**
  * Compose the plan. Mocks must already be installed. Leaves the page on /plan.
  *
  * The previous version of this helper had a `page.reload()` to dodge a
