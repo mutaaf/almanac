@@ -2973,6 +2973,25 @@ body {
   border-bottom-color: var(--rule);
 }
 
+/* ---- Quiet-day card on Today (Mon–Sat) — ticket 0015 ------------------- */
+/*
+ * Re-uses the .recap-card layout; the --quiet variant carries the
+ * adherence/projection/meal-pattern note. The headline lives above the lede
+ * so the eye lands on the named subject ("1/2 cup oats with breakfast is
+ * slipping") before the one-sentence body. No new colors — same oxblood
+ * accent rule as the Sunday card.
+ */
+.recap-card--quiet .recap-card__headline {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.18rem;
+  line-height: 1.3;
+  color: var(--ink);
+  margin: 0 0 0.45rem;
+  max-width: 56ch;
+}
+
 /* ---- The recap page ----------------------------------------------------- */
 .recap-grid {
   display: grid;

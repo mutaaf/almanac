@@ -443,17 +443,23 @@ function buildMealPlan(): MealPlan {
 
 function buildCheckIns(): CheckIn[] {
   const days = [1, 2, 3, 4, 5, 7, 8, 10, 11, 13];  // 10 of the last 14, with two gaps
+  // The matrix is shaped so the quiet-day card's adherence-at-risk predicate
+  // (ticket 0015) fires on the tour: `h-fish` is held only in the PRIOR 7
+  // days (n in {8, 11, 13}) and not in the most-recent 7 (n in {1..7}), so
+  // recent-week skips strictly exceed prior-week skips. Total hits are 3 of
+  // 14 — below the 7-day threshold. Together those satisfy "slipping now",
+  // which is exactly the editorial line the card surfaces.
   const habitMatrix: Record<number, string[]> = {
     1:  ["h-walk", "h-citrus"],
-    2:  ["h-walk", "h-fish"],
+    2:  ["h-walk"],
     3:  ["h-walk"],
     4:  ["h-walk", "h-citrus"],
-    5:  ["h-walk", "h-fish", "h-citrus"],
+    5:  ["h-walk", "h-citrus"],
     7:  ["h-walk"],
-    8:  ["h-walk", "h-citrus"],
+    8:  ["h-walk", "h-citrus", "h-fish"],
     10: ["h-walk"],
     11: ["h-walk", "h-fish"],
-    13: ["h-walk", "h-citrus"],
+    13: ["h-walk", "h-citrus", "h-fish"],
   };
   return days.map<CheckIn>((n, i) => ({
     id: i + 1,

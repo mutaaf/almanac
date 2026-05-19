@@ -1,7 +1,7 @@
 ---
 id: 0015
 title: Quiet-day card on Today — a reason to open the app on a Wednesday
-status: proposed
+status: in-progress
 priority: P1
 area: today
 created: 2026-05-18
@@ -79,4 +79,6 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+### 2026-05-18 — implementation-dev
+
+Picked up. Branch `feat/0015-quiet-day-card`. Status flipped to in-progress.
