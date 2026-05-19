@@ -1,7 +1,7 @@
 ---
 id: 0014
 title: Sample tour before consent — let prospects see the artifact before trusting it
-status: in-progress
+status: shipped
 priority: P1
 area: growth
 created: 2026-05-18
@@ -91,3 +91,44 @@ with a full tour-traversal allow-list assertion, then build the sample fixture
 + tour state module + db read/write shims + router branch + welcome button +
 banner + inline tour-notice helper. No schema migration, no egress widening,
 no new deps.
+
+### 2026-05-18 — shipped in PR #30
+
+CI green on both projects: chromium (4m1s) and mobile-webkit (9m6s). Files
+touched:
+
+- `src/sample/fixture.ts` (new) — typed `SampleState`: one `Profile`
+  ("Sample Reader", male, halal-pescatarian, `sk-ant-SAMPLE`), two `Panel[]`
+  with overlapping markers chosen so `iron_restricted_erythropoiesis` fires
+  and 0012 projections render against the prior panel, one `Plan` (insight
+  carrying `provenance` per 0013), one seven-day `MealPlan`, ten `CheckIn[]`.
+- `src/sample/state.ts` (new) — `isTour()` / `enterTour()` / `exitTour()` +
+  the typed getter shims (`tourProfile()`, `tourPanels()`, `tourPlan()`, etc.)
+  Fixture is lazy-imported (`await import("./fixture")`) so the production
+  bundle for non-tour visitors carries none of the fixture bytes.
+- `src/db.ts` — thin `isTour()`-aware shim around every page-layer read;
+  every write guards at the top with `surfaceInlineTourNotice()` and returns
+  early. No schema change.
+- `src/main.ts` — router branch: when `isTour()` is true and the route is not
+  `#/welcome`, bypass consent + profile gates. Routing TO `#/welcome` always
+  calls `exitTour()`.
+- `src/pages/welcome.ts` — second button "Take a tour with sample data";
+  always enabled; wires `enterTour()` + `location.hash = "#/today"`.
+- `src/chrome.ts` — `masthead()` prepends a slim `.tour-banner` block when
+  `isTour()` is true. Plain HTML; the CTA is a real `<a href="#/welcome">`
+  so it works without JS.
+- `src/pages/today.ts` — replaced the post-save "Saved." line with a
+  tour-aware branch that surfaces the tour notice into `save-status`.
+- `src/styles.css` — `.tour-banner` (cream-on-ink, small caps, hairline
+  rule) + `.tour-notice` (ink token, not oxblood — informational).
+- `src/ui.ts` — `tourNotice(message)` template + `surfaceInlineTourNotice()`
+  helper that routes the notice into the most plausible page-local status slot.
+- `src/data/userMarkers.ts` — `isTour()` guards on the read + write paths.
+- `tests/e2e/sample-tour.spec.ts` (new) — 17 tests; every acceptance bullet
+  maps to a `test()` or `expect()`.
+- `tests/e2e/privacy.spec.ts` — extended with a tour-traversal allow-list
+  assertion that visits every tour route plus the compare + panel-detail
+  leaves and confirms no off-allow-list egress.
+- `tests/helpers/flows.ts` — added `enterTour(page)` and `exitTour(page)`
+  helpers. Existing flows untouched (the real specs still go through the
+  real consent path).
