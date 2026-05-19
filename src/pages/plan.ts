@@ -12,8 +12,11 @@ import { glossForRule } from "../insights";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, latestPlan, savePlan, recentCheckIns,
-  latestMealPlan, today, checkInFor, upsertCheckIn,
+  latestMealPlan, today, checkInFor, upsertCheckIn, db,
 } from "../db";
+import {
+  WELCOME_BACK_THRESHOLD_DAYS, WELCOME_BACK_MAX_SYNTHETIC_SKIP_DAYS,
+} from "./welcome-back";
 import { route } from "../main";
 import { ClaudeClient, TruncatedResponseError } from "../claude";
 import type {
@@ -42,11 +45,58 @@ export async function renderPlan(): Promise<void> {
   const profile = await getProfile();
   if (!profile) { location.hash = "#/onboarding"; return; }
 
+  // Lapse-aware recompose (ticket 0018). The welcome-back surface's
+  // "Re-compose with the time off counted" CTA routes here with a
+  // `recompose=lapse-aware` query flag. We honour it once — read the gap
+  // from the `sessions` table, clear the query, and drive `compose()` with
+  // the synthetic skip-days threaded through.
+  const recomposeGap = await consumeLapseAwareRecompose();
+
   const plan = await latestPlan();
-  if (!plan) return paintEmpty();
+  if (!plan && recomposeGap == null) return paintEmpty();
 
   const mode = getMode();
-  return paint(plan, profile, mode);
+  if (plan) await paint(plan, profile, mode);
+  else        await paintEmpty();
+
+  if (recomposeGap != null) {
+    // Defer the compose call by a microtask so the dashboard renders first;
+    // the user sees their existing plan and then the spinner over it. The
+    // compose() helper writes a new plan row and routes through the router.
+    void compose({ lapseAwareGap: recomposeGap });
+  }
+}
+
+/**
+ * Read the `recompose=lapse-aware` query parameter (ticket 0018). When set,
+ * derive the gap days from the most-recent two `sessions` rows (the load
+ * itself and the prior one), cap at WELCOME_BACK_MAX_SYNTHETIC_SKIP_DAYS,
+ * and clear the query so a reload doesn't re-trigger. The synthetic days
+ * are NEVER persisted; they live only inside the next compose call.
+ *
+ * Returns null when the flag is absent or the gap cannot be computed.
+ */
+async function consumeLapseAwareRecompose(): Promise<number | null> {
+  const hash = location.hash || "";
+  const q = (hash.split("?")[1] ?? "").split("#")[0] ?? "";
+  if (!q) return null;
+  const params = new URLSearchParams(q);
+  if (params.get("recompose") !== "lapse-aware") return null;
+  // Clear the flag — replaceState avoids polluting history with the consumed
+  // query, and the SPA's router treats `#/plan` and `#/plan?recompose=...`
+  // identically so this is a UX nicety, not a correctness fix.
+  try {
+    history.replaceState(null, "", "#/plan");
+  } catch { /* embedded iframes / restricted contexts — fine to leave */ }
+
+  // Pull the two most-recent session rows and derive the gap in days.
+  const rows = await db.sessions.orderBy(":id").reverse().limit(2).toArray();
+  if (rows.length < 2) return null;
+  const newest = rows[0]!.at;
+  const prior  = rows[1]!.at;
+  const days = Math.max(0, Math.floor((newest - prior) / 86_400_000));
+  if (days < WELCOME_BACK_THRESHOLD_DAYS) return null;
+  return Math.min(days, WELCOME_BACK_MAX_SYNTHETIC_SKIP_DAYS);
 }
 
 async function paintEmpty(): Promise<void> {
@@ -159,7 +209,7 @@ async function composeFromIntake(): Promise<void> {
   }
 }
 
-async function compose(): Promise<void> {
+async function compose(opts: { lapseAwareGap?: number } = {}): Promise<void> {
   const profile = await getProfile();
   if (!profile) return;
   const status = document.getElementById("status") as HTMLDivElement | null;
@@ -175,13 +225,16 @@ async function compose(): Promise<void> {
     const previousPlan = await latestPlan();
     const recent = await recentCheckIns(14);
 
-    setStatus("Composing your plan…");
+    setStatus(opts.lapseAwareGap != null
+      ? "Composing with the time off counted…"
+      : "Composing your plan…");
     const client = new ClaudeClient(profile);
     const { plan, model } = await client.generatePlan({
       profile,
       panels,
       recentCheckIns: recent,
       ...(previousPlan ? { previousPlan } : {}),
+      ...(opts.lapseAwareGap != null ? { lapseAwareGap: opts.lapseAwareGap } : {}),
     });
 
     const savedId = await savePlan({

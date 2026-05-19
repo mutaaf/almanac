@@ -459,6 +459,55 @@ export interface QuietDayNote {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Sessions + welcome-back surface (ticket 0018)                             */
+/* -------------------------------------------------------------------------- */
+/*
+ * One row per full page load. The router writes a row at the top of the
+ * post-route-resolved continuation and reads the most-recent row OLDER than
+ * the row it just wrote to compute the lapse gap. The shape is intentionally
+ * minimal: only `id` + `at`. No user-agent, no IP, no per-route tagging —
+ * widening this row would widen the privacy contract.
+ */
+
+export interface SessionRow {
+  id?: number;
+  at: number;          // wall-clock ms at the time the row was written
+}
+
+/**
+ * Computed by `computeWelcomeBackState()` in `src/pages/welcome-back.ts`.
+ * Returns null when (a) there is no prior session, (b) the gap is less than
+ * 14 days, or (c) the user has no composed plan. Returns a populated state
+ * when the gap exceeds the threshold and a plan exists.
+ *
+ * The three lists may each be empty; the renderer paints a section heading
+ * only when its list is non-empty.
+ */
+export interface WelcomeBackState {
+  daysAway: number;
+  lastSessionAt: Day;
+
+  whatsStill: {
+    planComposedAt: Day;
+    habitCount: number;
+    /** Verbatim habit titles, capped at 3. The renderer adds "and N more" when over. */
+    habitTitles: string[];
+  };
+
+  whatChanged: WelcomeBackRow[];
+  whatsOverdue: WelcomeBackRow[];
+}
+
+/** One row in `whatChanged` or `whatsOverdue`. `cta` is required for overdue rows. */
+export interface WelcomeBackRow {
+  kind:
+    | "projection-opened" | "projection-evaluated" | "recap-missed-count"
+    | "retest-overdue"    | "retest-coming-due";
+  body: string;
+  cta?: { label: string; href: string };
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Shareable protocol link (ticket 0017)                                     */
 /* -------------------------------------------------------------------------- */
 /*

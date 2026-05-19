@@ -4094,3 +4094,128 @@ body {
     padding: 1.2rem 1.2rem;
   }
 }
+
+/* =============================================================================
+   WELCOME-BACK SURFACE — ticket 0018
+   The re-entry interstitial for a user who came back after a lapse. Re-uses
+   the .recap-card / .print-sheet typography tokens; one new block, no new
+   color tokens. Section headings render in the same small-caps eyebrow style
+   as the recap sections. Mobile: sections stack; desktop: single column with
+   the same generous left margin as the recap page.
+   ============================================================================= */
+.welcome-back {
+  max-width: 68ch;
+}
+.welcome-back__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.6rem;
+}
+.welcome-back__eyebrow {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+}
+.welcome-back__dismiss {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 180ms var(--ease), border-color 180ms var(--ease);
+}
+.welcome-back__dismiss:hover {
+  color: var(--ink);
+  border-bottom-color: var(--rule);
+}
+.welcome-back__gap {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 500;
+  font-size: 1.6rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0.4rem 0 2rem;
+  max-width: 36ch;
+}
+.welcome-back__still,
+.welcome-back__changed,
+.welcome-back__overdue {
+  margin-top: 2.2rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.2rem;
+}
+.welcome-back__heading {
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.7rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  margin-bottom: 0.9rem;
+}
+.welcome-back__body {
+  font-family: var(--display);
+  font-size: 1.08rem;
+  line-height: 1.45;
+  color: var(--ink);
+  margin: 0;
+  max-width: 60ch;
+}
+.welcome-back__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.welcome-back__row + .welcome-back__row {
+  margin-top: 1.1rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--paper-edge);
+}
+.welcome-back__row-cta {
+  display: inline-block;
+  margin-top: 0.6rem;
+  font-family: var(--body);
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  text-decoration: none;
+  border-bottom: 1px solid var(--oxblood);
+}
+.welcome-back__row-cta:hover { color: var(--oxblood-deep); border-bottom-color: var(--oxblood-deep); }
+
+.welcome-back__ctas {
+  margin-top: 2.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-top: 1px solid var(--rule);
+  padding-top: 1.6rem;
+}
+.welcome-back__ctas .welcome-back__cta {
+  flex: 1 1 auto;
+  min-width: 22ch;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .welcome-back__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+  .welcome-back__gap {
+    font-size: 1.4rem;
+  }
+  .welcome-back__ctas {
+    flex-direction: column;
+  }
+}
