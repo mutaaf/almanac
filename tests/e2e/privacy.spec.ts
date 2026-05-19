@@ -76,6 +76,42 @@ test.describe("Privacy contract", () => {
     expect(offending).toEqual([]);
   });
 
+  test("sessions table (ticket 0018) exists and rows contain only { id, at }", async ({ page }) => {
+    await installMocks(page);
+    await onboard(page);
+    // Onboarding drove the router through several loads — at least one
+    // session row should exist by now. Read the table directly and assert
+    // the shape: only `id` (auto-increment) and `at` (number). No
+    // user-agent, no IP, no per-route tag — that minimum is the contract.
+    const rows = await page.evaluate(() => {
+      return new Promise<Array<Record<string, unknown>>>((resolve) => {
+        const req = indexedDB.open("almanac");
+        req.onerror   = () => resolve([]);
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("sessions")) {
+            db.close(); resolve([]); return;
+          }
+          const tx = db.transaction("sessions", "readonly");
+          const all = tx.objectStore("sessions").getAll();
+          all.onerror   = () => { db.close(); resolve([]); };
+          all.onsuccess = () => {
+            db.close();
+            resolve((all.result as Array<Record<string, unknown>>) ?? []);
+          };
+        };
+      });
+    });
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const keys = Object.keys(row).sort();
+      // Exactly the two-key shape, no more.
+      expect(keys).toEqual(["at", "id"]);
+      expect(typeof row.at).toBe("number");
+      expect(typeof row.id).toBe("number");
+    }
+  });
+
   test("import of a malformed export does not crash the app", async ({ page }) => {
     await installMocks(page);
     await onboard(page);

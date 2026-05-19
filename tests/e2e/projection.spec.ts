@@ -527,25 +527,30 @@ test.describe("Projection · v5 → v6 schema migration", () => {
     // Surface any open error in the assertion message so the failure is debuggable.
     expect(openResult, JSON.stringify(openResult)).toMatchObject({ ok: true });
 
-    // Verify the seeded data actually survived the v6 upgrade. Read
+    // Verify the seeded data actually survived the v6 + v7 upgrades. Read
     // straight from IndexedDB so the assertion is independent of UI gating.
+    // Ticket 0018 added the `sessions` store at v7; check it's materialized
+    // and starts empty for migrated users (sessions begin populating on the
+    // first router run after upgrade — already happened by this point).
     const postUpgrade = await page.evaluate(() => {
       return new Promise<{
         version: number;
         hasProjections: boolean;
+        hasSessions: boolean;
         panels: number;
         profile: number;
       }>((resolve) => {
         const req = indexedDB.open("almanac");
-        req.onerror   = () => resolve({ version: -1, hasProjections: false, panels: -1, profile: -1 });
+        req.onerror   = () => resolve({ version: -1, hasProjections: false, hasSessions: false, panels: -1, profile: -1 });
         req.onsuccess = () => {
           const db = req.result;
           const hasProjections = db.objectStoreNames.contains("projections");
+          const hasSessions    = db.objectStoreNames.contains("sessions");
           const hasProfile     = db.objectStoreNames.contains("profile");
           const hasPanels      = db.objectStoreNames.contains("panels");
           if (!hasProfile || !hasPanels) {
             db.close();
-            resolve({ version: db.version, hasProjections, panels: -1, profile: -1 });
+            resolve({ version: db.version, hasProjections, hasSessions, panels: -1, profile: -1 });
             return;
           }
           const tx = db.transaction(["profile", "panels"], "readonly");
@@ -555,16 +560,18 @@ test.describe("Projection · v5 → v6 schema migration", () => {
           tx.oncomplete = () => {
             const version = db.version;
             db.close();
-            resolve({ version, hasProjections, panels, profile });
+            resolve({ version, hasProjections, hasSessions, panels, profile });
           };
         };
       });
     });
 
     // Dexie scales its version numbers by 10 internally (so v5 → IDB v50,
-    // v6 → IDB v60). The upgrade ran iff the IDB version is the v6 marker.
-    expect(postUpgrade.version).toBe(60);
-    expect(postUpgrade.hasProjections).toBe(true);   // new store materialized
+    // v6 → IDB v60, v7 → IDB v70). The full chain ran iff the IDB version
+    // matches the current top-level Dexie marker.
+    expect(postUpgrade.version).toBe(70);
+    expect(postUpgrade.hasProjections).toBe(true);   // v6 store materialized
+    expect(postUpgrade.hasSessions).toBe(true);      // v7 store materialized (ticket 0018)
     expect(postUpgrade.profile).toBe(1);             // v5 profile survived
     expect(postUpgrade.panels).toBe(1);              // v5 panel survived
   });
