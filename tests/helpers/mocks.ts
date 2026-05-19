@@ -120,10 +120,18 @@ export async function installMocks(page: Page): Promise<MockStats> {
       if (sys.includes("extracting structured biomarker")) {
         stats.extractCalls++;
         const cached = stats.extractCalls > 1;
+        // The extractor sends a final text block listing filenames so we can
+        // pick a multi-date fixture for tests without depending on image bytes.
+        const userText = (body.messages ?? [])
+          .flatMap(m => Array.isArray(m.content) ? m.content : [])
+          .filter((b: any) => b && b.type === "text")
+          .map((b: any) => String(b.text ?? ""))
+          .join("\n");
+        const fixture = /multi-date/i.test(userText) ? "extraction-multi-date.json" : "extraction.json";
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(buildResponse(body.model, readFixture("extraction.json"), {
+          body: JSON.stringify(buildResponse(body.model, readFixture(fixture), {
             cacheRead: cached ? 800 : 0, cacheCreate: cached ? 0 : 400,
           })),
         });

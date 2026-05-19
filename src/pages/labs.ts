@@ -11,7 +11,7 @@ import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
 } from "../db";
-import { panelFromFiles, type ExtractedRow } from "../extractor";
+import { panelsFromFiles, type ExtractedRow } from "../extractor";
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import { route } from "../main";
 import type { Panel, Result } from "../types";
@@ -306,21 +306,28 @@ async function extractStaged(): Promise<void> {
   try {
     setStatus(`Extracting from ${staged.length} page${staged.length === 1 ? "" : "s"}…`);
     const files = staged.slice();
-    const { panel, unmatched } = await panelFromFiles(files, profile);
+    const built = await panelsFromFiles(files, profile);
+    if (!built.length) throw new Error("Extraction returned no panels.");
 
-    setStatus("Saving…");
-    const id = await addPanel(panel);
-
-    if (unmatched.length) {
-      sessionStorage.setItem(`unmatched-${id}`, JSON.stringify(unmatched));
+    setStatus(built.length > 1 ? `Saving ${built.length} panels…` : "Saving…");
+    const ids: number[] = [];
+    for (const { panel, unmatched } of built) {
+      const id = await addPanel(panel);
+      ids.push(id);
+      if (unmatched.length) {
+        sessionStorage.setItem(`unmatched-${id}`, JSON.stringify(unmatched));
+      }
     }
     staged = [];
+    const lastId = ids[ids.length - 1]!;
     // Same WebKit-timing fix as plan.ts compose(): poll past WebKit's IDB
     // read-after-write delay before re-rendering. The panel detail page
     // reads `getPanel(id)` directly; without the wait it can see undefined
     // and redirect back to `#/labs`.
-    await waitForPanelCommit(id);
-    location.hash = `#/labs?id=${id}`;
+    await waitForPanelCommit(lastId);
+    // Multi-panel uploads land on the index so the user sees all N panels;
+    // single-panel uploads go straight to the detail screen as before.
+    location.hash = built.length > 1 ? "#/labs" : `#/labs?id=${ids[0]}`;
     await route();
   } catch (err: any) {
     if (!status) return;

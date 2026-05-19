@@ -54,3 +54,8 @@ The screenshot a friend wants to see is the Progress page with 12 months of tren
 ## Implementation log
 
 - 2026-05-19: Picked up. Branched `feat/0001-auto-split-panels-by-date`.
+- 2026-05-19: Failing E2E added (`labs.spec.ts › auto-split by drawn date`) — multi-date fixture triggered by filename `multi-date.*` in the mock.
+- 2026-05-19: Extractor now returns `{ panels: ExtractedPanel[] }`. Each panel keeps its own `drawnAt`, `labName`, optional `pageIndices`, and rows. `panelFromFiles` → `panelsFromFiles`, returning one `{ panel, unmatched }` per distinct date, ordered ascending by `drawnAt`.
+- 2026-05-19: Labs upload flow loops `addPanel` over the returned panels, persists per-panel `unmatched` to sessionStorage, and lands on the labs index when N > 1 (single-date uploads still land on the detail screen).
+- 2026-05-19: Filename attribution: if Claude returns `pageIndices` per panel, those drive `fileNames`. Otherwise all filenames attach to the most-recent (last) panel so the page-count column still tells a true story.
+- 2026-05-19: All 9 labs chromium tests green; full chromium suite green modulo a pre-existing flake on `progress.spec.ts › renders the latest-values section` (manual-entry path, unrelated).

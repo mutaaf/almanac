@@ -120,6 +120,51 @@ test.describe("Labs — multi-file upload", () => {
   });
 });
 
+test.describe("Labs — auto-split by drawn date", () => {
+  test.beforeEach(async ({ context, page }) => {
+    await installMocks(page);
+    await onboard(page);
+  });
+
+  test("uploading pages spanning multiple draw dates produces one panel per date", async ({ page }) => {
+    await page.goto("/#/labs");
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    // Filename triggers the multi-date fixture in the mock (3 distinct dates).
+    await page.locator("input#file").setInputFiles({
+      name: "multi-date.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(png, "base64"),
+    });
+    await expect(page.locator(".staged__chip")).toHaveCount(1);
+    await page.locator("#extract").click();
+
+    // Lands on labs INDEX, not a single panel detail, because N > 1.
+    await expect(page).toHaveURL(/#\/labs$/, { timeout: 20_000 });
+
+    // Three new panel rows, one per distinct drawn date in the fixture.
+    const rows = page.locator(".archive .entry-row");
+    await expect(rows).toHaveCount(3);
+
+    // The visible date labels include all three dates from the fixture.
+    const dates = await rows.locator(".date").allTextContents();
+    expect(dates).toEqual(expect.arrayContaining(["2025-11-15", "2026-02-08", "2026-05-01"]));
+  });
+
+  test("a single-date upload still produces one panel (regression)", async ({ page }) => {
+    await page.goto("/#/labs");
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    await page.locator("input#file").setInputFiles({
+      name: "single.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(png, "base64"),
+    });
+    await expect(page.locator(".staged__chip")).toHaveCount(1);
+    await page.locator("#extract").click();
+    // N == 1 → land on the detail screen, same as before.
+    await expect(page).toHaveURL(/#\/labs\?id=\d+$/, { timeout: 20_000 });
+  });
+});
+
 test.describe("Labs — extraction + caching", () => {
   test.beforeEach(async ({ context, page }) => {
     await installMocks(page);
