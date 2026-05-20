@@ -8,7 +8,7 @@
 // reviewer can read the diff and see "the read just got a tour branch".
 
 import Dexie, { type Table } from "dexie";
-import type { Profile, Panel, Plan, MealPlan, CheckIn, Day, MarkerDef, ProjectionSnapshot } from "./types";
+import type { Profile, Panel, Plan, MealPlan, CheckIn, Day, MarkerDef, ProjectionSnapshot, SessionRow } from "./types";
 import {
   isTour,
   tourProfile, tourPanels, tourPanel, tourPlan, tourAllPlans,
@@ -44,6 +44,7 @@ class AlmanacDB extends Dexie {
   extractCache!:  Table<ExtractCacheEntry, string>;
   userMarkers!:   Table<UserMarker,        string>;
   projections!:   Table<ProjectionSnapshot, number>;
+  sessions!:      Table<SessionRow,         number>;
 
   constructor() {
     super("almanac");
@@ -111,6 +112,26 @@ class AlmanacDB extends Dexie {
       extractCache: "hash, createdAt",
       userMarkers:  "&key, createdAt",
       projections:  "++id, &[markerKey+panelId], panelId, markerKey, createdAt",
+    });
+
+    // v7 — adds the `sessions` table (ticket 0018). One row per full-page
+    // load with shape `{ id?: number; at: number }` — nothing else. The
+    // router writes a row on every load and reads the most-recent row OLDER
+    // than the row it just wrote to compute the lapse gap that drives the
+    // welcome-back redirect. Additive over v6; existing data is preserved.
+    // Privacy contract on this table: only the wall-clock `at` and the auto
+    // id — no user-agent, no IP, no per-page tracking. That minimum is what
+    // makes lapse detection possible without widening the contract.
+    this.version(7).stores({
+      profile:      "id",
+      panels:       "++id, drawnAt, createdAt",
+      plans:        "++id, generatedAt",
+      mealPlans:    "++id, planId, weekStart, generatedAt",
+      checkins:     "++id, &day, createdAt",
+      extractCache: "hash, createdAt",
+      userMarkers:  "&key, createdAt",
+      projections:  "++id, &[markerKey+panelId], panelId, markerKey, createdAt",
+      sessions:     "++id, at",
     });
   }
 }
@@ -362,6 +383,43 @@ export async function saveProjections(snapshots: ProjectionSnapshot[]): Promise<
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Sessions (ticket 0018)                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Append one row to the `sessions` table with `at = Date.now()` and return
+ * its auto-generated id. Called once at the top of the router's post-resolve
+ * continuation on every full page load. Tour and shared-view mode short-
+ * circuit (they have no persistent timeline).
+ *
+ * The row carries only `id` + `at`. No user-agent, no IP, no per-route tag.
+ * That minimum is what makes the lapse-aware welcome-back surface possible
+ * without widening the privacy contract.
+ */
+export async function recordSession(): Promise<number> {
+  if (isSharedView()) return -1;
+  if (isTour())      return -1;
+  return db.sessions.add({ at: Date.now() });
+}
+
+/**
+ * Return the `at` of the most-recent row whose id is strictly less than
+ * `currentSessionId`. Returns null when no such row exists — typically the
+ * very first session ever. The router uses this to derive the lapse gap that
+ * drives the welcome-back redirect.
+ *
+ * We sort by id (not by `at`) because the id is the monotonically-incrementing
+ * write order and is robust to a clock that ticked backward between sessions.
+ */
+export async function previousSessionAt(currentSessionId: number): Promise<number | null> {
+  if (isSharedView()) return null;
+  if (isTour())      return null;
+  if (!Number.isFinite(currentSessionId) || currentSessionId <= 0) return null;
+  const prev = await db.sessions.where(":id").below(currentSessionId).last();
+  return prev?.at ?? null;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Extraction cache                                                          */
 /* -------------------------------------------------------------------------- */
 
@@ -446,11 +504,11 @@ function stripId<T extends { id?: number }>(row: T): Omit<T, "id"> {
 }
 
 export async function wipeAll(): Promise<void> {
-  await db.transaction("rw", [db.profile, db.panels, db.plans, db.mealPlans, db.checkins, db.userMarkers, db.projections], async () => {
+  await db.transaction("rw", [db.profile, db.panels, db.plans, db.mealPlans, db.checkins, db.userMarkers, db.projections, db.sessions], async () => {
     await Promise.all([
       db.profile.clear(), db.panels.clear(), db.plans.clear(),
       db.mealPlans.clear(), db.checkins.clear(), db.userMarkers.clear(),
-      db.projections.clear(),
+      db.projections.clear(), db.sessions.clear(),
     ]);
   });
 }
