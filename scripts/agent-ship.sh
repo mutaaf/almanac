@@ -135,11 +135,22 @@ PHASE 1 — Tend the in-flight PR (self-healing). This phase REPLACES the old
         Print "PR #N healthy, auto-merge armed — waiting" and exit.
 
 PHASE 2 — Ship the next ticket (only reached when there's no feat/ PR to tend).
-  Pick efficiently: read the INDEX TABLE in docs/backlog/README.md (do NOT open
-  all ticket files). Choose the highest-priority row with status `groomed`
-  (tie-break: lower id). If none groomed, choose the highest-priority `proposed`.
-  If nothing actionable, print "no actionable tickets" and exit. Then open ONLY
-  that one ticket file and read it in full.
+  Pick efficiently but SAFELY. The README index table gives you priority ORDER,
+  but it can lag the ticket files — ship updates ticket files while groom rewrites
+  the index, so a just-shipped ticket can still show `groomed` in the index for
+  up to 6h. The ticket FILE frontmatter is the source of truth for status.
+
+  Algorithm:
+    1. Read the INDEX TABLE in docs/backlog/README.md for the priority order.
+    2. Walk candidates in order (groomed first by priority then id; then
+       proposed). For each candidate, open ITS ticket file and read the real
+       `status:` from frontmatter.
+    3. Pick the first candidate whose FILE status is actually `groomed` (then,
+       if none, `proposed`). SKIP any whose file says `shipped`/`in-progress`/
+       `rejected` — and if you find such drift, fix that row in the index table
+       as part of your branch (see step 11). Do NOT re-ship a shipped ticket.
+    4. If no actionable ticket remains, print "no actionable tickets" and exit.
+  This reads only a handful of files, not all 23, and never re-ships.
 
   Execute the implementation-dev loop via the Task tool with
   subagent_type="implementation-dev" (.claude/agents/implementation-dev.md).
@@ -162,7 +173,10 @@ PHASE 2 — Ship the next ticket (only reached when there's no feat/ PR to tend)
     9.  gh pr merge --auto --squash
    10.  gh pr checks --watch  (wait up to 18 min)
    11.  On green CI: update the ticket frontmatter to status: shipped + append to
-        Implementation log; commit and push to the branch.
+        Implementation log AND flip that ticket's row in the README index table
+        to `shipped` (keeps the index honest between groom runs); commit and push
+        to the branch. (If the README change conflicts on merge, PHASE 1 case (c)
+        resolves it.)
    12.  On red CI: leave the ticket in-progress and the PR open with a comment
         naming the exact failure. The NEXT ship run's PHASE 1 will recover it.
 
