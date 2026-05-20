@@ -6,9 +6,11 @@ Two launchd jobs that run the GTM and Implementation-Dev agents against this rep
 
 | File | Role |
 |---|---|
-| `agent-ship.sh` | Fired hourly at :41 local. Picks the top groomed/proposed ticket, invokes the `implementation-dev` subagent, opens a PR with auto-merge enabled. Single-PR-at-a-time gated. |
-| `agent-groom.sh` | Fired every 6 hours at :17 local. Invokes the `gtm-innovation` subagent to re-prioritize the backlog and add 2-4 new tickets. Self-gates when there are already 3+ groomed P0/P1 tickets. |
-| `agent-review.sh` | Polls every 5 minutes for open agent PRs lacking a review from the repo owner. For each: invokes the `review` subagent which grades against AGENTS.md + the ticket and posts `--comment` (sign-off) or `--request-changes` (blocking). Self-gates silently when nothing to review. |
+| `agent-ship.sh` | Fired hourly at :41 local. **First heals the in-flight PR** — rebases a `BEHIND` branch (`gh pr update-branch`), runs a bounded recovery on a red *gating* check, or just waits on a healthy mid-flight PR. Only when there's nothing to heal does it pick the top groomed/proposed ticket, invoke the `implementation-dev` subagent, and open a PR with auto-merge enabled. A single stuck PR can no longer freeze the loop. |
+| `agent-groom.sh` | Fired every 6 hours at :17 local. Closes superseded `chore/gtm-` PRs, then invokes the `gtm-innovation` subagent to re-prioritize the backlog and add 2-4 new tickets. Self-gates when there are already 3+ groomed P0/P1 tickets. |
+| `agent-review.sh` | Polls every 5 minutes for open agent PRs lacking a review from the repo owner. For each: invokes the `review` subagent which grades against AGENTS.md + the ticket and posts `--comment` (sign-off) or `--request-changes` (blocking). Ignores non-gating checks (Vercel). Self-gates silently when nothing to review. |
+
+All three read `docs/LESSONS.md` at the start of a run and append novel lessons — the loop's self-learning memory. Gating checks are exactly `Typecheck + build`, `E2E (chromium)`, `E2E (mobile-webkit)`; everything else (Vercel) is informational.
 | `install-agents.sh` | Generates `~/Library/LaunchAgents/com.almanac.agent-{ship,groom,review}.plist` and loads them into launchd. Idempotent. |
 | `uninstall-agents.sh` | Unloads all three jobs and removes the plists. Keeps logs. |
 
@@ -80,7 +82,7 @@ Each script:
 - **Mac must be awake.** launchd queues at most one missed run per `StartCalendarInterval` entry. If you close the lid at 22:00 local and open it at 09:00, you get one queued ship run, not eleven.
 - **`--dangerously-skip-permissions`** auto-approves every tool call. We're running it because there's no human to approve. Make sure the prompt itself is conservative — it is (HARD NOs section).
 - **Token usage** bills directly to whatever your local `claude` CLI is authed to. Watch your usage at https://console.anthropic.com.
-- **Don't run two ships in parallel.** The single-PR-at-a-time gate in the prompt prevents most issues, but if you `launchctl kickstart` twice rapidly you can race. The cron's :41 spread + single-PR gate handle the normal case.
+- **Don't run two ships in parallel.** The single-PR-at-a-time gate in the prompt prevents most issues, but if you `launchctl kickstart` twice rapidly you can race. The cron's :41 spread + single-PR gate handle the normal case. The ship agent heals OR ships in a run, never both, so a kickstart while a PR is mid-heal is safe.
 - **First run is slow.** First clone is ~150 MB. Subsequent runs are pulls of a few KB.
 
 ## Why local and not remote routines / GitHub Actions

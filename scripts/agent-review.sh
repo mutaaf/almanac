@@ -122,13 +122,14 @@ You have:
 
 Read in order:
   1. AGENTS.md (the contract)
-  2. /tmp/review/meta.json
-  3. /tmp/review/diff.patch
-  4. docs/backlog/README.md
-  5. The ticket referenced in the PR body (typically "Implements: docs/
+  2. docs/LESSONS.md (the loop's operational memory)
+  3. /tmp/review/meta.json
+  4. /tmp/review/diff.patch
+  5. docs/backlog/README.md
+  6. The ticket referenced in the PR body (typically "Implements: docs/
      backlog/NNNN-..." or matched from the branch name like "feat/0005-...").
      If no ticket reference is found, post --request-changes and stop.
-  6. .claude/agents/review.md — the full grading rubric.
+  7. .claude/agents/review.md — the full grading rubric.
 
 Grade the PR against:
   • AGENTS.md hard NOs (no backend, no analytics, no consent-skip, no
@@ -137,6 +138,17 @@ Grade the PR against:
     the diff)
   • Test-first discipline (every src/ change has a matching tests/ change)
   • Code quality (TS strict, surrounding style, no dead code, etc.)
+  • Lessons in docs/LESSONS.md (don't re-approve a pattern a past lesson
+    warned against; e.g. bare timeouts for WebKit read-after-write).
+
+CI judgement: only "Typecheck + build", "E2E (chromium)", and
+"E2E (mobile-webkit)" gate a merge. A red "Vercel" / "Vercel Preview Comments"
+check is informational — NEVER request changes over it.
+
+If, while reviewing, you discover a NOVEL operational lesson worth recording
+for future runs (and it is not already in docs/LESSONS.md), note it in your
+review body prefixed "LESSON:" so the next ship/groom run can fold it in. Do
+NOT commit to the PR branch yourself — you are read-only on the diff.
 
 Deliver your verdict by calling gh:
 
