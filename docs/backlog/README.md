@@ -61,8 +61,12 @@ owner: gtm-innovation
 |----|-------|----------|--------|------|
 | 0020 | Adopt-and-adapt — turn a friend's shared protocol into the seed of your own first plan | P1 | groomed | growth |
 | 0021 | The hundred-day mark — a quarterly reflective surface for the user who actually stayed | P1 | groomed | progress |
-| 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | proposed | plan |
-| 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | proposed | plan |
+| 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
+| 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |
+| 0024 | Verify-before-commit — prove the BYOK key works before the user trusts it with their labs | P1 | proposed | onboarding |
+| 0025 | The egress receipt — show exactly what leaves this device before a lab upload calls Claude | P1 | proposed | privacy |
+| 0026 | Same marker, different lab — surface the canonicalization that lets a trend span report formats | P2 | proposed | labs |
+| 0027 | Your almanac, in plain text — a readable Markdown export of the whole timeline | P2 | proposed | settings |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
