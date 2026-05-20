@@ -358,6 +358,15 @@ export interface GeneratePlanInput {
   panels: Panel[];          // newest first
   previousPlan?: Plan;
   recentCheckIns: CheckIn[];
+  /**
+   * When set (ticket 0018), the prompt's adherence block prepends a synthetic
+   * "User was away (no check-ins logged): N days." line. The synthetic days
+   * are NEVER persisted; they live only inside this single prompt body. The
+   * caller (the lapse-aware recompose CTA) reads N from the `sessions`
+   * table; this flag exists so the prompt explicitly names the absence as
+   * known-unknown rather than zero adherence.
+   */
+  lapseAwareGap?: number;
 }
 
 export interface GenerateMealPlanInput {
@@ -421,7 +430,11 @@ export class ClaudeClient {
     const preamble = [profileBlock, markerRef].join("\n\n");
 
     const panelsBlock = formatPanels(input.panels, catalog);
-    const adherence   = formatAdherence(input.recentCheckIns, input.previousPlan);
+    const adherence   = formatAdherence(
+      input.recentCheckIns,
+      input.previousPlan,
+      input.lapseAwareGap != null ? { syntheticSkipDays: input.lapseAwareGap } : undefined,
+    );
     const priorPlan   = input.previousPlan ? formatPriorPlan(input.previousPlan) : "";
 
     // Pre-computed pattern + trend insights — the part Claude.app can't
@@ -999,20 +1012,41 @@ export function tierForCheckIns(
   return { tier, held, possible, percent };
 }
 
-function formatAdherence(checkins: CheckIn[], prior?: Plan): string {
+/**
+ * `opts.syntheticSkipDays` (ticket 0018): when set, prepend a single editorial
+ * line naming the absence — "User was away (no check-ins logged): N days." —
+ * to the adherence block. The synthetic days are NOT in `checkins` and are
+ * NEVER persisted; they exist only in the prompt body for the single lapse-
+ * aware compose call. The voice is honest: the prompt names the absence as a
+ * known unknown, not as N days of zero adherence.
+ */
+export function formatAdherence(
+  checkins: CheckIn[],
+  prior?: Plan,
+  opts?: { syntheticSkipDays?: number },
+): string {
   // The continuous-signals rolling-averages block ALWAYS runs when there's
   // import data — it's useful with or without a prior plan to compare habits
   // against. Habit adherence still requires a prior plan to score against.
   const signalsBlock = formatContinuousSignalRollingAvg(checkins);
 
+  const skipLine = opts?.syntheticSkipDays != null && opts.syntheticSkipDays > 0
+    ? `User was away (no check-ins logged): ${opts.syntheticSkipDays} days.`
+    : "";
+
   if (!checkins.length || !prior) {
-    return [`# Adherence\n(no check-ins on the prior plan yet)`, signalsBlock]
-      .filter(Boolean).join("\n\n");
+    return [
+      `# Adherence`,
+      skipLine,
+      `(no check-ins on the prior plan yet)`,
+      signalsBlock,
+    ].filter(Boolean).join("\n\n");
   }
   const habits = prior.habitStack.habits;
   const counts = new Map<string, number>();
   for (const c of checkins) for (const h of c.habitsCompleted) counts.set(h, (counts.get(h) ?? 0) + 1);
   const lines = [`# Adherence (last ${checkins.length} days)`];
+  if (skipLine) lines.push(skipLine);
   for (const h of habits) {
     const hit = counts.get(h.id) ?? 0;
     const pct = Math.round((hit / checkins.length) * 100);

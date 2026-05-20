@@ -1,7 +1,7 @@
 ---
 id: 0018
 title: Lapse-aware welcome-back surface — the re-engagement page for the user who came back after a long quiet
-status: groomed
+status: shipped
 priority: P1
 area: today
 created: 2026-05-19
@@ -86,4 +86,6 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-19 — implementation-dev: picked up. Branch `feat/0018-lapse-aware-welcome-back`. Plan: Dexie v7 `sessions` table; `src/pages/welcome-back.ts` new module with pure `computeWelcomeBackState` + `renderWelcomeBack`; router hook in `src/main.ts` that records the load's session, reads the prior `at`, computes state, redirects once when route is `#/today` and not dismissed for today; `formatAdherence(checkins, opts?)` gains `opts.syntheticSkipDays?: number` exported from `src/claude.ts`; `src/pages/plan.ts` reads `recompose=lapse-aware` and threads the gap days into the prompt; one new `.welcome-back` block in `src/styles.css` reusing recap-card / print-sheet tokens; tests in `tests/e2e/welcome-back.spec.ts` driving Dexie + the once-per-load router redirect.
+- 2026-05-19 — shipped on PR #41. CI green: Typecheck + build, E2E (chromium), E2E (mobile-webkit). Files touched: `src/db.ts` (v7 + `recordSession` + `previousSessionAt`), `src/types.ts` (`SessionRow`, `WelcomeBackState`, `WelcomeBackRow`), `src/pages/welcome-back.ts` (new), `src/main.ts` (router hook + once-per-session flag + per-load bookkeeping cache), `src/pages/plan.ts` (`recompose=lapse-aware` consumer + threaded `lapseAwareGap`), `src/claude.ts` (`formatAdherence(checkins, prior?, opts?)`; opts.syntheticSkipDays prepends a synthetic line), `src/styles.css` (one new `.welcome-back` block; no new color tokens), `tests/e2e/welcome-back.spec.ts` (15 tests, 1:1 with acceptance bullets), `tests/e2e/privacy.spec.ts` (assert the `sessions` row shape), `tests/e2e/projection.spec.ts` (migration test extended to v5→v6→v7), `tests/helpers/flows.ts` (`seedSessionGap`, `clearSessions`, `simulateAppOpen`). Notes for future greppers: (1) `simulateAppOpen` is the right pattern for tests that need a fresh page load — `page.goto` to a hash on the same origin does NOT reload the document in Playwright. (2) The per-load `_sessionBookkeeping` cache in `main.ts` is intentionally module-scoped: it survives in-app hashchanges within a single session (so the redirect fires once per real session) and is reset only by a real page reload (which discards the JS context). (3) The Plan page's `consumeLapseAwareRecompose()` reads the gap from the two most-recent `sessions` rows and uses `history.replaceState` to strip the query immediately so a refresh doesn't re-trigger the compose call. (4) The 30-day cap on `lapseAwareGap` is intentional: a 6-month lapse should not feed "180 days of skipped" into the prompt; the editorial voice draws the line at 30.
+

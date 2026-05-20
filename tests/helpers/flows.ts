@@ -179,6 +179,78 @@ export async function exitTour(page: Page): Promise<void> {
 }
 
 /**
+ * Seed the `sessions` table (ticket 0018) with a single row whose `at` is
+ * `daysAgo` calendar days behind the wall clock at write time. The router on
+ * the next page load records a fresh row, then reads the most-recent row
+ * older than the row it just wrote — which lands on the row we seeded here.
+ *
+ * Writes through the same Dexie database (`almanac`) and store name
+ * (`sessions`) the SPA uses, so the read inside the router sees this row.
+ * The helper clears the table first so a re-seed isn't shadowed by a stale
+ * row from an earlier scenario.
+ */
+export async function seedSessionGap(page: Page, daysAgo: number): Promise<void> {
+  await page.evaluate(({ days }: { days: number }) => {
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error ?? new Error("open failed"));
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("sessions")) {
+          db.close(); resolve(); return;
+        }
+        const tx = db.transaction("sessions", "readwrite");
+        const store = tx.objectStore("sessions");
+        const clear = store.clear();
+        clear.onsuccess = () => {
+          store.add({ at: Date.now() - days * 86_400_000 });
+        };
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+      };
+    });
+  }, { days: daysAgo });
+}
+
+/**
+ * Simulate "user opens the app at the given route" (ticket 0018). Equivalent
+ * to a hard navigation: a full page reload so the SPA's module-scoped state
+ * is reset and DOMContentLoaded fires fresh. Use this instead of `page.goto`
+ * after seeding sessions / projections / plan rows — `page.goto` to a hash
+ * URL on the same origin does NOT reload the document, so the router's
+ * once-per-session cache survives and the next `route()` call reads stale
+ * bookkeeping.
+ */
+export async function simulateAppOpen(page: Page, route: string): Promise<void> {
+  await page.goto(`/${route}`);
+  await page.reload();
+}
+
+/**
+ * Wipe the `sessions` table (ticket 0018). The router records a new row on
+ * every page load, so a spec that wants to test the "no prior session" branch
+ * must clear after onboarding (which itself drove the router through several
+ * loads). Quiet no-op when the store doesn't exist yet (a v6 user on a
+ * pre-0018 build).
+ */
+export async function clearSessions(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    return new Promise<void>((resolve) => {
+      const req = indexedDB.open("almanac");
+      req.onerror   = () => resolve();
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains("sessions")) { db.close(); resolve(); return; }
+        const tx = db.transaction("sessions", "readwrite");
+        tx.objectStore("sessions").clear();
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror    = () => { db.close(); resolve(); };
+      };
+    });
+  });
+}
+
+/**
  * Compose the plan. Mocks must already be installed. Leaves the page on /plan.
  *
  * The previous version of this helper had a `page.reload()` to dodge a
