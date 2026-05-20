@@ -359,6 +359,90 @@ export async function dragSimulationSlider(
 }
 
 /**
+ * The shape of a shared protocol payload, mirrored loosely for test seeding.
+ * Only the fields the adopt-seed extractor reads (`eatList[].food`,
+ * `habitStack.habits[].title`) are load-bearing; the rest is realistic noise.
+ */
+interface SharedPayloadInput {
+  version: 1;
+  eatList: Array<Record<string, unknown>>;
+  avoidList: Array<Record<string, unknown>>;
+  habitStack: { intro: string; habits: Array<Record<string, unknown>> };
+  mealPlan?: { days: unknown[]; grocery: unknown[] };
+}
+
+/** A directly-constructed AdoptSeed for the unit-style seeding helper. */
+interface AdoptSeedInput {
+  version: 1;
+  habitTitles: string[];
+  topEatFoods: string[];
+  capturedAt: number;
+}
+
+/**
+ * Enter shared-view from a payload (ticket 0020) and — by default — tap the
+ * banner's "Adopt as a starting point" CTA + Continue, landing on #/welcome
+ * with the seed written. Encodes the payload through the SAME encoder the
+ * source exposes and visits `#/shared?p=...` so the round-trip is identical to
+ * a real recipient open (survives the page reload the module-scoped in-memory
+ * state would not).
+ *
+ *   - `tapAdopt: false`  enters shared-view and stops on #/today (so a test can
+ *                        assert banner contents or tap "Start your own" itself).
+ *   - `fresh: false`     skips navigating to "/" first (used when the caller
+ *                        deliberately keeps an existing profile + consent on the
+ *                        device, e.g. the returning-user test).
+ */
+export async function enterSharedViewWithAdopt(
+  page: Page,
+  payload: SharedPayloadInput,
+  opts: { tapAdopt?: boolean; fresh?: boolean } = {},
+): Promise<void> {
+  const tapAdopt = opts.tapAdopt ?? true;
+  const fresh = opts.fresh ?? true;
+
+  if (fresh) await page.goto("/");
+  const encoded = await page.evaluate(async (p) => {
+    const mod = await import("/src/share/protocol-link.ts");
+    // The encoder takes a Plan + optional MealPlan. Build a synthetic Plan
+    // shell carrying just the shared fields, mirroring materializeState().
+    const plan = {
+      id: 0, generatedAt: 0, basedOnPanelIds: [],
+      snapshot: "", insights: [],
+      eatList: p.eatList, avoidList: p.avoidList,
+      lifestyle: [], supplements: [],
+      habitStack: p.habitStack, retest: [],
+    } as unknown as import("../../src/types").Plan;
+    const mealPlan = p.mealPlan
+      ? ({ id: 0, planId: 0, weekStart: "", generatedAt: 0, days: p.mealPlan.days, grocery: p.mealPlan.grocery } as unknown as import("../../src/types").MealPlan)
+      : undefined;
+    return mod.encodeProtocolPayload(plan, mealPlan);
+  }, payload);
+
+  await page.goto(`/#/shared?p=${encoded}`);
+  await expect(page).toHaveURL(/#\/today$/);
+  await page.locator(".tour-banner").waitFor();
+
+  if (!tapAdopt) return;
+
+  await page.locator(".tour-banner [data-action='adopt-protocol']").click();
+  await page.locator(".adopt-modal").waitFor();
+  await page.getByRole("button", { name: /^continue$/i }).click();
+  await expect(page).toHaveURL(/#\/welcome$/);
+}
+
+/**
+ * Write an AdoptSeed straight into localStorage (ticket 0020) — the unit-style
+ * seeding path that skips the share-view round-trip when a test only needs to
+ * assert the welcome notice / onboarding prefix render from a seed.
+ */
+export async function seedAdoptInLocalStorage(page: Page, seed: AdoptSeedInput): Promise<void> {
+  await page.evaluate((s) => {
+    localStorage.setItem("almanac.adoptSeed", JSON.stringify(s));
+  }, seed);
+}
+
+/**
  * Compose the plan. Mocks must already be installed. Leaves the page on /plan.
  *
  * The previous version of this helper had a `page.reload()` to dodge a

@@ -14,6 +14,7 @@
 
 import { mount, h, esc } from "../ui";
 import { enterTour as enterSampleTour } from "../sample/state";
+import { readAdoptSeed } from "../share/adopt-seed";
 
 const KEY = "almanac.consent.v1";
 const SHARED_DECODE_ERROR_KEY = "almanac.sharedDecodeError";
@@ -43,6 +44,18 @@ export async function renderWelcome(): Promise<void> {
     ? `<div class="share-decode-error" role="status">${esc("That shared link did not decode. Ask your friend to send it again.")}</div>`
     : "";
 
+  // Adopt-and-adapt notice (ticket 0020). When the recipient arrived by tapping
+  // "Adopt as a starting point", the seed lives in localStorage; surface a
+  // single inline notice above the consent points. The seed is NOT cleared here
+  // — it survives consent acknowledgment and the onboarding form, and only
+  // moves onto the persisted Profile on onboarding submit.
+  const adoptSeed = readAdoptSeed();
+  const adoptNoticeBlock = adoptSeed
+    ? `<div class="adopt-notice" role="status">${esc(
+        "You came in from a friend's shared protocol. We carried over what they were already trying — nothing else.",
+      )}</div>`
+    : "";
+
   const frag = h(`
     <div>
       <header class="masthead">
@@ -56,6 +69,7 @@ export async function renderWelcome(): Promise<void> {
         <div class="ornament"><span class="dot"></span></div>
 
         ${decodeErrorBlock}
+        ${adoptNoticeBlock}
 
         <h1 class="headline" style="max-width: 22ch;">
           Before <em>we begin</em>.

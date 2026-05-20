@@ -4096,6 +4096,133 @@ body {
 }
 
 /* =============================================================================
+   ADOPT-AND-ADAPT — ticket 0020
+   The shared-view banner's second CTA ("Adopt as a starting point") re-uses the
+   .tour-banner__cta token (rendered as a <button> so a delegated handler can
+   open the modal). The modal mirrors the .share-modal idiom; the welcome inline
+   notice mirrors .share-decode-error; the onboarding prefix + plan-empty line
+   are quiet italic notes in the ink-soft tone. No new color tokens, one shared
+   CSS file.
+   ============================================================================= */
+
+/* The banner CTA is a <button> for the Adopt path — strip the UA button chrome
+   so it reads identically to the neighboring "Start your own →" anchor, and
+   keep a ≥44px tap target on mobile. */
+button.tour-banner__cta {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  padding: 0.4rem 0;
+  /* 46px (not 44px) so the rendered box clears the iOS HIG 44px minimum even
+     after the browser's sub-pixel rounding (a flat 44px resolves to 43.9999). */
+  min-height: 46px;
+}
+
+.adopt-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.adopt-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 18, 16, 0.45);
+}
+
+.adopt-modal {
+  position: relative;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  box-shadow: 0 18px 50px rgba(20, 18, 16, 0.28);
+  max-width: 38rem;
+  width: 100%;
+  padding: 1.8rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.adopt-modal__title {
+  font-family: var(--display);
+  font-size: 1.7rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.adopt-modal__body {
+  font-family: var(--body);
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.adopt-modal__actions {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.adopt-modal__actions .btn {
+  /* 46px so the rendered box clears 44px after sub-pixel rounding. */
+  min-height: 46px;
+}
+
+/* Inline notice on the welcome page when the recipient adopted a friend's
+   protocol. Same paper + ink tone as .share-decode-error; sits above the
+   consent points. */
+.adopt-notice {
+  font-family: var(--body);
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink);
+  color: var(--ink);
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.2rem;
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
+/* The onboarding goals prefix — a quiet italic note ABOVE the editable
+   textarea, never inside it. Wraps cleanly at the mobile-webkit viewport. */
+.adopt-prefix {
+  font-family: var(--body);
+  font-style: italic;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0 0 0.5rem;
+  max-width: 60ch;
+}
+
+/* The plan-empty editorial line above the first-compose CTA. */
+.adopt-plan-line {
+  font-family: var(--body);
+  font-style: italic;
+  font-size: 0.96rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 1.2rem 0 0;
+  max-width: 60ch;
+}
+
+@media (max-width: 720px) {
+  .adopt-modal {
+    padding: 1.2rem 1.2rem;
+  }
+}
+
+/* =============================================================================
    WELCOME-BACK SURFACE — ticket 0018
    The re-entry interstitial for a user who came back after a lapse. Re-uses
    the .recap-card / .print-sheet typography tokens; one new block, no new

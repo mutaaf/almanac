@@ -133,6 +133,26 @@ class AlmanacDB extends Dexie {
       projections:  "++id, &[markerKey+panelId], panelId, markerKey, createdAt",
       sessions:     "++id, at",
     });
+
+    // v8 — adds the optional `Profile.adoptSeed` field (ticket 0020). The seed
+    // is a plain attribute on the singleton profile row, NOT an index, so the
+    // store declarations are byte-identical to v7 — this version block exists
+    // only to declare the schema bump so a v7 → v8 user runs the additive
+    // upgrade explicitly. The field is read-side optional: a v7 profile loads
+    // as v8 with `adoptSeed === undefined` (no data migration, no data loss;
+    // see the migration test in adopt-and-adapt.spec.ts). The seed is treated
+    // as profile data — `wipeAll()` clears it along with the profile.
+    this.version(8).stores({
+      profile:      "id",
+      panels:       "++id, drawnAt, createdAt",
+      plans:        "++id, generatedAt",
+      mealPlans:    "++id, planId, weekStart, generatedAt",
+      checkins:     "++id, &day, createdAt",
+      extractCache: "hash, createdAt",
+      userMarkers:  "&key, createdAt",
+      projections:  "++id, &[markerKey+panelId], panelId, markerKey, createdAt",
+      sessions:     "++id, at",
+    });
   }
 }
 
@@ -218,6 +238,20 @@ export async function getProfile(): Promise<Profile | undefined> {
   if (isSharedView()) return sharedProfile();
   if (isTour())      return tourProfile();
   return db.profile.get("singleton");
+}
+
+/**
+ * Whether a REAL profile exists in this device's IndexedDB — bypassing the
+ * tour/shared-view shims that `getProfile()` honours. The shared-view banner
+ * (ticket 0020) calls this to decide whether to show the "Adopt as a starting
+ * point" CTA: a first-time recipient (no real profile) sees it; a returning
+ * user with a profile already on the device does not. Reads the singleton
+ * profile row only — never the recipient's panels, plans, or check-ins. Returns
+ * false (not throws) on any read error so the banner degrades to "first-time".
+ */
+export async function hasRealProfile(): Promise<boolean> {
+  try { return (await db.profile.get("singleton")) != null; }
+  catch { return false; }
 }
 
 export async function saveProfile(

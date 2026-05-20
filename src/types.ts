@@ -29,6 +29,32 @@ export interface Profile {
   model: string;
   createdAt: number;
   updatedAt: number;
+
+  /**
+   * Single-use editorial provenance for the user who arrived by adopting a
+   * friend's shared protocol (ticket 0020). Carried from the shared-view CTA
+   * through consent + onboarding (as `localStorage["almanac.adoptSeed"]`), then
+   * moved onto the saved profile here. Read once by the first plan compose —
+   * which appends a "Referral context (not constraint)" block to the prompt —
+   * and cleared immediately after. A user 90 days into their protocol does not
+   * carry this. Optional + additive: a v7 profile loads as v8 with `adoptSeed
+   * === undefined`. NEVER carries labs, insights, profile, or a friend's name.
+   */
+  adoptSeed?: AdoptSeed;
+}
+
+/**
+ * The structured carry-over from a friend's shared protocol (ticket 0020).
+ * Built by `extractAdoptSeed()` from the shared payload via literal field reads
+ * — at most five habit titles and at most three eat-list food names, in the
+ * order they appear (the friend's curation order is the signal). No LLM, no
+ * inference, no other field travels.
+ */
+export interface AdoptSeed {
+  version: 1;
+  habitTitles: string[];
+  topEatFoods: string[];
+  capturedAt: number;
 }
 
 /* -------------------------------------------------------------------------- */
