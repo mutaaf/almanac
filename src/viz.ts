@@ -30,14 +30,24 @@ export function thermometer(opts: {
   width?: number;
   height?: number;
   projectionBand?: { low: number; high: number };
+  /**
+   * What-if simulator overlay (ticket 0019). When set, the thermometer renders
+   * a draggable handle at `value` and reserves the scale to `bounds` so the
+   * handle can travel the full simulation window. The caller (plan.ts) wires
+   * pointer events to the rendered `.thermometer__slider-handle` and calls
+   * `onChange` with the value the handle maps to; the renderer itself stays a
+   * pure string, so `onChange` is carried only for the caller's type contract.
+   */
+  interactive?: { value: number; bounds: [number, number]; onChange: (v: number) => void };
 }): string {
   const w = opts.width ?? 320;
   const h = opts.height ?? 44;
   const m = opts.marker;
 
   // Determine the scale: span every bound + value (+ projection band edges
-  // when present, so a downward projection can't push the band off-canvas),
-  // with 12% padding either side.
+  // when present, so a downward projection can't push the band off-canvas) (+
+  // the simulation bounds when interactive, so the handle never clips), with
+  // 12% padding either side.
   const refs: number[] = [opts.value];
   if (m.labRange?.low  != null) refs.push(m.labRange.low);
   if (m.labRange?.high != null) refs.push(m.labRange.high);
@@ -45,6 +55,9 @@ export function thermometer(opts: {
   if (m.optimalRange.high != null) refs.push(m.optimalRange.high);
   if (opts.projectionBand) {
     refs.push(opts.projectionBand.low, opts.projectionBand.high);
+  }
+  if (opts.interactive) {
+    refs.push(opts.interactive.bounds[0], opts.interactive.bounds[1], opts.interactive.value);
   }
 
   const min = Math.min(...refs);
@@ -108,6 +121,22 @@ export function thermometer(opts: {
   if (m.labRange?.low  != null) labels.push(tickLabel(xFor(m.labRange.low),  String(m.labRange.low)));
   if (m.labRange?.high != null) labels.push(tickLabel(xFor(m.labRange.high), String(m.labRange.high)));
 
+  // What-if simulator handle (ticket 0019). An oxblood draggable knob sits at
+  // the simulated value; the caller wires pointermove against it. The handle
+  // carries the data needed to map a pointer-x back to a value: the scale's
+  // [sMin, sMax] and the canvas width. No fill change to the existing dot —
+  // the handle is the affordance, the dot stays the "current value" anchor.
+  const handle = opts.interactive
+    ? (() => {
+        const hv = Math.max(opts.interactive!.bounds[0], Math.min(opts.interactive!.bounds[1], opts.interactive!.value));
+        const hx = Math.max(8, Math.min(w - 8, xFor(hv)));
+        return `<circle class="thermometer__slider-handle" cx="${hx}" cy="${h/2}" r="7"
+                       fill="var(--oxblood)" stroke="var(--paper)" stroke-width="1.5"
+                       data-smin="${sMin}" data-smax="${sMax}" data-width="${w}"
+                       data-bound-low="${opts.interactive!.bounds[0]}" data-bound-high="${opts.interactive!.bounds[1]}" />`;
+      })()
+    : "";
+
   return `
     <svg class="therm" viewBox="0 0 ${w} ${h}" width="100%" height="${h}" preserveAspectRatio="none" aria-hidden="true">
       ${labBar}
@@ -117,6 +146,7 @@ export function thermometer(opts: {
       ${labels.join("")}
       ${tick}
       ${dot}
+      ${handle}
     </svg>
   `;
 }

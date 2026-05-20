@@ -70,6 +70,7 @@ export const MARKERS: MarkerDef[] = [
     aliases: ["hba1c", "a1c", "glycated hemoglobin", "hemoglobin a1c"],
     labRange:     { high: 5.6 },
     optimalRange: { low: 4.6, high: 5.3 },
+    precision: 1,
     description: "Three-month average glucose. <5.3% is a marker of metabolic resilience; lab cutoff for prediabetes is 5.7%.",
     responsiveness: {
       weeksToEffect: [10, 12],
@@ -85,6 +86,7 @@ export const MARKERS: MarkerDef[] = [
     aliases: ["insulin, fasting", "insulin", "fasting insulin"],
     labRange:     { low: 2,   high: 25 },
     optimalRange: { low: 2,   high: 5  },
+    precision: 1,
     description: "How hard the pancreas is working. Functional optimum is 2–5; >7 with normal glucose still flags insulin resistance.",
     responsiveness: {
       weeksToEffect: [6, 10],
@@ -147,6 +149,7 @@ export const MARKERS: MarkerDef[] = [
     aliases: ["apolipoprotein b", "apo b", "apob", "apolipoprotein b-100"],
     labRange:     { high: 100 },
     optimalRange: { high: 80  },
+    precision: 0,
     description: "Particle count for atherogenic lipids — the better cardiovascular predictor than LDL-C alone.",
     responsiveness: {
       weeksToEffect: [8, 12],
@@ -293,6 +296,7 @@ export const MARKERS: MarkerDef[] = [
     aliases: ["vitamin d", "25-hydroxy vitamin d", "25-oh vit d", "vitamin d, 25-hydroxy", "vitamin d3, 25-hydroxy"],
     labRange:     { low: 30, high: 100 },
     optimalRange: { low: 50, high: 80  },
+    precision: 0,
     description: "Hormone-like vitamin. 50–80 ng/mL supports immune, bone, and metabolic function.",
     responsiveness: {
       weeksToEffect: [10, 12],
@@ -342,6 +346,7 @@ export const MARKERS: MarkerDef[] = [
     aliases: ["ferritin", "ferritin, serum"],
     labRange:     { low: 30, high: 400 },
     optimalRange: { low: 70, high: 150 },
+    precision: 0,
     description: "Iron storage. >200 in men flags inflammation or overload; <70 often presents as fatigue.",
     responsiveness: {
       weeksToEffect: [8, 12],
@@ -358,6 +363,7 @@ export const MARKERS: MarkerDef[] = [
     aliases: ["ferritin", "ferritin, serum"],
     labRange:     { low: 13, high: 150 },
     optimalRange: { low: 50, high: 100 },
+    precision: 0,
     description: "Cycling and post-menopausal women have very different needs; <50 is the most common 'in-range but low' finding.",
     responsiveness: {
       weeksToEffect: [8, 12],
@@ -393,6 +399,7 @@ export const MARKERS: MarkerDef[] = [
     aliases: ["magnesium, rbc", "rbc magnesium", "mag rbc"],
     labRange:     { low: 4.2, high: 6.8 },
     optimalRange: { low: 6.0, high: 6.5 },
+    precision: 1,
     description: "Tissue magnesium. Serum mag is normal-looking until tissue stores are very depleted.",
     responsiveness: {
       weeksToEffect: [8, 12],
@@ -420,6 +427,7 @@ export const MARKERS: MarkerDef[] = [
     aliases: ["hs-crp", "hscrp", "high sensitivity crp", "c-reactive protein, high sensitivity"],
     labRange:     { high: 3.0 },
     optimalRange: { high: 1.0 },
+    precision: 1,
     description: "Smoldering inflammation marker. Strongly tied to cardiovascular risk and metabolic stress.",
     responsiveness: {
       weeksToEffect: [6, 10],
@@ -641,6 +649,7 @@ export const MARKERS: MarkerDef[] = [
     aliases: ["mcv", "mean corpuscular volume", "mean cell volume"],
     labRange:     { low: 80, high: 100 },
     optimalRange: { low: 88, high: 92 },
+    precision: 0,
     description: "Average red-cell size. Low: iron / B6 deficiency. High: B12 / folate deficiency or alcohol.",
   },
   {

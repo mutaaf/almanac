@@ -4219,3 +4219,285 @@ body {
     flex-direction: column;
   }
 }
+
+/* =============================================================================
+   WHAT-IF MARKER SIMULATOR (ticket 0019)
+   The deterministic insight engine made interactive. The "What if?" chip
+   mirrors the 0013 provenance chip (small-caps eyebrow, ink token — NOT
+   oxblood; interrogation is informational). The simulation header is a
+   full-width banner with the restraint of the tour banner, but on paper with
+   a single hairline rule. The diff badges name the change tersely — the hedge
+   for trend rules lives in the tense. No new colors.
+   ============================================================================= */
+
+.sim-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.55rem;
+  margin-left: 0.9rem;
+  padding: 0.18rem 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dotted var(--ink-faint);
+  font-family: var(--body);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition: color 160ms var(--ease), border-bottom-color 160ms var(--ease);
+}
+.sim-chip:hover,
+.sim-chip:focus-visible {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+  outline: none;
+}
+.sim-chip:focus-visible {
+  outline: 1px solid var(--ink-faint);
+  outline-offset: 3px;
+}
+
+/* The chips row groups the provenance chip and the What if? chip on a card. */
+.insight-card__chips,
+.insight__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.insight-card__chips .sim-chip,
+.insight__chips .sim-chip {
+  margin-top: 0.55rem;
+}
+.hero-card__chips {
+  margin-top: 0.5rem;
+}
+
+/* ---- the simulation header banner ------------------------------------- */
+.sim-header {
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink);
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.sim-header__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.sim-header__label {
+  font-family: var(--body);
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+.sim-header__actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.sim-header__actions .btn {
+  font-size: 0.7rem;
+  padding: 0.35rem 0.8rem;
+}
+.sim-header__sliders {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.9rem;
+}
+
+/* ---- one slider control ----------------------------------------------- */
+.sim-slider {
+  border: 1px solid var(--paper-edge);
+  background: var(--paper);
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.sim-slider__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.sim-slider__name {
+  font-family: var(--body);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.sim-slider__close {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--ink-faint);
+  padding: 0 0.2rem;
+}
+.sim-slider__close:hover { color: var(--ink); }
+.sim-slider__therm {
+  /* The interactive thermometer overlay — the handle is oxblood. */
+  position: relative;
+}
+.thermometer__slider-handle {
+  cursor: ew-resize;
+  touch-action: none;
+}
+.sim-slider__control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.sim-slider__step {
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sim-slider__step:hover { border-color: var(--ink); }
+.sim-slider__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  padding: 0.3rem 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.sim-slider__input:focus { border-color: var(--ink); }
+.sim-slider__unit {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+.sim-slider__note {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+/* ---- the eat-list "real values" note ---------------------------------- */
+.sim-eat-note {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--ink-faint);
+  border-left: 2px solid var(--rule);
+  padding: 0.3rem 0 0.3rem 0.8rem;
+  margin: 1.4rem 0 0.6rem;
+}
+
+/* ---- diff states on insight cards ------------------------------------- */
+.insight--would-no-longer-fire .insight-card__title,
+.insight--would-no-longer-fire .insight__title {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+}
+.insight--would-no-longer-fire .insight-card__body,
+.insight--would-no-longer-fire .insight__detail {
+  opacity: 0.6;
+}
+
+.sim-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--body);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink);
+  border: 1px solid var(--ink-faint);
+  padding: 0.1rem 0.45rem;
+}
+.insight__chips + .sim-badge,
+.insight--would-no-longer-fire > .sim-badge,
+.insight--would-newly-fire > .sim-badge {
+  margin-top: 0.55rem;
+}
+
+.insight--would-newly-fire {
+  /* A subtle inset so a freshly-surfaced card reads as "new" without color. */
+  background: var(--paper-deep);
+  border: 1px dashed var(--rule);
+  padding: 0.2rem 0.4rem;
+}
+.insight-card__evidence,
+.insight__evidence {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  margin: 0.5rem 0 0;
+}
+.insight-card__gloss,
+.insight__gloss {
+  font-family: var(--display);
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0.6rem 0 0;
+}
+
+@media (max-width: 720px) {
+  .sim-header__line {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sim-header__sliders {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- panel-summary strip (ticket 0019) -------------------------------- */
+.panel-summary__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.4rem 1.2rem;
+}
+.panel-summary__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--paper-edge);
+  min-width: 0;
+}
+.panel-summary__name {
+  font-family: var(--body);
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-summary__value {
+  font-family: var(--mono);
+  font-size: 0.84rem;
+  color: var(--ink);
+}
+.panel-summary__unit {
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+}
+.panel-summary__row .sim-chip {
+  margin-top: 0;
+  margin-left: 0;
+}

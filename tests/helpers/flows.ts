@@ -251,6 +251,114 @@ export async function clearSessions(page: Page): Promise<void> {
 }
 
 /**
+ * Add a panel via manual entry that fires the iron-restricted erythropoiesis
+ * rule (ticket 0019). A male profile with ferritin 32 ng/mL (< the functional
+ * floor of 70) plus MCV 86 fL (< the functional 88) triggers
+ * `iron_restricted_erythropoiesis` in the deterministic engine — the panel the
+ * what-if simulator drags against. hs-CRP at 1.5 mg/L sits one signal short
+ * of `inflammation_triad`, so dragging ferritin UP past 200 both retires the
+ * iron rule and newly fires inflammation — one panel exercises both diff
+ * directions. Leaves the page on the panel detail.
+ *
+ * The default `addManualPanel` panel (cholesterol / triglycerides / vit D)
+ * fires none of the multi-marker RULES, so the simulator's "would no longer
+ * fire" / "would newly fire" scenarios need this richer panel.
+ */
+export async function addIronPanel(page: Page): Promise<void> {
+  await page.goto("/#/labs?manual=1");
+  await page.locator("#drawnAt").waitFor({ state: "visible" });
+  await page.fill("#drawnAt", "2026-05-01");
+  await page.fill("#labName", "Iron Panel");
+  await page.locator(".manual-row__input[data-key='ferritin_m']").fill("32");
+  await page.locator(".manual-row__input[data-key='mcv']").fill("86");
+  await page.locator(".manual-row__input[data-key='hs_crp']").fill("1.5");
+  await page.getByRole("button", { name: /^save panel$/i }).click();
+  await expect(page).toHaveURL(/#\/labs\?id=\d+$/);
+  await expect(page.locator(".result__name").first()).toBeVisible();
+}
+
+/**
+ * Seed a panel + a minimal composed plan directly into IndexedDB (ticket 0019
+ * test support). Lets a what-if spec exercise the simulator on a known panel
+ * without paying the onboard→compose round-trip, which is the slowest step and
+ * the dominant flake source when the whole suite runs in parallel. The seeded
+ * plan is intentionally bare: one insight (so the page has a marker chip), no
+ * eat/avoid/habit content. `results` is the panel's marker readings.
+ *
+ * After seeding, navigate to #/plan and reload so the router reads the fresh
+ * rows, then wait for the dashboard sentinel.
+ */
+export async function seedPlanAndPanel(
+  page: Page,
+  results: Array<{ markerKey: string; value: number; unit: string }>,
+  insightMarkerKey: string,
+): Promise<void> {
+  await page.evaluate(({ rows, key }) => {
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["panels", "plans"], "readwrite");
+        const panelId = tx.objectStore("panels").add({
+          drawnAt: "2026-05-01", source: "manual", createdAt: Date.now(), results: rows,
+        });
+        void panelId;
+        tx.objectStore("plans").add({
+          generatedAt: Date.now(),
+          basedOnPanelIds: [1],
+          snapshot: "A seeded plan for the what-if simulation test.",
+          insights: [
+            { markerKey: key, title: "Seeded insight", detail: "Seeded for the simulator test.", priority: "high" },
+          ],
+          eatList: [], avoidList: [], lifestyle: [], supplements: [],
+          habitStack: { intro: "Small actions.", habits: [] }, retest: [],
+        });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      };
+    });
+  }, { rows: results, key: insightMarkerKey });
+
+  await page.goto("/#/plan");
+  await page.reload();
+  await expect(page.locator(".dash-snapshot, .prose").first()).toBeVisible({ timeout: 20_000 });
+}
+
+/**
+ * Enter what-if simulation mode for a marker (ticket 0019). Taps the marker's
+ * "What if?" chip on the Plan page and waits for the simulation header to
+ * paint — the deterministic sentinel that the page entered simulation mode.
+ * The chip is keyed by `data-marker-key` so the same marker appearing in more
+ * than one place (insight supporting-marker row, panel summary) resolves to
+ * the first chip for that marker.
+ */
+export async function enterSimulation(page: Page, markerKey: string): Promise<void> {
+  await page.locator(`.sim-chip[data-marker-key="${markerKey}"]`).first().click();
+  await expect(page.locator(".sim-header")).toBeVisible();
+  await expect(page.locator(`.sim-slider[data-marker-key="${markerKey}"]`)).toBeVisible();
+}
+
+/**
+ * Drive the simulation slider for a marker to a value (ticket 0019). The
+ * slider is rendered as a number input plus +/- steppers on both projects
+ * (a true touch-drag on the SVG thermometer is flake-prone on mobile-webkit),
+ * with the SVG handle layered on top for chromium pointer-drag. The
+ * deterministic path both projects share is setting the number input's value
+ * and dispatching an `input` event, which is what this helper does — so the
+ * re-render assertion is identical across chromium and mobile-webkit.
+ */
+export async function dragSimulationSlider(
+  page: Page,
+  markerKey: string,
+  value: number,
+): Promise<void> {
+  const input = page.locator(`.sim-slider[data-marker-key="${markerKey}"] .sim-slider__input`);
+  await input.fill(String(value));
+  await input.dispatchEvent("input");
+}
+
+/**
  * Compose the plan. Mocks must already be installed. Leaves the page on /plan.
  *
  * The previous version of this helper had a `page.reload()` to dodge a

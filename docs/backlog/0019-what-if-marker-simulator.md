@@ -1,7 +1,7 @@
 ---
 id: 0019
 title: What-if marker simulator — drag any value to see which insights would fire
-status: groomed
+status: in-progress
 priority: P1
 area: plan
 created: 2026-05-19
@@ -87,4 +87,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-20 [implementation-dev] Picked up. Branch `feat/0019-what-if-simulator`. Status → in-progress. Plan: a pure `simulateInsights(panel, overrides[])` in `src/insights/simulate.ts` that reuses `computeInsights()` (one source of truth), an optional `interactive` param on `thermometer()`, additive `precision?: number` on `MarkerDef` + curated values, and the chip + simulation state machine + diff-aware insights renderer on `#/plan`. Render-time only — nothing persists, no Anthropic call, no egress change, no schema migration. Test-first in `tests/e2e/what-if.spec.ts` with `enterSimulation` / `dragSimulationSlider` helpers.
