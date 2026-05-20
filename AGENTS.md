@@ -39,8 +39,14 @@ All three agents run **locally** via your `claude` CLI, so they run against your
 
 Each handoff is gated:
 - **Dev → Review**: Dev opens the PR with `gh pr merge --auto --squash`. GitHub holds the merge.
-- **Review → merge**: branch protection requires (a) Typecheck + build green, (b) E2E (chromium) green. The local review agent posts a `--comment` sign-off (informational) or a `--request-changes` review which **blocks** the auto-merge. Since the review agent runs as the repo owner (same identity as the PR author), GitHub forbids self-approval — so we use the request-changes path as the blocker instead of approval as the unblocker.
+- **Review → merge**: branch protection requires three checks green — `Typecheck + build`, `E2E (chromium)`, and `E2E (mobile-webkit)`. The local review agent posts a `--comment` sign-off (informational) or a `--request-changes` review which **blocks** the auto-merge. Since the review agent runs as the repo owner (same identity as the PR author), GitHub forbids self-approval — so we use the request-changes path as the blocker instead of approval as the unblocker.
 - **merge → deploy**: Vercel watches the GitHub repo; every push to `main` triggers a production deploy automatically.
+
+**Gating vs non-gating checks.** Only the three checks named above gate a merge. Every other status — including `Vercel` and `Vercel Preview Comments` — is informational. A red Vercel check never blocks a merge and is never a reason to "fix" a PR. (See `docs/LESSONS.md`.)
+
+**Self-healing.** A PR can pass every gating check and still refuse to merge because its branch fell `BEHIND` `main` (branch protection requires up-to-date branches). The ship agent's first phase now *tends* the in-flight PR before it considers new work: it rebases a `BEHIND` branch via `gh pr update-branch`, attempts a bounded recovery on a genuinely red gating check, and only stands down when the PR is healthy and simply mid-flight. This means a single stuck PR can no longer freeze the whole loop — the failure mode that idled shipping for ~17h on 2026-05-20.
+
+**Self-learning.** `docs/LESSONS.md` is the loop's append-only operational memory. Every agent reads it at the start of a run and appends a one-line lesson whenever it hits a novel failure or takes a healing action. Over time the loop stops re-paying for the same debugging passes.
 
 **Slash commands** (manual, interactive — you drive):
 - `/ideate [focus area]` — fires the GTM agent to add new tickets. Optional `$ARGUMENTS` like "growth", "moat", "mobile retention".
@@ -49,9 +55,10 @@ Each handoff is gated:
 - `/backlog` — read-only summary of the current backlog state.
 
 **Autonomous local schedule** (launchd jobs, no human required — see `scripts/README.md`):
-- `agent-ship.sh` — fires every hour at :41 local. Picks the top groomed/proposed ticket, runs the full Dev loop, opens a PR with auto-merge enabled. Single-PR-at-a-time gated.
-- `agent-groom.sh` — fires every 6 hours at :17 local. Runs the GTM agent to re-prioritize + add 2-4 fresh tickets focused on acquisition/retention/moat. Self-gates when there are already 3+ groomed P0/P1.
+- `agent-ship.sh` — fires every hour at :41 local. **First tends the in-flight PR (rebase if BEHIND, bounded recovery if a gating check is red, otherwise wait)**; only when there's no `feat/` PR to tend does it pick the top groomed/proposed ticket and run the full Dev loop, opening a PR with auto-merge enabled. Single-PR-at-a-time gated.
+- `agent-groom.sh` — fires every 6 hours at :17 local. Closes superseded `chore/gtm-` PRs, runs the GTM agent to re-prioritize + add 2-4 fresh tickets focused on acquisition/retention/moat. Self-gates when there are already 3+ groomed P0/P1.
 - `agent-review.sh` — polls every 5 minutes for open agent PRs with no review yet. Posts a `--comment` sign-off if clean, `--request-changes` if blocking. Self-gates silently when there's nothing to review.
+- All three read `docs/LESSONS.md` at start and append novel lessons; the ship agent's healing keeps the pipeline live without a human.
 - Install: `bash scripts/install-agents.sh` once on a Mac. Uninstall: `bash scripts/uninstall-agents.sh`. Logs at `~/.cache/almanac-agent/logs/`.
 - All three have a self-cancel date baked in (2026-05-28) to bound autonomous spend; edit the scripts to extend.
 
@@ -82,6 +89,7 @@ almanac/
 │       ├── ship.md          ← /ship — Dev executes top ticket
 │       └── backlog.md       ← /backlog — read-only summary
 ├── docs/
+│   ├── LESSONS.md           ← agent-writable operational memory (read at run start)
 │   └── backlog/
 │       ├── README.md        ← backlog conventions + index
 │       ├── _template.md     ← copy this when writing a new ticket
@@ -198,6 +206,10 @@ fixed in ticket 0005 by route-awaiting in `plan.ts compose()` and adding the
 `waitForDb` polling helper.)
 
 ## When things go wrong
+
+> The living version of this list is `docs/LESSONS.md`, which the autonomous
+> agents read and extend on every run. The entries below are the hand-curated
+> highlights; add new operational lessons to `docs/LESSONS.md`, not here.
 
 - **Plan composition fails** with "Could not parse JSON" → response was truncated. Bump `max_tokens` in `src/claude.ts` for the relevant generator. See commit `21fbf50` for prior fix pattern.
 - **Paste duplicates** → don't read both `clipboardData.items` and `clipboardData.files`. Pick one (we use `items`). Belt-and-braces dedupe by `name|size|lastModified` in `tests/e2e/labs.spec.ts`.

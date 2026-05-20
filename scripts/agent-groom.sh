@@ -3,10 +3,13 @@
 # 00:17 / 06:17 / 12:17 / 18:17).
 #
 # - Pulls main into a working checkout.
+# - Closes superseded chore/gtm- PRs (keeps only the newest live one).
 # - Asks the local `claude` CLI to invoke the gtm-innovation subagent: regroom
 #   existing tickets, add 2-4 fresh ones focused on acquisition / retention /
 #   moat, open a PR.
-# - Self-gates: if there are already ≥3 groomed P0/P1 tickets, it no-ops.
+# - Reads docs/LESSONS.md at start; may merge exact-duplicate lessons.
+# - Self-gates: if there are already ≥3 groomed P0/P1 tickets, it no-ops
+#   (after the PR cleanup above still runs).
 #
 # Logs land in ~/.cache/almanac-agent/logs/groom-<UTC timestamp>.log.
 
@@ -57,11 +60,28 @@ claude --print --dangerously-skip-permissions <<'PROMPT'
 You are the autonomous GTM/Innovation runner for this Almanac repo (you are
 already at its working dir on main).
 
-Read AGENTS.md, docs/backlog/README.md, and every file under docs/backlog/.
+Read AGENTS.md, docs/LESSONS.md, docs/backlog/README.md, and every file under
+docs/backlog/.
+
+Step 0 — housekeeping (always, even if you self-gate afterward):
+  Close superseded GTM backlog PRs. List open ones:
+    gh pr list --state open --base main --json number,headRefName,createdAt \
+      --jq '[.[] | select(.headRefName | startswith("chore/gtm-"))] | sort_by(.createdAt)'
+  If there is MORE THAN ONE, the newest is the live one; close every OLDER
+  `chore/gtm-` PR with:
+    gh pr close <n> --delete-branch --comment "Superseded by a newer GTM backlog refresh."
+  (A backlog refresh is a full-state rewrite, so older ones are always stale.)
+  Also close any single `chore/gtm-` PR that is mergeStateStatus DIRTY (its diff
+  is against an old backlog state) with the same superseded comment, then carry
+  on — your run below will produce a fresh one.
 
 Self-gate: count tickets where frontmatter `status: groomed` AND `priority: P0`
 or `P1`. If that count is ≥ 3, print "backlog is full (N groomed P0/P1)" and
-exit cleanly with no changes.
+exit cleanly with no further changes (the Step 0 cleanup above still stands).
+
+Prune LESSONS only here: while you have the repo open, you MAY merge EXACT
+duplicate lines in docs/LESSONS.md, but never delete a lesson that still
+describes live behavior. Carry any LESSONS edit on your chore/gtm- branch.
 
 Otherwise, do the work:
   1. Use the Task tool with subagent_type="gtm-innovation" (.claude/agents/
