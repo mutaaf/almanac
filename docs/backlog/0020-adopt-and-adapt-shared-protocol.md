@@ -1,7 +1,7 @@
 ---
 id: 0020
 title: Adopt-and-adapt — turn a friend's shared protocol into the seed of your own first plan
-status: groomed
+status: in-progress
 priority: P1
 area: growth
 created: 2026-05-19
@@ -89,4 +89,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-20 [implementation-dev] Picked up; branched `feat/0020-adopt-and-adapt` off main, flipped status to `in-progress`. Plan: a new `extractAdoptSeed()` in `src/share/shared-state.ts` (pure, literal field reads — ≤5 habit titles, ≤3 eat foods) feeding a new `src/share/adopt-seed.ts` (persist / read / clear over `localStorage["almanac.adoptSeed"]`). Dexie is already at v7 (0018), so the `Profile.adoptSeed?` field rides on a NEW additive `.version(8)` block (read-side optional; a v7 row loads as v8 with `adoptSeed === undefined`). The intake-summary block that the ticket calls `formatIntake()` is, in this codebase, `formatProfile()` — shared by both `generatePlan` (panels-first) and `generatePlanFromIntake` (intake-only). The referral block appends there, gated on the seed; absent seed the prompt is byte-identical to pre-0020. Adding a minimal `lastPromptBody()` accessor to `tests/helpers/mocks.ts` so the spec can assert the block fires/absents correctly. No egress allow-list change.
