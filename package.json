@@ -14,7 +14,8 @@
     "test:headed": "playwright test --headed",
     "test:report": "playwright show-report",
     "test:ci": "playwright test --reporter=github,html",
-    "ci": "npm run typecheck && npm run build && npm run test:ci"
+    "backlog:check": "node scripts/check-backlog.mjs",
+    "ci": "npm run backlog:check && npm run typecheck && npm run build && npm run test:ci"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

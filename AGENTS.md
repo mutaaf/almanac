@@ -164,6 +164,7 @@ Never push to `main` directly. Never bypass branch protection. Never disable a p
 | Add a route | New file in `src/pages/`, register in `src/main.ts` router and `src/chrome.ts` nav, add a spec in `tests/e2e/`. |
 | Touch persistence | `src/db.ts` — if you change schema, bump the version number, add a new `.version(N).stores({...})` block, never edit existing ones. Add a migration test. |
 | Add a UI primitive | `src/viz.ts` for SVG, `src/ui.ts` for templating helpers, `src/styles.css` for styles. **One** CSS file. No CSS-in-JS. |
+| Change a ticket's status | Edit the ticket file frontmatter AND its row in `docs/backlog/README.md`. They must agree — `scripts/check-backlog.mjs` (in the "Typecheck + build" gating job, and in `npm run ci`) fails the build on any drift. Run `npm run backlog:check` locally first. |
 | Add a config / env var | Stop. Almanac has no environment variables. If you think you need one, propose first in an issue. |
 
 ## Test infrastructure
