@@ -59,7 +59,7 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0019 | What-if marker simulator — drag any value to see which insights would fire | P1 | groomed | plan |
+| 0019 | What-if marker simulator — drag any value to see which insights would fire | P1 | in-progress | plan |
 | 0020 | Adopt-and-adapt — turn a friend's shared protocol into the seed of your own first plan | P1 | groomed | growth |
 | 0021 | The hundred-day mark — a quarterly reflective surface for the user who actually stayed | P1 | groomed | progress |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | proposed | plan |
