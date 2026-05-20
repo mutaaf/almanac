@@ -73,6 +73,15 @@ export interface MarkerDef {
     direction: "increase" | "decrease" | "either";
     magnitude: { low: number; high: number; unit?: string };
   };
+  /**
+   * Decimal places the what-if simulator (ticket 0019) snaps the dragged value
+   * to. Curated only for the markers where the natural granularity matters:
+   * integer-valued markers (ferritin, ApoB, vit D, MCV) carry `0`; one-decimal
+   * markers (hs-CRP, fasting insulin, HbA1c, Mg RBC) carry `1`. Markers without
+   * this field fall back to a two-significant-figures heuristic in the slider.
+   * Additive, no migration.
+   */
+  precision?: number;
 }
 
 export type MarkerCategory =
@@ -168,6 +177,32 @@ export interface InsightProvenance {
     threshold?: string;
   }>;
   evidence: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  What-if simulation (ticket 0019)                                          */
+/* -------------------------------------------------------------------------- */
+/*
+ * The simulator re-runs the deterministic insight engine over a hypothetical
+ * panel where one or more marker values are overridden, then diffs the two
+ * rule-output sets. Nothing here is persisted — the diff is render-time only.
+ */
+
+/** A single dragged value: replace `markerKey`'s reading with `value`. */
+export interface SimulationOverride {
+  markerKey: string;
+  value: number;
+}
+
+/**
+ * The set difference between the live insight output and the hypothetical one,
+ * keyed by rule id. `stillFires` fired in both; `wouldNoLongerFire` fired live
+ * but not hypothetically; `wouldNewlyFire` fired hypothetically but not live.
+ */
+export interface SimulationDiff {
+  stillFires: string[];
+  wouldNoLongerFire: string[];
+  wouldNewlyFire: string[];
 }
 
 /**
