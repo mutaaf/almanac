@@ -3,10 +3,11 @@
 #
 # - Pulls the latest main into a persistent working checkout (node_modules
 #   persists between runs — `git clean -fdq` leaves gitignored files alone).
-# - Asks the local `claude` CLI to (1) HEAL the in-flight PR if one is stuck
-#   (rebase BEHIND branches, bounded recovery on red gating checks), and only
-#   if there's nothing to heal, (2) run the implementation-dev loop on the top
-#   groomed/proposed ticket. A single stuck PR can no longer freeze the loop.
+# - Asks the local `claude` CLI to (1) HEAL the in-flight PR if one is stuck —
+#   rebase BEHIND branches, bounded recovery on red gating checks; covers both
+#   feat/ and chore/gtm- PRs (feat/ first) — and only if there's nothing to
+#   heal, (2) run the implementation-dev loop on the top groomed/proposed
+#   ticket. A single stuck PR can no longer freeze the loop.
 # - Reads docs/LESSONS.md at start and appends novel lessons (self-learning).
 # - All work happens via claude's tool use; this script is just the launcher.
 #
@@ -74,12 +75,20 @@ PHASE 0 — Load the contract and the memory.
 PHASE 1 — Tend the in-flight PR (self-healing). This phase REPLACES the old
 "any feat/ PR open → exit" gate. A single stuck PR must never freeze the loop.
 
-  Find open agent feature PRs:
+  Find open agent PRs (both feature and groom branches):
     gh pr list --state open --base main --json number,headRefName,mergeStateStatus,statusCheckRollup \
-      --jq '[.[] | select(.headRefName | startswith("feat/"))]'
+      --jq '[.[] | select(.headRefName | test("^(feat/|chore/gtm-)"))]'
   If the list is EMPTY → go to PHASE 2.
-  If non-empty, tend the LOWEST-numbered one (the oldest); call it PR #N on
-  branch B. Diagnose it:
+
+  Choose which to tend, in this priority:
+    1. The LOWEST-numbered open feat/ PR, if any (product work comes first).
+    2. Otherwise the LOWEST-numbered open chore/gtm- PR (groom backlog refresh).
+  Call it PR #N on branch B. A feat/ PR gets the FULL treatment (cases a–e). A
+  chore/gtm- PR is docs-only, so it only needs maintenance cases — apply (b)
+  BEHIND and (c) DIRTY exactly as written; for a red gating check on a chore/gtm-
+  PR (almost always a backlog:check failure from an inconsistent index), do NOT
+  hand-fix the backlog — post a one-line PR comment naming the failure and exit;
+  the next groom run closes+reopens with a corrected index. Then diagnose:
 
   Gating checks are EXACTLY these three (everything else, including Vercel and
   "Vercel Preview Comments", is informational and MUST be ignored):
@@ -134,7 +143,8 @@ PHASE 1 — Tend the in-flight PR (self-healing). This phase REPLACES the old
           gh pr merge N --auto --squash
         Print "PR #N healthy, auto-merge armed — waiting" and exit.
 
-PHASE 2 — Ship the next ticket (only reached when there's no feat/ PR to tend).
+PHASE 2 — Ship the next ticket (only reached when there's no open agent PR —
+feat/ or chore/gtm- — left to tend).
   Pick efficiently but SAFELY. The README index table gives you priority ORDER,
   but it can lag the ticket files — ship updates ticket files while groom rewrites
   the index, so a just-shipped ticket can still show `groomed` in the index for
@@ -200,8 +210,8 @@ HARD NOS — these fail the run:
   • Never exceed 2 heal attempts on one PR — escalate to a human comment instead.
 
 End with: what you did this run (HEAL #N <action> | SHIP <ticket-id> | WAIT |
-NOOP), PR url, CI state, ticket id + final status, any spawned sibling tickets,
-and any lesson appended.
+NOOP), the PR kind tended (feat/ or chore/gtm-) if any, PR url, CI state, ticket
+id + final status, any spawned sibling tickets, and any lesson appended.
 PROMPT
 
 EXIT=$?
