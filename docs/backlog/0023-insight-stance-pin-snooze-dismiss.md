@@ -1,7 +1,7 @@
 ---
 id: 0023
 title: Insight stance — pin, snooze, or dismiss insights into the persistent timeline
-status: proposed
+status: groomed
 priority: P2
 area: plan
 created: 2026-05-19
