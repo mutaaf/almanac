@@ -1,7 +1,7 @@
 ---
 id: 0019
 title: What-if marker simulator — drag any value to see which insights would fire
-status: in-progress
+status: shipped
 priority: P1
 area: plan
 created: 2026-05-19
@@ -88,3 +88,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 ## Implementation log
 
 - 2026-05-20 [implementation-dev] Picked up. Branch `feat/0019-what-if-simulator`. Status → in-progress. Plan: a pure `simulateInsights(panel, overrides[])` in `src/insights/simulate.ts` that reuses `computeInsights()` (one source of truth), an optional `interactive` param on `thermometer()`, additive `precision?: number` on `MarkerDef` + curated values, and the chip + simulation state machine + diff-aware insights renderer on `#/plan`. Render-time only — nothing persists, no Anthropic call, no egress change, no schema migration. Test-first in `tests/e2e/what-if.spec.ts` with `enterSimulation` / `dragSimulationSlider` helpers.
+- 2026-05-20 [implementation-dev] Shipped in PR #46 (squash-merged to main). Final build: `src/insights/simulate.ts` (pure `simulateInsights(panels, profile, overrides[])` + `diffInsights()`); `thermometer()` gained the `interactive` overlay handle; `MarkerDef.precision` added to ferritin/ApoB/hsCRP/fasting-insulin/HbA1c/vit-D/MCV/Mg-RBC; `SimulationDiff` + `SimulationOverride` in `types.ts`; the chip, simulation header, stepped sliders, diff-aware insights renderer, "On this draw" panel-summary block, and the eat-list note in `src/pages/plan.ts`; `.sim-*` styles in one CSS file (no new colors). Added a dedicated panel-summary block so every panel marker — including uncited and user-defined ones — is interrogable, satisfying acceptance criterion (b). All three gating checks green (Typecheck + build; E2E chromium 6m28s; E2E mobile-webkit 12m38s). Verified locally: what-if spec 38/38 across both projects; `plan.spec.ts` + `print.spec.ts` 42/42 (no regression to 0006/0013/0016). No schema migration, no egress-allow-list change, no new deps, zero Anthropic calls in the simulator.
