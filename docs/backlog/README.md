@@ -54,7 +54,7 @@ owner: gtm-innovation
 
 ## Index (top of the stack, by priority)
 
-> Updated by `/groom`. This table is the truth about ordering; ignore filesystem ordering.
+> Updated by `/groom` (and by `/ship` when it flips a row to `shipped`). This table is the truth about ORDERING; the ticket file frontmatter is the truth about STATUS. `scripts/check-backlog.mjs` runs in CI (the "Typecheck + build" gating job) and **fails the build if any row's status disagrees with its ticket file**, so the two can never drift in a merged commit.
 > Sorted by status (in-progress > groomed > proposed > needs-discovery > shipped > rejected), then priority (P0 > P1 > P2 > P3), then id ascending.
 
 | id | title | priority | status | area |
