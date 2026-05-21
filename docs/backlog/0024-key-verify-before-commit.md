@@ -1,7 +1,7 @@
 ---
 id: 0024
 title: Verify-before-commit — prove the BYOK key works before the user trusts it with their labs
-status: in-progress
+status: shipped
 priority: P1
 area: onboarding
 created: 2026-05-20
@@ -115,3 +115,6 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
     unhandled rejection to the console") is asserted via `pageerror` (our code),
     not raw browser `net::ERR_*` resource-load console lines, which are
     unavoidable for a deliberately-aborted request and are not thrown by us.
+- 2026-05-21 [implementation-dev] Merged to `main` as PR #54
+  (squash `4cd1561`); all three gating checks green — Typecheck + build,
+  E2E (chromium) 7m10s, E2E (mobile-webkit) 15m5s. Status → shipped.
