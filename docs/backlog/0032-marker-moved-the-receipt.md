@@ -1,7 +1,7 @@
 ---
 id: 0032
 title: The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it
-status: groomed
+status: in-progress
 priority: P1
 area: progress
 created: 2026-05-21
@@ -81,4 +81,9 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-21 [implementation-dev] Picked up. Branch `feat/0032-marker-moved-receipt`. Status → in-progress.
+  Interpretation notes for the few ambiguous edges in the criteria:
+  - Value pairs: the ticket's "ferritin 32 → 48" floor note is illustrative; `ferritin_m`'s actual functional floor is 70, so the into-range test seeds a `ferritin_m` pair (60 → 80, male profile) that genuinely crosses 70. The toward test uses hs-CRP 2.1 → 1.4 (ceiling 1.0, both still above) and the unchanged test uses ApoB 95 (held). The away test uses hs-CRP worsening 1.4 → 2.1.
+  - Direction word: "came up/down" is chosen from the sign of the delta; the toward state uses "eased" when the value fell and "came up" when it rose. "moved from" is the neutral verb for the `away` state (no euphemism).
+  - Sex-specific name: `ferritin_m` resolves through `findMarker()` to its human `name` ("Ferritin (Male)") — the row never shows the suffixed key. The criterion is satisfied by asserting the raw key never appears and the human name does.
+  - "Most recent prior draw" = the newest panel (by `drawnAt`) strictly older than the new panel that also carries the same `markerKey`.
