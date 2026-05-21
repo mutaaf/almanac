@@ -63,6 +63,7 @@ owner: gtm-innovation
 | 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | shipped | progress |
 | 0036 | The "normal" that isn't — a panel report card that counts how many markers sit below the optimum the lab called fine | P1 | groomed | labs |
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | groomed | growth |
+| 0041 | The days you kept — a quiet milestone the morning a run of consistent check-ins reaches 7, 30, or 100 | P1 | groomed | today |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
 | 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |
 | 0026 | Same marker, different lab — surface the canonicalization that lets a trend span report formats | P2 | groomed | labs |
@@ -75,9 +76,11 @@ owner: gtm-innovation
 | 0037 | What this costs to run — an honest pennies-per-action estimate before the user trusts a key, and a running tally after | P2 | groomed | onboarding |
 | 0038 | The functional-range reference — let a prospect read the marker library, with both ranges, before they trust the app with a key | P2 | groomed | growth |
 | 0039 | What we ruled out — name the patterns the engine checked and did NOT find, so a clean panel reads as reassurance | P2 | groomed | plan |
-| 0041 | The days you kept — a quiet milestone the morning a run of consistent check-ins reaches 7, 30, or 100 | P1 | proposed | today |
-| 0042 | The protocol, over time — browse every plan you have composed and diff any two of them | P2 | proposed | plan |
-| 0043 | Why this isn't a chat box — put the anti-wrapper argument in front of the prospect, before the key | P2 | proposed | growth |
+| 0042 | The protocol, over time — browse every plan you have composed and diff any two of them | P2 | groomed | plan |
+| 0043 | Why this isn't a chat box — put the anti-wrapper argument in front of the prospect, before the key | P2 | groomed | growth |
+| 0044 | Add to home screen — a one-time install prompt at the right moment | P1 | proposed | growth |
+| 0045 | The year in markers — a full trailing-year biomarker arc for the user with a history | P1 | proposed | progress |
+| 0046 | The pattern named — surface the top metabolic syndrome cluster the insight engine found | P2 | proposed | plan |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |

@@ -1,7 +1,7 @@
 ---
 id: 0042
 title: The protocol, over time — browse every plan you have composed and diff any two of them
-status: proposed
+status: groomed
 priority: P2
 area: plan
 created: 2026-05-21

@@ -1,0 +1,88 @@
+---
+id: 0044
+title: Add to home screen — a one-time install prompt at the right moment
+status: proposed
+priority: P1
+area: growth
+created: 2026-05-21
+owner: gtm-innovation
+---
+
+## User story
+
+As a user who has just composed my first plan and is now at the peak of caring about this, I want Almanac to offer — once, quietly, at that exact moment — to live on my home screen, so that the daily protocol I just built is one tap away on my phone instead of buried in a browser tab I will close and forget, and so the app behaves like the daily ritual it is meant to be rather than a website I have to remember to navigate back to.
+
+## Why now (four lenses)
+
+### Product Owner
+
+Almanac is a daily-ritual product — the check-in, the meals, the habit stack are all things the user is meant to open every morning. But on the deployed site it lives in a browser tab, which is the worst possible home for a daily habit: it is closed, lost in a sea of tabs, and reached only by re-typing a URL. The Web App Manifest and the platform install affordances exist precisely to fix this, turning the site into a standalone, chrome-less app launched from the home screen — and Almanac, being a static SPA with no backend, qualifies for a clean PWA install with zero server work. The smallest meaningful unit of value is a single, restrained "Add to home screen" prompt that fires exactly once, at the one moment the user has demonstrably found value (their first successful plan composition), and never again. It is not a nag that interrupts onboarding; it is an offer made at the moment of peak motivation, dismissible in one tap, and silenced forever once dismissed or once the app is already installed. The plumbing — a `manifest.json`, the apple meta tags, a `beforeinstallprompt` capture, a localStorage dismissal flag — is small and entirely standard. What it removes is the friction of "how do I get back to this," which is the friction that kills daily habits before they form.
+
+### Stakeholder
+
+This widens the moat on the axis the product cares about most — the **daily adherence loop** — by securing the single biggest structural predictor of a web app's daily-active retention: home-screen presence. An installed app launches in standalone mode, with no browser chrome, indistinguishable from a native app, which deepens the felt sense that this is *the* daily-protocol tool and not a bookmark. Crucially it does this without violating a single line of the contract: it is a web-standard PWA install surface, no backend, no push server (we are not asking for notification permission — only the home-screen slot), no analytics, no new egress (the manifest and icons are bundled assets served from our own origin; nothing is fetched from a third party). It is the rare retention lever that is pure web standard, costs nothing to operate, and compounds every other daily surface (Today, the meals grid, the milestone card 0041) by making them reachable in one tap. A chat box cannot offer this because it is not your app — it is someone else's tab; Almanac becoming an icon on your phone is part of what makes it *yours*.
+
+### User (at 7am on the phone)
+
+Sunday evening, I just composed my first plan — the eat list, the avoid list, the habits, all there, and it is genuinely good. As that lands, one quiet line appears at the bottom: "Open Almanac from your home screen." A small "Add" and a "Not now." I tap Add; my phone offers to place the icon, I confirm, and now Almanac is on my home screen next to my other daily apps. The next morning I tap the icon and it opens full-screen, no address bar, no tabs — it feels like the app it is. It asked me exactly once, at the moment I was already impressed, and it never asks again. If I had tapped "Not now," it would respect that and stay quiet forever. It did not interrupt me during setup, it did not pop up on every page, and it never asked to send me notifications. The prompt rendered instantly, offline-capable, because everything it needs ships with the app.
+
+### Growth
+
+This is the highest-leverage retention move available to a no-backend web app, aimed at the moment of maximum intent. Home-screen presence is the single biggest predictor of day-2-and-beyond return for installable web apps, and the moment a user finishes their first plan composition is the moment they are most likely to say yes — peak demonstrated value, before the tab gets closed and the URL forgotten. (Hypothesis: firing the install prompt at first-plan-success rather than at first-load materially raises the install-accept rate and therefore week-1 return, because intent is highest immediately after the user has seen the artifact work — back-of-envelope from how PWA install prompts deferred to a post-value moment outperform on-load prompts; treat as untested without remote analytics, which we will never add.) The acquisition tail is real but quiet: an Almanac icon on a friend's home screen is a recurring, ambient impression — "what's that?" asked in person — and an installed app is far more likely to be the thing the user actually shows someone, because it is one tap from their pocket rather than three taps and a URL recall away. The "show me" frame is the standalone launch itself: a chrome-less, full-screen Almanac that looks like a native app is the screenshot that makes a friend ask "wait, that's a website?"
+
+## Acceptance criteria
+
+Each box maps 1:1 to a Playwright test scenario.
+
+- [ ] `public/manifest.json` exists and is linked from `index.html` via `<link rel="manifest" href="/manifest.json">`. It declares `name: "Almanac"`, a `short_name`, `display: "standalone"`, `start_url: "/"`, `background_color` and `theme_color` matching the cream/oxblood palette, and at least two icon entries (192×192 and 512×512). Asserted by fetching `/manifest.json`, parsing it, and confirming the required fields and ≥2 icon entries are present, plus that `index.html` carries the manifest link.
+- [ ] `index.html` carries the iOS standalone meta tags (`apple-mobile-web-app-capable`, `apple-mobile-web-app-status-bar-style`, `apple-mobile-web-app-title`, and an `apple-touch-icon` link). Asserted by loading the page and confirming each meta/link is present in the document head.
+- [ ] After the first successful plan composition (the existing `composePlan` flow in `src/pages/plan.ts`), an `.install-prompt` card renders, exactly once, when ALL of: `window.matchMedia('(display-mode: standalone)').matches` is false, `navigator.standalone` is falsy, `localStorage["almanac.install.dismissed"]` is unset, AND (on Chrome/Android) a `beforeinstallprompt` event has been captured OR (on iOS/WebKit, where that event does not fire) the install hint is shown directly. Asserted by composing a plan with a mocked/captured `beforeinstallprompt` and confirming the `.install-prompt` card appears.
+- [ ] On the Chrome/Android path, tapping the card's single "Add" button calls the captured `beforeinstallprompt` event's `prompt()` method. Asserted by dispatching a synthetic `beforeinstallprompt` whose `prompt()` is a spy, composing a plan, tapping "Add", and confirming `prompt()` was called exactly once.
+- [ ] On the iOS/WebKit path (no `beforeinstallprompt`), the card renders an instructional line telling the user how to install ("tap Share, then Add to Home Screen") with NO non-functional "Add" button that does nothing — the instruction is the affordance. Asserted in the mobile-webkit project by composing a plan and confirming the instructional card renders with the share-sheet guidance and no dead button.
+- [ ] Tapping "Not now" sets `localStorage["almanac.install.dismissed"] = "true"` and dismisses the card. The card does not reappear on subsequent plan compositions or reloads. Asserted by dismissing the card, composing/reloading again, and confirming the card does not return.
+- [ ] When the app is already running in standalone mode (`display-mode: standalone` matches or `navigator.standalone` is true), the prompt NEVER renders, even on first plan composition with the dismissal flag unset. Asserted by forcing the standalone display-mode (via the test harness) and confirming no `.install-prompt` card after compose.
+- [ ] The prompt fires ONLY after a plan composition success, not on app load, not during onboarding, not on the welcome screen, and not on any other route. Asserted by visiting `#/welcome`, `#/onboarding`, `#/today`, and `#/labs` (with the flag unset and a captured install event) and confirming no `.install-prompt` card renders on any of them.
+- [ ] The prompt is rendered with **zero network calls** beyond the already-loaded app shell and the manifest/icon assets served from our own origin — no third-party fetch, no inference call. Asserted by composing a plan and confirming the mock recorded no off-allow-list requests during the prompt render.
+- [ ] The card is dismissible with a single ≥44×44 css px tap target ("Not now"), and the "Add" button (Chrome path) is likewise ≥44×44 css px. The card uses the editorial register — cream/ink, no emoji, no exclamation. Asserted by measuring both tap targets and confirming the copy carries no banned words.
+- [ ] Tour mode (0014) and shared-view mode (0017) do NOT surface the install prompt — neither composes a real first plan for the visitor, and the install offer belongs to a user who has built their own protocol. Asserted by completing the tour's sample compose (if any) and a shared-view render and confirming no `.install-prompt` card.
+- [ ] Renders on both **chromium** (Chrome `beforeinstallprompt` path) and **mobile-webkit** (iOS instructional path). The card wraps cleanly at the 390 px viewport and does not obscure the just-composed plan above it. Note explicitly in the spec which path is asserted per project.
+- [ ] Privacy E2E (`tests/e2e/privacy.spec.ts`) still passes — the manifest and icons are same-origin bundled assets; no new hostnames; no notification-permission request; no inference call.
+- [ ] Schema migration: **no** — the only persisted state is the `almanac.install.dismissed` localStorage flag (the same dismissal mechanism the recap 0008 / hundred-day 0021 surfaces use). Nothing new in IndexedDB.
+- [ ] New `tests/e2e/install-prompt.spec.ts` covers: manifest present with required fields and ≥2 icons, apple meta tags present, prompt fires once after first compose, Chrome "Add" calls `prompt()`, iOS instructional path, "Not now" persists and silences the prompt, no prompt in standalone mode, no prompt on non-compose routes, zero-network, tap-target sizes, tour/shared-view absence, mobile rendering.
+
+## Out of scope
+
+Explicit anti-goals. The dev agent will not do these even if they seem related.
+
+- A push-notification request, a service worker that registers for push, or any notification permission prompt. We are asking for the home-screen slot only. Push requires consent UX and (for delivery) a backend we will never run — out of scope entirely. The manifest must not declare anything that triggers a notification-permission flow.
+- A service worker for offline caching / full PWA offline support. The minimum for an installable app is the manifest + icons + meta tags; an offline-caching service worker is a separate, larger surface with its own cache-invalidation risks. If a minimal service worker is strictly required by a target browser to satisfy installability, keep it to the bare no-op/precache-shell minimum and say so in the implementation log — do not build an offline strategy in this ticket.
+- Re-prompting on a schedule, on a later milestone, or "remind me later" timing logic. The prompt fires once, at first-plan-success, and is silenced forever on dismissal or install. No second chance, no snooze queue — that is the nag pattern the editorial restraint rejects.
+- Firing the prompt at first app load, during onboarding, or on the welcome screen. The whole point is to ask at the moment of demonstrated value (first plan composed), not before the user has seen anything work.
+- Detecting the specific browser/OS to show tailored brand instructions for every platform. Two paths only: Chrome/Android (`beforeinstallprompt` → "Add" button) and the WebKit/iOS instructional fallback. A per-browser instruction matrix is gold-plating.
+- A custom install icon-design exercise. Two simple geometric almanac-style icons (an editorial mark in cream/ink/oxblood) at 192 and 512 are sufficient; an illustrated icon set is out of scope.
+- Tracking whether the user installed, or reading the `appinstalled` event into any persisted analytics. We may listen for `appinstalled` only to set the dismissal flag (so the prompt never re-shows post-install); we do NOT record an install metric — there is no analytics.
+- Widening the egress allow-list. The manifest and icons are served from our own origin and bundled with the app; nothing new leaves the device.
+
+## Engineering notes
+
+Files / patterns the dev should touch. Be specific enough that the dev doesn't have to re-discover the architecture.
+
+- `public/manifest.json` (new) — `name: "Almanac"`, `short_name: "Almanac"`, `display: "standalone"`, `start_url: "/"`, `scope: "/"`, `background_color` + `theme_color` set to the cream and oxblood hex values already in `src/styles.css` (read them from the CSS custom properties / palette constants — do not invent new colors), and an `icons` array with at least the 192×192 and 512×512 entries. Vite serves `public/` at the site root, so `/manifest.json` resolves with no build change.
+- `public/icon-192.png` + `public/icon-512.png` (new) — simple geometric almanac marks in the house palette (cream ground, ink mark, sparing oxblood). SVG sources rasterized to PNG are fine; keep them small. Reference them from both `manifest.json` (`icons`) and the `apple-touch-icon` link.
+- `index.html` — add `<link rel="manifest" href="/manifest.json">`, `<meta name="apple-mobile-web-app-capable" content="yes">`, `<meta name="apple-mobile-web-app-status-bar-style" content="default">`, `<meta name="apple-mobile-web-app-title" content="Almanac">`, and `<link rel="apple-touch-icon" href="/icon-192.png">`. Additive to the existing head; do not touch the font preconnect/stylesheet lines or the app-shell script tag.
+- `src/install.ts` (new, small) — a module that (a) on app boot adds a `beforeinstallprompt` listener that `preventDefault()`s and stashes the event in module state, (b) adds an `appinstalled` listener that sets `localStorage["almanac.install.dismissed"] = "true"`, and (c) exports `maybeShowInstallPrompt(mountTarget)` that checks the display-mode / `navigator.standalone` / dismissal-flag guards and renders the `.install-prompt` card (Chrome path with a working "Add" → `stashedEvent.prompt()`, or the iOS instructional path). Keep the boot listeners registered in `src/main.ts`'s bootstrap so the `beforeinstallprompt` event (which can fire early) is captured before the user reaches the plan page.
+- `src/pages/plan.ts` — in the existing post-compose success render path (the `composePlan`/`compose()` flow), after the plan renders, call `maybeShowInstallPrompt(...)`. Short-circuit in `isTour()` / `isSharedView()` exactly as the other growth surfaces do. Do NOT change the compose logic itself; this is a render-side addition.
+- `src/main.ts` — register the `beforeinstallprompt` / `appinstalled` boot listeners from `src/install.ts` during bootstrap (before routing), so the event is captured regardless of which route the user lands on first.
+- `src/styles.css` — `.install-prompt` (the card, restrained editorial styling, cream + ink), `.install-prompt__add` and `.install-prompt__dismiss` (both ≥44×44 css px tap targets; give them `box-sizing: border-box; min-height: 45px` per the `>= 44` tap-target lesson in `docs/LESSONS.md` so sub-pixel rounding can't drop them under the HIG floor). Grid children get `min-width: 0`. No new colors; oxblood reserved.
+- `src/sample/state.ts` / `src/share/shared-state.ts` — no fixture needed; the prompt short-circuits in tour and shared-view. Confirm the `isTour() || isSharedView()` guard.
+- `tests/helpers/flows.ts` — add a small helper to dispatch a synthetic `beforeinstallprompt` event with a spy `prompt()` (and a `userChoice` promise) so the Chrome path is testable in chromium; add a helper to force `display-mode: standalone` (Playwright `page.emulateMedia({ ... })` or a matchMedia override) for the already-installed test; add a helper to set/clear the `almanac.install.dismissed` flag. Reuse the existing `composePlan` flow to reach the post-compose moment.
+- `tests/e2e/install-prompt.spec.ts` (new) — every acceptance bullet maps to a `test()`. The Chrome-path test dispatches a synthetic `beforeinstallprompt` with a spy `prompt()`, composes a plan, taps "Add", and asserts the spy fired once. The mobile-webkit test asserts the instructional fallback (no dead button).
+- `tests/e2e/privacy.spec.ts` — extend with a post-compose visit (with the install event captured) confirming the manifest/icon fetches are same-origin and no new off-allow-list hostnames appear, and that no notification-permission request is made.
+- New deps: **no**.
+- Egress allow-list change: **no** — manifest and icons are same-origin bundled assets.
+- Schema migration: **no** (localStorage dismissal flag only).
+- Voice spec: the card reads "Open Almanac from your home screen." with an "Add" (Chrome) or the iOS share-sheet instruction, and a "Not now." dismissal. Declarative, no exclamation, no emoji. Banned: "amazing," "exciting," "journey," "great." Cream + ink; oxblood reserved.
+
+## Implementation log
+
+(Appended by the implementation-dev agent during execution.)
