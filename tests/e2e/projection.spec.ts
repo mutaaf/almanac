@@ -567,9 +567,10 @@ test.describe("Projection · v5 → v6 schema migration", () => {
     });
 
     // Dexie scales its version numbers by 10 internally (so v5 → IDB v50,
-    // v6 → IDB v60, v7 → IDB v70). The full chain ran iff the IDB version
-    // matches the current top-level Dexie marker.
-    expect(postUpgrade.version).toBe(70);
+    // v6 → IDB v60, v7 → IDB v70, v8 → IDB v80). The full chain ran iff the IDB
+    // version matches the current top-level Dexie marker — bumped to v8 by
+    // ticket 0020's additive `Profile.adoptSeed` version block.
+    expect(postUpgrade.version).toBe(80);
     expect(postUpgrade.hasProjections).toBe(true);   // v6 store materialized
     expect(postUpgrade.hasSessions).toBe(true);      // v7 store materialized (ticket 0018)
     expect(postUpgrade.profile).toBe(1);             // v5 profile survived

@@ -2,10 +2,24 @@
 
 import { mount, h, esc } from "../ui";
 import { saveProfile, getProfile } from "../db";
+import { readAdoptSeed, clearAdoptSeed } from "../share/adopt-seed";
 import type { Sex } from "../types";
 
 export async function renderOnboarding(): Promise<void> {
   const existing = await getProfile();
+
+  // Adopt-and-adapt prefix (ticket 0020). When the recipient adopted a friend's
+  // protocol, surface the carried-over pattern as a small italicized prefix
+  // ABOVE the editable goals textarea — never inside it, so keystroke editing
+  // of the user's own answer never collides with the seed. The seed is read
+  // here but cleared on submit, after it moves onto the persisted Profile.
+  const adoptSeed = readAdoptSeed();
+  const adoptPrefix = adoptSeed
+    ? `<p class="adopt-prefix">${esc(
+        `A friend's protocol leaned on: ${adoptSeed.habitTitles.join(", ")} · `
+        + `${adoptSeed.topEatFoods.join(", ")}. Edit below to add your own.`,
+      )}</p>`
+    : "";
 
   const frag = h(`
     <div>
@@ -61,6 +75,7 @@ export async function renderOnboarding(): Promise<void> {
 
           <div class="field">
             <label for="goals">What are you optimizing for?</label>
+            ${adoptPrefix}
             <textarea id="goals" name="goals" required placeholder="Energy through the afternoon. Lower hsCRP. Get triglycerides under 100. Hold lifts twice a week.">${esc(existing?.goals ?? "")}</textarea>
             <div class="hint">Two or three sentences. The plan is written against this.</div>
           </div>
@@ -121,6 +136,12 @@ export async function renderOnboarding(): Promise<void> {
     e.preventDefault();
     const f = e.target as HTMLFormElement;
     const fd = new FormData(f);
+    // Move the adopt seed (ticket 0020) from localStorage onto the persisted
+    // Profile, then clear the localStorage entry — the seed now lives in the
+    // persistent timeline (Dexie), single source of truth. Read fresh at submit
+    // time (not the render-time `adoptSeed`) so a refresh between render and
+    // submit can't desync.
+    const seedToCarry = readAdoptSeed();
     await saveProfile({
       ownerName:    String(fd.get("name") ?? "").trim(),
       birthDate:    String(fd.get("birthDate") ?? "") || undefined,
@@ -133,7 +154,9 @@ export async function renderOnboarding(): Promise<void> {
       householdSize: numOrUndef(fd.get("householdSize")) ?? 1,
       anthropicKey: String(fd.get("key") ?? "").trim(),
       model:        String(fd.get("model") ?? "claude-sonnet-4-6"),
+      ...(seedToCarry ? { adoptSeed: seedToCarry } : {}),
     });
+    if (seedToCarry) clearAdoptSeed();
     // Ticket 0007 — hand the user off to the plan page, which renders the
     // first-compose state ("Compose from intake" primary, "I have labs —
     // upload first" secondary). The intake answers above are enough to

@@ -59,7 +59,6 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0020 | Adopt-and-adapt — turn a friend's shared protocol into the seed of your own first plan | P1 | groomed | growth |
 | 0021 | The hundred-day mark — a quarterly reflective surface for the user who actually stayed | P1 | groomed | progress |
 | 0024 | Verify-before-commit — prove the BYOK key works before the user trusts it with their labs | P1 | groomed | onboarding |
 | 0025 | The egress receipt — show exactly what leaves this device before a lab upload calls Claude | P1 | groomed | privacy |
@@ -86,6 +85,7 @@ owner: gtm-innovation
 | 0017 | Shareable protocol link — text a friend your actual protocol without a backend | P1 | shipped | growth |
 | 0018 | Lapse-aware welcome-back surface — the re-engagement page for the user who came back after a long quiet | P1 | shipped | today |
 | 0019 | What-if marker simulator — drag any value to see which insights would fire | P1 | shipped | plan |
+| 0020 | Adopt-and-adapt — turn a friend's shared protocol into the seed of your own first plan | P1 | shipped | growth |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | shipped | infra |
 | 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | shipped | plan |
 | 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | shipped | plan |

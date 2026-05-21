@@ -12,7 +12,7 @@ import { glossForRule, type PreComputedInsight } from "../insights";
 import { simulateInsights } from "../insights/simulate";
 import { masthead, foot } from "../chrome";
 import {
-  getProfile, allPanels, latestPlan, savePlan, recentCheckIns,
+  getProfile, allPanels, latestPlan, savePlan, saveProfile, recentCheckIns,
   latestMealPlan, today, checkInFor, upsertCheckIn, db,
 } from "../db";
 import {
@@ -146,6 +146,19 @@ async function paintEmpty(): Promise<void> {
   const panels = await allPanels();
   const haveLabs = panels.length > 0;
 
+  // Adopt-and-adapt editorial line (ticket 0020). When the user arrived by
+  // adopting a friend's protocol, the seed now lives on the persisted Profile.
+  // Surface a single editorial line above the first-compose CTA so the empty
+  // state acknowledges how they got here — context only; the plan is still
+  // built against their own intake.
+  const profile = await getProfile();
+  const adoptLine = profile?.adoptSeed
+    ? `<p class="adopt-plan-line">${esc(
+        "You came in after reading a friend's protocol. Your plan will be built "
+        + "against your own intake — the friend's pattern is context only.",
+      )}</p>`
+    : "";
+
   // Three branches:
   //   - haveLabs                → "compose now from your panels" (the old flow)
   //   - !haveLabs (intake only) → the first-compose two-path state (ticket 0007)
@@ -177,6 +190,7 @@ async function paintEmpty(): Promise<void> {
         you named. It will be written without lab data, and the first thing it asks you to do is upload your
         most recent labs so the next pass can name specific markers.
       </p>
+      ${adoptLine}
       <div style="display: flex; gap: 1rem; margin-top: 2.2rem; flex-wrap: wrap;">
         <button id="compose-from-intake" class="btn btn--accent">Compose from intake</button>
         <a href="#/labs" class="btn btn--ghost">I have labs — upload first</a>
@@ -229,6 +243,12 @@ async function composeFromIntake(): Promise<void> {
       basedOnPanelIds: [],
       model,
     });
+
+    // Single-use adopt seed (ticket 0020): the first composed plan acknowledges
+    // the referral, then the seed is retired so subsequent re-composes never
+    // carry it. Clear it AFTER the plan is saved so a compose failure leaves the
+    // seed in place for a retry.
+    await clearProfileAdoptSeed(profile);
 
     // Same WebKit/IndexedDB read-after-write wait as compose() — see the
     // comment in compose() for the long form of why this exists.
@@ -286,6 +306,11 @@ async function compose(opts: { lapseAwareGap?: number } = {}): Promise<void> {
       model,
     });
 
+    // Single-use adopt seed (ticket 0020) — see composeFromIntake() for the why.
+    // The panels-first compose path also carries the seed (a recipient who
+    // uploaded labs between onboarding and compose), so clear it here too.
+    await clearProfileAdoptSeed(profile);
+
     // WebKit (especially headless Linux WebKit in CI) sometimes returns from
     // `db.plans.add()` slightly before the row is readable through the
     // `generatedAt` index — meaning the next `latestPlan()` call inside
@@ -337,6 +362,19 @@ async function waitForPlanCommit(id: number, timeoutMs = 2000): Promise<void> {
   // If we drop out here we still proceed; the subsequent render will paint
   // an empty state (rare), but at least the user sees the screen — not a
   // half-built UI.
+}
+
+/**
+ * Retire the single-use adopt seed (ticket 0020) off the persisted Profile
+ * after the first plan is composed. Re-persists the profile with `adoptSeed`
+ * dropped so subsequent re-composes never carry the referral block. No-op when
+ * the profile never had a seed — the common case for non-referred users, so the
+ * write only happens for the referred-first-compose path.
+ */
+async function clearProfileAdoptSeed(profile: Profile): Promise<void> {
+  if (!profile.adoptSeed) return;
+  const { id: _id, createdAt: _c, updatedAt: _u, adoptSeed: _seed, ...rest } = profile;
+  await saveProfile({ ...rest, createdAt: profile.createdAt, adoptSeed: undefined });
 }
 
 /* ============================================================================

@@ -7,7 +7,9 @@
 
 import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
-import { onboard, addManualPanel, composePlan, enterTour } from "../helpers/flows";
+import {
+  onboard, addManualPanel, composePlan, enterTour, enterSharedViewWithAdopt,
+} from "../helpers/flows";
 
 const ALLOWED_HOSTS = [
   "127.0.0.1", "localhost",
@@ -110,6 +112,51 @@ test.describe("Privacy contract", () => {
       expect(typeof row.at).toBe("number");
       expect(typeof row.id).toBe("number");
     }
+  });
+
+  test("the adopt-and-adapt flow (ticket 0020) never widens the egress allow-list", async ({ page }) => {
+    const stats = await installMocks(page);
+    // A fresh recipient adopts a friend's protocol, consents, onboards, and
+    // composes their first plan. The seed is local-only; the only off-device
+    // call is the BYOK compose to api.anthropic.com, already on the allow-list.
+    await page.goto("/");
+    await page.evaluate(() => {
+      localStorage.clear();
+      return new Promise<void>((resolve) => {
+        const req = indexedDB.deleteDatabase("almanac");
+        req.onsuccess = () => resolve();
+        req.onerror   = () => resolve();
+        req.onblocked = () => resolve();
+      });
+    });
+
+    await enterSharedViewWithAdopt(page, {
+      version: 1,
+      eatList: [{ id: "e", food: "Sardines", frequency: "weekly", portion: "1 tin", why: "x", markerKeys: [] }],
+      avoidList: [],
+      habitStack: { intro: "One.", habits: [{ id: "h", title: "Walk", cue: "AM", why: "x" }] },
+    });
+    await page.locator("#consent").check();
+    await page.getByRole("button", { name: /continue to onboarding/i }).click();
+    await page.fill("#name", "Recipient");
+    await page.fill("#birthDate", "1992-03-03");
+    await page.selectOption("#sex", "female");
+    await page.fill("#goals", "Better sleep.");
+    await page.fill("#dietPattern", "Pescatarian.");
+    await page.fill("#key", "sk-ant-test-fake-key");
+    await page.getByRole("button", { name: /^begin$/i }).click();
+    await expect(page).toHaveURL(/#\/plan$/);
+    await page.locator("#compose-from-intake").click();
+    await expect(page.locator(".dash-snapshot, .prose").first()).toBeVisible({ timeout: 20_000 });
+
+    const offending = stats.outboundUrls.filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
   });
 
   test("import of a malformed export does not crash the app", async ({ page }) => {

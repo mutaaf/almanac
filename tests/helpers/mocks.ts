@@ -88,6 +88,14 @@ export interface MockStats {
   swapCalls: number;
   /** Every request URL the page attempted to make off-device. */
   outboundUrls: string[];
+  /**
+   * The full prompt body (system + every user text block, joined) of the most
+   * recent `/v1/messages` call the mock served. Lets a spec assert what did and
+   * did not travel in the prompt — e.g. the adopt-seed "Referral context (not
+   * constraint)" block fires only when the seed is present (ticket 0020).
+   * Returns "" before any call has been served.
+   */
+  lastPromptBody(): string;
 }
 
 /**
@@ -98,7 +106,11 @@ export interface MockStats {
  * telemetry tests verify their math.
  */
 export async function installMocks(page: Page): Promise<MockStats> {
-  const stats: MockStats = { extractCalls: 0, planCalls: 0, mealsCalls: 0, swapCalls: 0, outboundUrls: [] };
+  let lastPrompt = "";
+  const stats: MockStats = {
+    extractCalls: 0, planCalls: 0, mealsCalls: 0, swapCalls: 0, outboundUrls: [],
+    lastPromptBody: () => lastPrompt,
+  };
 
   // Allow-list of hosts the browser may talk to. Anything else gets blocked
   // so the privacy test can prove there's no egress.
@@ -117,6 +129,15 @@ export async function installMocks(page: Page): Promise<MockStats> {
     if (host === "api.anthropic.com" && url.pathname === "/v1/messages") {
       const body = request.postDataJSON() as AnthropicReqBody;
       const sys = (body.system ?? []).map(s => s.text).join("\n");
+
+      // Capture the whole prompt (system + every user text block) so a spec can
+      // assert what did / did not travel — see MockStats.lastPromptBody.
+      const userText = (body.messages ?? [])
+        .flatMap(m => Array.isArray(m.content) ? m.content : [m.content])
+        .filter((b: any) => b && typeof b === "object" && b.type === "text")
+        .map((b: any) => b.text as string)
+        .join("\n");
+      lastPrompt = [sys, userText].filter(Boolean).join("\n");
 
       if (sys.includes("extracting structured biomarker")) {
         stats.extractCalls++;
@@ -183,10 +204,17 @@ export async function installMocks(page: Page): Promise<MockStats> {
       if (sys.includes("INTAKE_PLAN_VOICE")) {
         stats.planCalls++;
         const cached = stats.planCalls > 1;
+        // When the prompt carries the adopt-seed referral block (ticket 0020),
+        // serve the fixture whose snapshot acknowledges the referral — this
+        // proves the prompt-side wiring carries through to the rendered plan
+        // without re-prompting real LLM behavior.
+        const intakeFixture = /Referral context \(not constraint\):/.test(userText)
+          ? "plan.adopt-seed.json"
+          : "plan-from-intake.json";
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify(buildResponse(body.model, readFixture("plan-from-intake.json"), {
+          body: JSON.stringify(buildResponse(body.model, readFixture(intakeFixture), {
             cacheRead: cached ? 2400 : 0, cacheCreate: cached ? 0 : 1200,
           })),
         });

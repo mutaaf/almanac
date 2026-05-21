@@ -20,10 +20,41 @@
 // trade-off for never writing the recipient's IndexedDB.
 
 import type {
-  Plan, MealPlan, Profile, SharedProtocolState,
+  Plan, MealPlan, Profile, SharedProtocolState, AdoptSeed,
 } from "../types";
 
 const SHARED_KEY = "almanac.sharedView";
+
+/* -------------------------------------------------------------------------- */
+/*  Adopt-and-adapt seed extraction (ticket 0020)                             */
+/* -------------------------------------------------------------------------- */
+
+/** Caps — the seed carries no more than this many of each (ticket 0020). */
+const MAX_HABIT_TITLES = 5;
+const MAX_EAT_FOODS = 3;
+
+/**
+ * Extract the structured carry-over from a shared protocol state — at most five
+ * habit titles from `state.plan.habitStack.habits` and at most three food names
+ * from `state.plan.eatList`, in the order they appear (the friend's curation
+ * order is the signal). Pure: NO localStorage writes, NO LLM, NO inference,
+ * literal field reads only. Nothing else from the payload travels — the seed
+ * structurally cannot carry labs / insights / profile (the share payload never
+ * had them) nor the friend's name (there is no name field, by construction).
+ */
+export function extractAdoptSeed(state: SharedProtocolState): AdoptSeed {
+  const habitTitles = (state.plan.habitStack?.habits ?? [])
+    .map(h => h.title)
+    .filter((t): t is string => typeof t === "string" && t.length > 0)
+    .slice(0, MAX_HABIT_TITLES);
+
+  const topEatFoods = (state.plan.eatList ?? [])
+    .map(e => e.food)
+    .filter((f): f is string => typeof f === "string" && f.length > 0)
+    .slice(0, MAX_EAT_FOODS);
+
+  return { version: 1, habitTitles, topEatFoods, capturedAt: Date.now() };
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Sentinel                                                                  */
