@@ -12,6 +12,8 @@
 
 import { esc } from "../ui";
 import { verifyKey } from "../claude";
+import { isTour } from "../sample/state";
+import { isSharedView } from "../share/shared-state";
 
 /** The result lines, kept here so the two pages render identical copy. */
 const COPY = {
@@ -26,8 +28,13 @@ const COPY = {
  * The static markup for the affordance + reserved result slot. Drop it directly
  * under a key field's hint line. The action starts disabled; `wireKeyCheck`
  * keeps `aria-disabled` in sync with whether the key field holds text.
+ *
+ * Returns "" in tour (0014) and shared-view (0017) mode: neither has a real key
+ * field — the field shown is sandbox scaffolding — and the probe must never fire
+ * a billable call in a fixture context. Absent affordance, absent probe.
  */
 export function keyCheckMarkup(): string {
+  if (isTour() || isSharedView()) return "";
   return `
     <div class="key-check">
       <span class="key-check__action eyebrow" role="button" tabindex="0"
