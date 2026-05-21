@@ -1,7 +1,7 @@
 ---
 id: 0025
 title: The egress receipt — show exactly what leaves this device before a lab upload calls Claude
-status: groomed
+status: in-progress
 priority: P1
 area: privacy
 created: 2026-05-20
@@ -79,4 +79,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-21 [implementation-dev] Picked up 0025. Branch `feat/0025-egress-receipt` off `main` @ 513d0a2. Flipped frontmatter + README index row to `in-progress`. Interpretation notes for the test-first pass: the receipt is a render-time, zero-network artifact painted into the `#actions` area of `#/labs` whenever `staged.length > 0`. The host string is sourced from a single new exported constant `ANTHROPIC_HOST` in `src/claude.ts` (the egress allow-list's enforced host) — no allow-list widening, read-only display. The cache-replay fact is read via a new exported `hashStagedFiles()` in `src/extractor.ts` (refactored from the existing inline `hashFiles`) → `getCachedExtraction()`, which is a local-only IndexedDB read, so the receipt stays zero-network. Tour mode (`isTour()`) renders the receipt against staged files but with the "nothing is sent" copy; shared-view never reaches the upload surface (renders the not-included empty state) so the receipt is structurally absent there.
