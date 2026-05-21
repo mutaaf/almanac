@@ -16,12 +16,13 @@ import { panelsFromFiles, hashStagedFiles, type ExtractedRow } from "../extracto
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import { listUserMarkers, addUserMarker, getAllMarkers } from "../data/userMarkers";
 import { computeProjection } from "../progress/projection";
+import { computeMovementReceipt, moveSentence } from "../labs/movement-receipt";
 import { route } from "../main";
 import { isSharedView } from "../share/shared-state";
 import { isTour } from "../sample/state";
 import { getCachedExtraction } from "../db";
 import { ANTHROPIC_HOST } from "../claude";
-import type { MarkerCategory, MarkerDef, Panel, ProjectionSnapshot, Result } from "../types";
+import type { MarkerCategory, MarkerDef, MarkerMove, Panel, ProjectionSnapshot, Result } from "../types";
 
 /* The staging set lives outside render so paste handlers can mutate it
    without re-running the whole component. */
@@ -549,6 +550,14 @@ async function renderPanelDetail(id: number): Promise<void> {
     ? renderUnmatchedSection(unmatched, profile?.sex, extras, userMarkerKeys)
     : "";
 
+  // Movement receipt (ticket 0032) — "Since your last draw," one calm dated
+  // line per marker that also has an earlier draw. Pure, zero-network: it reads
+  // this panel + every prior panel already loaded from IndexedDB. Renders
+  // nothing on a first-ever panel (no marker has a prior to compare against).
+  const priorPanels = (await allPanels()).filter(p => p.id !== id);
+  const moves = computeMovementReceipt(panel, priorPanels, extras);
+  const movementHtml = moves.length ? renderMovementReceipt(moves) : "";
+
   const pageCount = panel.fileNames?.length ?? panel.fileBlobs?.length ?? 0;
   const sourceLabel = panel.source === "manual"
     ? "Manual entry"
@@ -566,6 +575,7 @@ async function renderPanelDetail(id: number): Promise<void> {
         </h1>
 
         ${groupsHtml || `<div class="quiet">No matched results.</div>`}
+        ${movementHtml}
         ${unmatchedHtml}
 
         <div style="margin-top: 3rem; display: flex; gap: 1rem; flex-wrap: wrap;">
@@ -586,6 +596,30 @@ async function renderPanelDetail(id: number): Promise<void> {
   });
 
   wireUnmatchedHandlers(id);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Movement receipt (ticket 0032)                                            */
+/* -------------------------------------------------------------------------- */
+/*
+ * Render the "Since your last draw" section: one editorial line per marker that
+ * moved relative to its most recent prior draw. The into-range crossing gets no
+ * special color (ink, not oxblood and not a green) — the satisfaction is in the
+ * copy. Long marker names wrap rather than overflow (the `min-width: 0` fix on
+ * the row grid). The caller only invokes this when `moves` is non-empty, so the
+ * eyebrow is absent on a fresh first panel.
+ */
+function renderMovementReceipt(moves: MarkerMove[]): string {
+  const lines = moves.map(m => `
+    <p class="movement-receipt__row" data-state="${esc(m.state)}">${esc(moveSentence(m))}</p>
+  `).join("");
+
+  return `
+    <section class="movement-receipt" aria-label="Since your last draw">
+      <div class="section-mark movement-receipt__eyebrow">Since your last draw</div>
+      <div class="movement-receipt__lines">${lines}</div>
+    </section>
+  `;
 }
 
 /* -------------------------------------------------------------------------- */

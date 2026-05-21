@@ -241,6 +241,39 @@ export interface PlanDelta {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Marker-moved receipt (ticket 0032)                                        */
+/* -------------------------------------------------------------------------- */
+/*
+ * One "what moved since your last draw" line, computed by
+ * `computeMovementReceipt(newPanel, priorPanels)` in `src/labs/movement-receipt.ts`.
+ * Render-time only — nothing here is persisted (no schema change). For each
+ * result in the just-resolved panel that has at least one prior draw of the
+ * same `markerKey`, the function takes the most recent prior value, computes
+ * the delta, decides whether the move was toward the functional optimum and
+ * whether it crossed into the range, and classifies the `state`. Pure: no DOM,
+ * no Dexie, no network. The emotional sibling of the canonicalization receipt
+ * (0026): that says "we recognized this marker across labs," this says "and
+ * here is how far it moved."
+ */
+export interface MarkerMove {
+  markerKey: string;
+  /** Human display name resolved via the marker DB (sex-specific + user keys). */
+  canonicalName: string;
+  priorValue: number;
+  newValue: number;
+  unit: string;
+  /** Full month name of the prior draw, e.g. "February". */
+  priorMonth: string;
+  /** newValue - priorValue. Signed. */
+  delta: number;
+  /** True when the new value sits closer to the functional optimum than the prior. */
+  towardOptimal: boolean;
+  /** True when the prior value was outside the functional range and the new value is inside it. */
+  crossedIntoRange: boolean;
+  state: "into-range" | "toward" | "away" | "unchanged";
+}
+
+/* -------------------------------------------------------------------------- */
 /*  What-if simulation (ticket 0019)                                          */
 /* -------------------------------------------------------------------------- */
 /*
