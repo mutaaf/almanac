@@ -615,7 +615,20 @@ export async function seedHundredDayState(page: Page, opts: SeedHundredDayOpts):
 export interface SeedPanelInput {
   drawnAt: Day;
   labName?: string;
-  results: Array<{ markerKey: string; value: number; unit: string; optimalRange?: { low?: number; high?: number } }>;
+  results: Array<{
+    markerKey: string;
+    value: number;
+    unit: string;
+    labRange?: { low?: number; high?: number };
+    optimalRange?: { low?: number; high?: number };
+    /**
+     * Optional pre-assigned flag (ticket 0036). When present it's written onto
+     * the seeded result exactly as the extractor / manual-entry path would, so a
+     * spec can construct exact report-card class counts without relying on the
+     * `flagFor()` fallback resolving against a marker's DB ranges.
+     */
+    flag?: "low" | "high" | "in-range" | "suboptimal" | "optimal";
+  }>;
   /** Clear the `panels` store before writing this row. Default false. */
   clearFirst?: boolean;
 }
@@ -658,7 +671,9 @@ export async function seedPanel(page: Page, panel: SeedPanelInput): Promise<numb
             markerKey: r.markerKey,
             value: r.value,
             unit: r.unit,
+            ...(r.labRange ? { labRange: r.labRange } : {}),
             ...(r.optimalRange ? { optimalRange: r.optimalRange } : {}),
+            ...(r.flag ? { flag: r.flag } : {}),
           })),
         });
         add.onsuccess = () => { newId = add.result as number; };
