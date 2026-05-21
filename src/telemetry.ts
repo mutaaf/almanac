@@ -2,15 +2,17 @@
 // (in localStorage, never transmitted) so the user can see exactly what the
 // AI work cost — and verify that prompt caching is doing its job.
 //
-// What's stored: the kind of call (plan / meals / extract / swap), the model,
-// all four token counts (input / cache-create / cache-read / output), the
-// stop_reason, and a wall-clock timestamp. Last 50 calls.
+// What's stored: the kind of call (plan / meals / extract / swap / verify), the
+// model, all four token counts (input / cache-create / cache-read / output), the
+// stop_reason, and a wall-clock timestamp. Last 50 calls. The "verify" kind is
+// the key-check probe (ticket 0024) — a near-free authenticated round-trip the
+// user explicitly triggers; it lands in the same log so every call is visible.
 
 import type Anthropic from "@anthropic-ai/sdk";
 
 export interface CallRecord {
   at: number;                              // ms epoch
-  kind: "plan" | "meals" | "extract" | "swap";
+  kind: "plan" | "meals" | "extract" | "swap" | "verify";
   model: string;
   inputTokens: number;
   cacheCreateTokens: number;

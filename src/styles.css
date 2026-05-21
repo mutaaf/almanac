@@ -313,6 +313,51 @@ body {
   font-style: italic;
 }
 
+/* ---- verify-before-commit: the "Check this key" affordance (ticket 0024) --- */
+.key-check {
+  margin-top: 0.7rem;
+}
+
+/* The affordance is a small-caps eyebrow link in ink — informational, not a
+   primary CTA, so it never wears the oxblood accent. ≥44px touch target on
+   mobile via padding + min-height; the negative margin keeps it visually flush
+   with the field while still hitting the 44px box. */
+.key-check__action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -0.6rem 0;
+  cursor: pointer;
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  transition: color 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+
+.key-check__action:hover { border-bottom-color: var(--ink); }
+.key-check__action:focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
+
+.key-check__action[aria-disabled="true"] {
+  color: var(--ink-faint);
+  border-bottom-color: transparent;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Reserve the result line's height so the spinner / answer arriving never
+   shifts the form layout. Wraps cleanly at the 390px phone viewport. */
+.key-check__result {
+  min-height: 1.4rem;
+  margin-top: 0.55rem;
+  font-family: var(--body);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  max-width: 56ch;
+}
+
+.key-check__pending { color: var(--ink-faint); font-style: italic; }
+.key-check__ok      { color: var(--ink-soft); }
+.key-check__fail    { color: var(--oxblood); }
+
 /* Buttons: text-led, hairline-bordered, never pill-shaped.
    Tap target: ≥44px on mobile via min-height + padding. */
 .btn {

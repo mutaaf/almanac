@@ -3,6 +3,7 @@
 import { mount, h, esc } from "../ui";
 import { saveProfile, getProfile } from "../db";
 import { readAdoptSeed, clearAdoptSeed } from "../share/adopt-seed";
+import { keyCheckMarkup, wireKeyCheck } from "../onboarding/key-check";
 import type { Sex } from "../types";
 
 export async function renderOnboarding(): Promise<void> {
@@ -106,6 +107,7 @@ export async function renderOnboarding(): Promise<void> {
               Stored only in this browser. Used to extract labs (PDF/photo) and compose your plan.
               <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Get one →</a>
             </div>
+            ${keyCheckMarkup()}
           </div>
 
           <div class="field">
@@ -131,6 +133,19 @@ export async function renderOnboarding(): Promise<void> {
   `);
 
   mount(frag);
+
+  // Verify-before-commit (ticket 0024). The key check is wired here, after
+  // mount, reading the live #key + #model values at click time. It is entirely
+  // independent of the submit handler below — submit is unchanged whether or
+  // not the check is ever tapped.
+  const form = document.getElementById("onb");
+  if (form) {
+    wireKeyCheck(
+      form,
+      () => (document.getElementById("key") as HTMLInputElement | null)?.value ?? "",
+      () => (document.getElementById("model") as HTMLSelectElement | null)?.value ?? "claude-sonnet-4-6",
+    );
+  }
 
   document.getElementById("onb")?.addEventListener("submit", async (e) => {
     e.preventDefault();
