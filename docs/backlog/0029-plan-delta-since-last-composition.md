@@ -1,7 +1,7 @@
 ---
 id: 0029
 title: What changed since last time — show the delta between this plan and the one it replaced
-status: in-progress
+status: shipped
 priority: P1
 area: plan
 created: 2026-05-21
@@ -95,3 +95,11 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
   Identity fields confirmed: eat/avoid by `food`, habit by `title`, insight by `title`.
   Shared-view is excluded by construction (it never reaches the summary render path), and
   the tour fixture carries one plan only, so the tour shows no summary (never fabricated).
+- 2026-05-21 [implementation-dev] Shipped on `feat/0029-plan-delta` (PR #61). Pure engine in
+  `src/plan/delta.ts` (`computePlanDelta` + `isEmptyDelta` + `relativeSpan`); render wired into
+  `src/pages/plan.ts` above the snapshot in both modes; `.plan-delta` styles (ink/ink-soft,
+  `min-width:0` + `overflow-wrap` for long names); `PlanDelta` added to `src/types.ts`; a
+  `seedPlan()` helper in `tests/helpers/flows.ts`; `tests/e2e/plan-delta.spec.ts` (13 scenarios,
+  green on chromium + mobile-webkit). No new deps, no egress change, no schema migration. Full
+  local gate green (typecheck, build, full chromium suite — the residual flakes are the known
+  parallel-load ones in LESSONS.md and pass on retry).
