@@ -1,7 +1,7 @@
 ---
 id: 0039
 title: What we ruled out — name the patterns the engine checked and did NOT find, so a clean panel reads as reassurance instead of silence
-status: proposed
+status: groomed
 priority: P2
 area: plan
 created: 2026-05-21

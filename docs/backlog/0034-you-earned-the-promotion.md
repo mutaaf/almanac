@@ -1,7 +1,7 @@
 ---
 id: 0034
 title: You earned the next tier — show the user the adherence that promoted a habit when the plan recomposes
-status: proposed
+status: groomed
 priority: P2
 area: plan
 created: 2026-05-21

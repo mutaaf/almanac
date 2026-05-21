@@ -1,7 +1,7 @@
 ---
 id: 0038
 title: The functional-range reference — let a prospect read the marker library, with both ranges, before they trust the app with a key
-status: proposed
+status: groomed
 priority: P2
 area: growth
 created: 2026-05-21
