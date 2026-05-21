@@ -1232,6 +1232,81 @@ body {
   background: rgba(122,31,43,0.06);
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Egress receipt (ticket 0025)                                              */
+/* -------------------------------------------------------------------------- */
+/* The "what leaves this device" pre-flight line. Calm, not alarming — ink and
+   ink-soft only, NO oxblood (privacy is not an error state here). */
+.egress-receipt {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 2px solid var(--paper-edge);
+  background: var(--paper-deep);
+  font-family: var(--body);
+}
+.egress-receipt__summary {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 64ch;
+}
+.egress-receipt__cache {
+  color: var(--ink);
+}
+.egress-receipt__disclosure {
+  /* ink eyebrow link, but a ≥44×44 css px touch target on every viewport. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  margin-top: 0.4rem;
+  padding: 0 0.1rem;
+  border: 0;
+  background: transparent;
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 180ms var(--ease);
+}
+.egress-receipt__disclosure:hover,
+.egress-receipt__disclosure[aria-expanded="true"] {
+  color: var(--ink);
+}
+.egress-receipt__detail {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.4rem;
+  max-width: 64ch;
+}
+/* `display: grid` would otherwise override the [hidden] UA rule — keep the
+   collapsed state actually hidden. */
+.egress-receipt__detail[hidden] { display: none; }
+.egress-receipt__cache[hidden]  { display: none; }
+.egress-receipt__row {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  /* long, hyphen-free file names must wrap rather than overflow at 390px. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+.egress-receipt__row--destination {
+  color: var(--ink);   /* the host is the load-bearing fact; render it firmer. */
+}
+.egress-receipt__rowlabel {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-right: 0.35rem;
+}
+
 /* Inline keyboard-shortcut pill */
 .kbd {
   display: inline-block;
@@ -4131,8 +4206,13 @@ body {
 .share-protocol__btn {
   /* Sits next to .print-share__btn. Same chip rhythm; the data-action attr is
      what differentiates them in the JS handler. Minimum 44×44 tap target on
-     mobile so iOS HIG passes. */
-  min-height: 44px;
+     mobile so iOS HIG passes.
+     box-sizing + a 1px cushion above 44 so WebKit's fractional device-pixel
+     rounding (it reports the box at 43.99998px on the iPhone-15 DPR, tripping
+     protocol-link.spec.ts's `>= 44` tap-target assertion) clears the floor on
+     every viewport rather than landing a ten-thousandth of a pixel short. */
+  box-sizing: border-box;
+  min-height: 45px;
 }
 
 .share-modal-root {

@@ -217,6 +217,42 @@ test.describe("Privacy contract", () => {
     expect(offending).toEqual([]);
   });
 
+  test("the egress receipt (ticket 0025) displays the enforced host and fires zero network", async ({ page }) => {
+    const stats = await installMocks(page);
+    await onboard(page);
+    await page.goto("/#/labs");
+    await page.locator(".dropzone").waitFor();
+
+    // Stage a file + expand the receipt. The receipt is computed locally from
+    // the staged set + a constant host — no off-device call may fire while it
+    // renders. Snapshot the outbound count first so font/asset churn from
+    // earlier in the flow doesn't get attributed to the receipt.
+    const before = stats.outboundUrls.length;
+    const png =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    await page.locator("input#file").setInputFiles({
+      name: "labs.png", mimeType: "image/png", buffer: Buffer.from(png, "base64"),
+    });
+    await expect(page.locator(".egress-receipt")).toBeVisible();
+    await page.locator(".egress-receipt__disclosure").click();
+    await expect(page.locator(".egress-receipt__detail")).toBeVisible();
+
+    const duringReceipt = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      return new URL(u).hostname === "api.anthropic.com";
+    });
+    expect(duringReceipt).toEqual([]);
+
+    // The displayed destination host must equal the SAME host the egress
+    // allow-list enforces — sourced from the single ANTHROPIC_HOST constant.
+    const host = await page.evaluate(async () => {
+      const mod = await import("/src/claude.ts");
+      return (mod as { ANTHROPIC_HOST: string }).ANTHROPIC_HOST;
+    });
+    expect(ALLOWED_HOSTS).toContain(host);
+    await expect(page.locator(".egress-receipt__row--destination")).toContainText(host);
+  });
+
   test("import of a malformed export does not crash the app", async ({ page }) => {
     await installMocks(page);
     await onboard(page);
