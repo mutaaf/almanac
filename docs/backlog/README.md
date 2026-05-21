@@ -59,7 +59,6 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | in-progress | progress |
 | 0036 | The "normal" that isn't — a panel report card that counts how many markers sit below the optimum the lab called fine | P1 | groomed | labs |
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | groomed | growth |
 | 0041 | The days you kept — a quiet milestone the morning a run of consistent check-ins reaches 7, 30, or 100 | P1 | groomed | today |
@@ -101,6 +100,7 @@ owner: gtm-innovation
 | 0025 | The egress receipt — show exactly what leaves this device before a lab upload calls Claude | P1 | shipped | privacy |
 | 0028 | The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back | P1 | shipped | today |
 | 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | shipped | plan |
+| 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | shipped | progress |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | shipped | infra |
 | 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | shipped | plan |
 | 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | shipped | plan |

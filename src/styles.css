@@ -502,6 +502,40 @@ body {
   margin-top: 0.5rem;
 }
 
+/* =============================================================================
+   Movement receipt (ticket 0032) — "Since your last draw," one calm dated line
+   per marker that moved relative to its most recent prior draw. The sibling of
+   the plan-delta section above; re-uses the .section-mark small-caps eyebrow and
+   the same editorial type tokens. No special color on an into-range crossing —
+   ink and ink-soft only; the satisfaction is in the copy, not the styling.
+   ============================================================================= */
+.movement-receipt {
+  margin: 2.6rem 0 0.2rem;
+  padding: 1.1rem 0 0.2rem;
+  border-top: 1px solid var(--rule);
+  min-width: 0;            /* grid/flex child must allow long names to wrap   */
+}
+.movement-receipt__eyebrow {
+  color: var(--ink-faint);
+  border-bottom: 0;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0;
+}
+.movement-receipt__lines {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;            /* documented overflow fix for long marker names   */
+}
+.movement-receipt__row {
+  font-family: var(--body);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere; /* long single-token marker names break, not overflow */
+}
+
 .view-toggle {
   display: inline-flex;
   border: 1px solid var(--rule);
