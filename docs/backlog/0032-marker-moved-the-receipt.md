@@ -1,7 +1,7 @@
 ---
 id: 0032
 title: The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it
-status: in-progress
+status: shipped
 priority: P1
 area: progress
 created: 2026-05-21
@@ -94,3 +94,5 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
   - `src/styles.css` — `.movement-receipt` (+ `__eyebrow`, `__lines`, `__row`); ink/ink-soft only, `min-width:0` wrap fix, no into-range color flourish.
   - `tests/helpers/flows.ts` — added `seedPanel()` (the sibling seeding helper the ticket called for).
   - `tests/e2e/movement-receipt.spec.ts` — 12 scenarios, all green on chromium. One real find during the test-first loop: the receipt must display `shortName ?? name` (ApoB, not "Apolipoprotein B") to match the page's result-row convention.
+  - Mid-ship, a concurrent launchd agent reset the shared checkout to `main` (the documented clobber); all work was already committed/pushed, so recovery was a no-op (`git checkout feat/0032-marker-moved-receipt`). Logged the novel remote-tracking-ref-pruning wrinkle to LESSONS.
+- 2026-05-21 [implementation-dev] PR #62 → status `shipped`. Flip pushed in the SAME commit as the final feature work so auto-merge can't orphan it (LESSONS 2026-05-20 ship/phase2).
