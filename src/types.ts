@@ -569,6 +569,90 @@ export interface WelcomeBackRow {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  The hundred-day mark (ticket 0021)                                        */
+/* -------------------------------------------------------------------------- */
+/*
+ * The quarterly reflective surface. `computeHundredDayState()` (in
+ * `src/progress/hundred-day.ts`) builds a fresh state from the user's plans,
+ * panels, check-ins, and projection snapshots on every render. Nothing here is
+ * persisted (no schema migration) beyond a per-quarter dismissal localStorage
+ * key. The function is PURE — no DOM, no Dexie, no Anthropic — so the surface
+ * opens deterministically and offline.
+ *
+ * Returns null when (a) no plan has been composed, (b) the user is less than
+ * 100 days past their first plan, or (c) fewer than 50 check-ins fell inside
+ * the 100-day window. A populated state otherwise.
+ */
+
+export interface HundredDayState {
+  /** Which 100-day block this is: 1 = days 1–100, 2 = 101–200, etc. */
+  quarterIndex: number;
+  /** Inclusive window bounds as Days (offset from the first plan). */
+  windowStart: Day;
+  windowEnd: Day;
+  arc: ArcSection;
+  labs: LabsSection;
+  editorial: EditorialSection;
+}
+
+export interface ArcSection {
+  /** One row per habit that appeared in ANY plan during the window. */
+  habits: ArcHabit[];
+}
+
+export interface ArcHabit {
+  id: string;
+  title: string;
+  /** Days the habit id appears in CheckIn.habitsCompleted within the window. */
+  heldDays: number;
+  /**
+   * The first week (1–14) where adherence dropped below 50% for this habit AND
+   * stayed below for the next two weeks. Omitted when the habit held.
+   */
+  slipWeek?: number;
+  /**
+   * The day-offset within the window when the habit first appeared in a
+   * recomposed plan. Omitted when present from day 1.
+   */
+  addedOnDay?: number;
+}
+
+export interface LabsSection {
+  /** Draws inside the window, oldest first. */
+  panels: Array<{ drawnAt: Day; markerCount: number }>;
+  /** Every marker with ≥2 draws in the window, ordered by absolute delta desc. */
+  markerMovements: MarkerMovement[];
+}
+
+export interface MarkerMovement {
+  markerKey: string;
+  firstValue: number;
+  lastValue: number;
+  unit: string;
+  /**
+   * Projection evaluation via 0012's `evaluateLanded()` — whether the last
+   * value landed inside / above / below the projected band we showed the user.
+   * Null when there is no qualifying projection snapshot for the marker.
+   */
+  projectionEvaluation?: "within" | "above" | "below" | null;
+}
+
+export interface EditorialSection {
+  paragraphs: EditorialParagraph[];
+}
+
+export interface EditorialParagraph {
+  kind:
+    | "habit-marker-link"
+    | "habit-slip"
+    | "habit-add"
+    | "marker-mover"
+    | "marker-held";
+  /** One declarative sentence in the editorial voice. */
+  sentence: string;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Shareable protocol link (ticket 0017)                                     */
 /* -------------------------------------------------------------------------- */
 /*

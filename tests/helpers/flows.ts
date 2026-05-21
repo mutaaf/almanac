@@ -442,6 +442,170 @@ export async function seedAdoptInLocalStorage(page: Page, seed: AdoptSeedInput):
   }, seed);
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Hundred-day mark seeding (ticket 0021)                                     */
+/* -------------------------------------------------------------------------- */
+
+/** One habit on a seeded plan. */
+interface SeedHabit { id: string; title: string; cue?: string; why?: string }
+
+/** One seeded plan, generated `daysAgo` days before the wall clock. */
+interface SeedPlan {
+  daysAgo: number;
+  habits: SeedHabit[];
+  /** Optional eat-list marker linkage (food-driven habit→marker link). */
+  eatMarkerKeys?: string[];
+}
+
+/** One seeded check-in. `dayOffset` is days after the FIRST plan's generation. */
+interface SeedCheckIn { dayOffset: number; habitsCompleted: string[] }
+
+/** One seeded panel, drawn `dayOffset` days after the first plan. */
+interface SeedPanel {
+  dayOffset: number;
+  results: Array<{ markerKey: string; value: number; unit: string }>;
+}
+
+/** One seeded projection snapshot computed FROM `panelDayOffset`'s panel. */
+interface SeedProjection {
+  markerKey: string;
+  panelDayOffset: number;
+  low: number;
+  high: number;
+}
+
+export interface SeedHundredDayOpts {
+  /** Plans the user composed during (or at the start of) the window. */
+  plans: SeedPlan[];
+  /** Check-ins spanning the window. */
+  checkIns: SeedCheckIn[];
+  /** Optional panels drawn inside the window. */
+  panels?: SeedPanel[];
+  /** Optional projection snapshots (joined to a panel by day-offset). */
+  projections?: SeedProjection[];
+}
+
+/**
+ * Seed IndexedDB with a synthetic timeline for the hundred-day surface (ticket
+ * 0021): a set of plans (each generated `daysAgo` days back), check-ins spanning
+ * the 100-day window, and optional panels + projection snapshots. This lets the
+ * spec exercise every `computeHundredDayState()` code path without paying the
+ * full onboard→compose round-trip.
+ *
+ * Day-offsets in `checkIns` / `panels` are measured from the FIRST plan's
+ * generation day (offset 0 = the first plan's day). The helper resolves them to
+ * real ISO Days off the wall clock at seed time so the in-app `now` math lines
+ * up. Clears `plans`, `checkins`, `panels`, and `projections` first so a re-seed
+ * isn't shadowed by a prior scenario.
+ */
+export async function seedHundredDayState(page: Page, opts: SeedHundredDayOpts): Promise<void> {
+  await page.evaluate((o: SeedHundredDayOpts) => {
+    const DAY_MS = 86_400_000;
+    const now = Date.now();
+    // The earliest plan is the window anchor (day 0).
+    const oldestDaysAgo = Math.max(...o.plans.map((p) => p.daysAgo));
+    const firstPlanAt = now - oldestDaysAgo * DAY_MS;
+    const isoForOffset = (offset: number): string =>
+      new Date(firstPlanAt + offset * DAY_MS).toISOString().slice(0, 10);
+
+    const open = (): Promise<IDBDatabase> =>
+      new Promise((resolve, reject) => {
+        const req = indexedDB.open("almanac");
+        req.onerror = () => reject(req.error ?? new Error("open failed"));
+        req.onsuccess = () => resolve(req.result);
+      });
+
+    // Phase 1: clear the four stores, write plans + check-ins + panels, and
+    // capture each panel's auto-assigned id keyed by its day-offset. We resolve
+    // only on tx.oncomplete, so every id is committed before phase 2 runs —
+    // no reassigning a request's onsuccess after it may already have fired.
+    const writeBase = (db: IDBDatabase): Promise<Map<number, number>> =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(["plans", "checkins", "panels", "projections"], "readwrite");
+        const plans = tx.objectStore("plans");
+        const checkins = tx.objectStore("checkins");
+        const panelsStore = tx.objectStore("panels");
+        const projections = tx.objectStore("projections");
+        plans.clear();
+        checkins.clear();
+        panelsStore.clear();
+        projections.clear();
+
+        for (const p of o.plans) {
+          plans.add({
+            generatedAt: now - p.daysAgo * DAY_MS,
+            basedOnPanelIds: [],
+            snapshot: "A seeded plan for the hundred-day surface test.",
+            insights: [],
+            eatList: (p.eatMarkerKeys && p.eatMarkerKeys.length)
+              ? [{ id: "e1", food: "Seeded food", frequency: "weekly", portion: "1", why: "x", markerKeys: p.eatMarkerKeys }]
+              : [],
+            avoidList: [],
+            lifestyle: [],
+            supplements: [],
+            habitStack: {
+              intro: "Small actions.",
+              habits: p.habits.map((h) => ({ id: h.id, title: h.title, cue: h.cue ?? "AM", why: h.why ?? "x" })),
+            },
+            retest: [],
+          });
+        }
+
+        for (const c of o.checkIns) {
+          checkins.add({
+            day: isoForOffset(c.dayOffset),
+            habitsCompleted: c.habitsCompleted,
+            createdAt: now,
+          });
+        }
+
+        const panelIdByOffset = new Map<number, number>();
+        for (const panel of o.panels ?? []) {
+          const r = panelsStore.add({
+            drawnAt: isoForOffset(panel.dayOffset),
+            source: "manual",
+            createdAt: now,
+            results: panel.results,
+          });
+          r.onsuccess = () => { panelIdByOffset.set(panel.dayOffset, r.result as number); };
+        }
+
+        tx.oncomplete = () => resolve(panelIdByOffset);
+        tx.onerror    = () => reject(tx.error ?? new Error("base tx failed"));
+      });
+
+    // Phase 2: write projection snapshots, joining each to its source panel's
+    // now-committed id. Skipped when there are no projections to seed.
+    const writeProjections = (db: IDBDatabase, panelIdByOffset: Map<number, number>): Promise<void> =>
+      new Promise((resolve, reject) => {
+        const projs = o.projections ?? [];
+        if (!projs.length) { resolve(); return; }
+        const tx = db.transaction(["projections"], "readwrite");
+        const store = tx.objectStore("projections");
+        for (const proj of projs) {
+          const panelId = panelIdByOffset.get(proj.panelDayOffset);
+          if (panelId == null) continue;
+          store.add({
+            markerKey: proj.markerKey,
+            panelId,
+            low: proj.low,
+            high: proj.high,
+            weeksOut: [8, 12],
+            createdAt: now,
+          });
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror    = () => reject(tx.error ?? new Error("projection tx failed"));
+      });
+
+    return open().then((db) =>
+      writeBase(db)
+        .then((ids) => writeProjections(db, ids))
+        .finally(() => db.close()),
+    );
+  }, opts);
+}
+
 /**
  * Compose the plan. Mocks must already be installed. Leaves the page on /plan.
  *

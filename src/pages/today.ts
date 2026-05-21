@@ -12,6 +12,7 @@ import {
   getProfile, today, latestPlan, latestMealPlan,
   checkInFor, upsertCheckIn, recentCheckIns, isoWeek,
   allPanels, getProjectionsFor, weekRange,
+  firstPlanGeneratedAt, allCheckInsInWindow,
 } from "../db";
 import { isTour } from "../sample/state";
 import { isSharedView } from "../share/shared-state";
@@ -52,6 +53,79 @@ function renderRecapCard(): string {
           <a href="#/recap" class="btn btn--accent">Open recap</a>
           <button type="button" class="recap-card__dismiss" data-action="dismiss-recap">
             Not this week
+          </button>
+        </div>
+      </div>
+    </aside>
+  `;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Quarterly note card (ticket 0021)                                         */
+/* -------------------------------------------------------------------------- */
+/*
+ * The hundred-day mark's Today entry point. When the user is past day 100 from
+ * their first plan AND has 50+ check-ins inside the current 100-day window AND
+ * has not dismissed THIS quarter, a small editorial card surfaces above the
+ * meals row. It re-uses the .recap-card token with a --quarterly modifier for
+ * the eyebrow accent. Precedence: quarterly > Sunday recap > quiet-day; only the
+ * highest-precedence card renders. The decision is fully local — no Anthropic.
+ *
+ * Dismissal is per-quarter: localStorage["almanac.hundredDay.dismissed.q<N>"].
+ * A user who dismissed quarter 1 still sees the card on day 200 for quarter 2.
+ */
+
+const HUNDRED_DAY_DISMISSED_PREFIX = "almanac.hundredDay.dismissed.q";
+const HUNDRED_DAY_WINDOW = 100;
+const HUNDRED_DAY_MIN_CHECKINS = 50;
+const HUNDRED_DAY_MS = 86_400_000;
+
+function quarterDismissed(quarterIndex: number): boolean {
+  try { return localStorage.getItem(HUNDRED_DAY_DISMISSED_PREFIX + quarterIndex) === "true"; }
+  catch { return false; }
+}
+
+/**
+ * Resolve whether the quarterly card should fire and, if so, which quarter it
+ * belongs to. Returns the quarter index when active, or null otherwise. Reads
+ * the first plan's generation date and the count of check-ins inside the
+ * current window. Tour and shared-view short-circuit (the db reads return null /
+ * empty), so this never fires in a session-scoped mode.
+ */
+async function quarterlyCardQuarter(): Promise<number | null> {
+  const firstPlanAt = await firstPlanGeneratedAt();
+  if (firstPlanAt == null) return null;
+
+  const elapsed = Math.floor((Date.now() - firstPlanAt) / HUNDRED_DAY_MS);
+  if (elapsed < HUNDRED_DAY_WINDOW) return null;
+
+  const quarterIndex = Math.floor(elapsed / HUNDRED_DAY_WINDOW);
+  if (quarterDismissed(quarterIndex)) return null;
+
+  const startOffset = (quarterIndex - 1) * HUNDRED_DAY_WINDOW;
+  const endOffset = quarterIndex * HUNDRED_DAY_WINDOW - 1;
+  const startDay = new Date(firstPlanAt + startOffset * HUNDRED_DAY_MS).toISOString().slice(0, 10);
+  const endDay = new Date(firstPlanAt + endOffset * HUNDRED_DAY_MS).toISOString().slice(0, 10);
+
+  const windowCheckIns = await allCheckInsInWindow(startDay, endDay);
+  if (windowCheckIns.length < HUNDRED_DAY_MIN_CHECKINS) return null;
+
+  return quarterIndex;
+}
+
+function renderQuarterlyCard(quarterIndex: number): string {
+  return `
+    <aside class="recap-card recap-card--quarterly" role="note" data-quarter="${quarterIndex}">
+      <div class="recap-card__eyebrow">A quarterly note · 100 days</div>
+      <div class="recap-card__body">
+        <p class="recap-card__lede">
+          You are a hundred days past your first plan. Read the arc — which habits held,
+          which markers moved, what the next hundred could reasonably hold.
+        </p>
+        <div class="recap-card__actions">
+          <a href="#/hundred-day" class="btn btn--accent">Read the hundred-day</a>
+          <button type="button" class="recap-card__dismiss" data-action="dismiss-quarterly">
+            Not this quarter
           </button>
         </div>
       </div>
@@ -136,13 +210,20 @@ export async function renderToday(): Promise<void> {
     ? renderMealsRow(todays, ate)
     : renderMealsEmpty(!!mp && mp.planId === plan.id);
 
-  const recapCardHtml = recapCardActive() ? renderRecapCard() : "";
+  // Precedence (ticket 0021): quarterly > Sunday recap > quiet-day. Only the
+  // highest-precedence card renders. The quarterly card is the long-arc note
+  // that fires once per 100-day block; it sits above the weekly and daily cards.
+  const quarterlyQuarter = await quarterlyCardQuarter();
+  const quarterlyCardHtml = quarterlyQuarter != null ? renderQuarterlyCard(quarterlyQuarter) : "";
 
-  // The quiet-day card (ticket 0015) only renders Mon–Sat AND only when the
-  // recap card isn't already taking the slot. The recap is a calendar-aligned
-  // ritual; the quiet card is the everyday fallback — never both.
+  const recapCardHtml = quarterlyQuarter == null && recapCardActive() ? renderRecapCard() : "";
+
+  // The quiet-day card (ticket 0015) only renders Mon–Sat AND only when neither
+  // the quarterly nor the recap card is already taking the slot. The quarterly
+  // and recap cards are cadence-aligned rituals; the quiet card is the everyday
+  // fallback — never two cards at once.
   let quietCardHtml = "";
-  if (!recapCardActive() && !quietCardDismissedToday(day)) {
+  if (quarterlyQuarter == null && !recapCardActive() && !quietCardDismissedToday(day)) {
     const panels = await allPanels();
     const latestPanelId = panels[0]?.id;       // newest-first by drawnAt
     const projections = latestPanelId != null
@@ -169,6 +250,7 @@ export async function renderToday(): Promise<void> {
           ${greeting(profile.ownerName)}.
         </h1>
 
+        ${quarterlyCardHtml}
         ${recapCardHtml}
         ${quietCardHtml}
 
@@ -213,6 +295,18 @@ export async function renderToday(): Promise<void> {
   `);
 
   mount(frag);
+
+  // Quarterly card dismissal (ticket 0021) — per-quarter, keyed by the quarter
+  // index so a user who dismisses quarter 1 still sees the card on day 200 for
+  // quarter 2. The flag survives reloads.
+  document.querySelector("[data-action='dismiss-quarterly']")?.addEventListener("click", () => {
+    const card = document.querySelector<HTMLElement>(".recap-card--quarterly");
+    const q = card?.dataset.quarter;
+    if (q) {
+      try { localStorage.setItem(HUNDRED_DAY_DISMISSED_PREFIX + q, "true"); } catch { /* private mode is fine */ }
+    }
+    card?.remove();
+  });
 
   // Sunday recap card dismissal — flips the ISO-week-keyed localStorage flag
   // and yanks the card from the DOM in one beat. The flag survives reloads,
