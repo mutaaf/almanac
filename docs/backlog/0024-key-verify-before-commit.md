@@ -84,3 +84,34 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 ## Implementation log
 
 (Appended by the implementation-dev agent during execution.)
+
+- 2026-05-21 [implementation-dev] Shipped on `feat/0024-key-verify-before-commit`.
+  - `src/claude.ts`: added `verifyKey(key, model): Promise<KeyCheckResult>` — a
+    discriminated union `{ ok: true } | { ok: false; reason: "auth" | "model" |
+    "billing" | "network" }`. One `messages.create` with `max_tokens: 1`, a
+    single `"hi"` user message, no system prompt, no caching, no labs. Bounded by
+    a 15s `AbortController` timeout (the ticket's fallback — no prior call-timeout
+    convention existed in the module). `recordCall("verify", …)` on success only.
+    The key never enters the resolved value, a thrown error, or the console;
+    `classifyKeyError` reads only `status` + lowercased error type/message.
+  - Shared affordance extracted to `src/onboarding/key-check.ts`
+    (`keyCheckMarkup()` + `wireKeyCheck()`) so onboarding and Settings cannot
+    drift. The markup returns "" in tour (0014) / shared-view (0017) mode — those
+    pages render a sandbox key field but must never fire a billable probe.
+  - Telemetry: added the `"verify"` kind to `CallRecord` so the probe lands in
+    the local AI-calls log (acceptance: telemetry +1 on success).
+  - CSS: `.key-check` (reserved-height slot), `.key-check__action` (ink eyebrow
+    link, ≥44px touch target), `.key-check__ok` (ink), `.key-check__fail`
+    (oxblood — the one honest alert register). No new CSS file.
+  - Mock: `tests/helpers/mocks.ts` recognizes the min-token probe
+    (`max_tokens === 1`, empty system) and is drivable per-test into
+    ok/auth/model/billing/network via `setKeyCheckOutcome`. Existing
+    extraction/plan/meals routing untouched.
+  - Tests: `tests/e2e/key-verify.spec.ts` (12 tests, one per acceptance bullet),
+    all green on chromium; privacy sweep extended to confirm the probe hits only
+    `api.anthropic.com` (allow-list unchanged). No egress allow-list change, no
+    schema migration, no new deps.
+  - Interpretation note: the network-failure acceptance ("never throws an
+    unhandled rejection to the console") is asserted via `pageerror` (our code),
+    not raw browser `net::ERR_*` resource-load console lines, which are
+    unavoidable for a deliberately-aborted request and are not thrown by us.
