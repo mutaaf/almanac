@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
 import {
   onboard, addManualPanel, composePlan, enterTour, enterSharedViewWithAdopt,
-  seedHundredDayState,
+  seedHundredDayState, seedPlanWithRetest,
 } from "../helpers/flows";
 
 const ALLOWED_HOSTS = [
@@ -251,6 +251,39 @@ test.describe("Privacy contract", () => {
     });
     expect(ALLOWED_HOSTS).toContain(host);
     await expect(page.locator(".egress-receipt__row--destination")).toContainText(host);
+  });
+
+  test("the retest-due surface (ticket 0028) renders with no off-allow-list egress", async ({ page }) => {
+    const stats = await installMocks(page);
+    await onboard(page);
+    // Seed a plan whose retest cadence places a draw 9 days out, then open
+    // Today. The card is computed from the latest plan + panels in IndexedDB —
+    // it must paint with zero new hostnames and zero inference call.
+    await seedPlanWithRetest(page, {
+      generatedDaysAgo: 75,
+      retest: [{ markerKeys: ["apo_b", "hs_crp"], whenWeeks: 12 }],
+    });
+    const before = stats.outboundUrls.length;
+    await page.goto("/#/today");
+    await page.reload();
+    await expect(page.locator(".retest-card")).toBeVisible();
+
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+
+    // And specifically: no inference call to api.anthropic.com fired while the
+    // local-only card rendered.
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
   });
 
   test("import of a malformed export does not crash the app", async ({ page }) => {

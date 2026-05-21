@@ -606,6 +606,97 @@ export async function seedHundredDayState(page: Page, opts: SeedHundredDayOpts):
   }, opts);
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Retest-due surface seeding (ticket 0028)                                   */
+/* -------------------------------------------------------------------------- */
+
+/** One retest cadence on a seeded plan. */
+interface SeedRetest { markerKeys: string[]; whenWeeks: number; reason?: string }
+
+/** One panel for the retest seed, drawn `daysAgo` calendar days back. */
+interface SeedRetestPanel {
+  daysAgo: number;
+  results: Array<{ markerKey: string; value: number; unit: string }>;
+}
+
+export interface SeedRetestPlanOpts {
+  /** How many calendar days ago the plan was generated (the cadence anchor). */
+  generatedDaysAgo: number;
+  /** The retest cadences the generator wrote onto the plan. */
+  retest: SeedRetest[];
+  /** Optional panels — used by the "card clears after a covering draw" path. */
+  panels?: SeedRetestPanel[];
+  /** Optional second (NEWER) plan, for the newest-plan-wins recomposition path. */
+  newerPlan?: { generatedDaysAgo: number; retest: SeedRetest[] };
+}
+
+/**
+ * Seed IndexedDB with a composed plan (and optionally a newer plan + panels)
+ * whose retest cadence places a draw at a controlled offset from the wall
+ * clock. The due date is `generatedAt + whenWeeks * 7 days`, so a spec can
+ * place a draw 9 days out / 1 day out / 8 days past by choosing
+ * `generatedDaysAgo` relative to `whenWeeks`.
+ *
+ * Clears `plans` and `panels` first so a re-seed isn't shadowed by a prior
+ * scenario. Each seeded plan carries a real habit stack so the Today page
+ * renders its usual surfaces around the retest card. Mirrors the
+ * `seedHundredDayState` two-store write pattern; nothing here is persisted that
+ * the app doesn't already persist (no schema change).
+ */
+export async function seedPlanWithRetest(page: Page, opts: SeedRetestPlanOpts): Promise<void> {
+  await page.evaluate((o: SeedRetestPlanOpts) => {
+    const DAY_MS = 86_400_000;
+    const now = Date.now();
+    const isoForDaysAgo = (daysAgo: number): string =>
+      new Date(now - daysAgo * DAY_MS).toISOString().slice(0, 10);
+
+    const planRow = (generatedDaysAgo: number, retest: SeedRetest[]) => ({
+      generatedAt: now - generatedDaysAgo * DAY_MS,
+      basedOnPanelIds: [],
+      snapshot: "A seeded plan for the retest-due surface test.",
+      insights: [],
+      eatList: [], avoidList: [], lifestyle: [], supplements: [],
+      habitStack: {
+        intro: "Small actions.",
+        habits: [{ id: "h1", title: "Walk after dinner", cue: "PM", why: "x" }],
+      },
+      retest: retest.map((r) => ({
+        markerKeys: r.markerKeys,
+        whenWeeks: r.whenWeeks,
+        reason: r.reason ?? "Re-test on the next draw.",
+      })),
+    });
+
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error ?? new Error("open failed"));
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["plans", "panels"], "readwrite");
+        const plans = tx.objectStore("plans");
+        const panels = tx.objectStore("panels");
+        plans.clear();
+        panels.clear();
+
+        plans.add(planRow(o.generatedDaysAgo, o.retest));
+        if (o.newerPlan) plans.add(planRow(o.newerPlan.generatedDaysAgo, o.newerPlan.retest));
+
+        for (const panel of o.panels ?? []) {
+          panels.add({
+            drawnAt: isoForDaysAgo(panel.daysAgo),
+            source: "manual",
+            createdAt: now,
+            results: panel.results,
+          });
+        }
+
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+      };
+    });
+  }, opts);
+}
+
 /**
  * Compose the plan. Mocks must already be installed. Leaves the page on /plan.
  *

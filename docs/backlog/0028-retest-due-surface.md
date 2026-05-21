@@ -1,7 +1,7 @@
 ---
 id: 0028
 title: The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back
-status: groomed
+status: shipped
 priority: P1
 area: today
 created: 2026-05-21
@@ -81,4 +81,31 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-21 [implementation-dev] Started. Branch `feat/0028-retest-due`.
+  - Schema confirmation per the engineering note: the Plan type (`src/types.ts`)
+    carries its creation timestamp as `generatedAt: number` (ms epoch), NOT
+    `createdAt`, and the retest cadence is `retest: RetestItem[]` where
+    `RetestItem = { markerKeys: string[]; whenWeeks: number; reason: string }`.
+    The acceptance criteria's prose says "plan's `createdAt`" and "weeks"; the
+    honest, shippable anchor is `generatedAt + whenWeeks * 7 days`. The
+    `RetestStatus.setOn` field is `new Date(plan.generatedAt)`. No schema change.
+  - `computeRetestStatus` takes the most consequential (soonest-due) retest
+    entry across `plan.retest[]`. When a plan carries several retest cadences
+    (the tour fixture has two), the card surfaces the one whose draw is closest
+    to due so the single-card discipline holds.
+- 2026-05-21 [implementation-dev] Shipped via PR #58.
+  - New: pure `src/today/retest.ts` (`computeRetestStatus`), `RetestStatus`
+    type (additive, no schema migration), `.retest-card` in `src/styles.css`
+    (ink/ink-soft only, box-sizing:border-box + min-height:45px for the ≥44px
+    tap target per LESSONS 2026-05-21), the card render + covering-draw
+    suppression in `src/pages/today.ts` (below meals, above habit stack), and
+    the `seedPlanWithRetest` test helper. Gated with the existing
+    `isSharedView()` / `isTour()` checks: shared-view never renders; tour
+    renders only when the fixture cadence is in-window (it is ~71 days out, so
+    absent — never fabricated).
+  - Coverage: `tests/e2e/retest-due.spec.ts` (16 cases) + a new
+    `tests/e2e/privacy.spec.ts` egress case. Green on chromium and
+    mobile-webkit. The two unrelated local-env failures (adopt-and-adapt:345,
+    protocol-link:583) were proven pre-existing/parallel-load via the
+    base-revert + isolation techniques (LESSONS 2026-05-21); not weakened.
+  - No new dependency, no egress allow-list change, no schema migration.

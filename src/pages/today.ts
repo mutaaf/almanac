@@ -17,7 +17,11 @@ import {
 import { isTour } from "../sample/state";
 import { isSharedView } from "../share/shared-state";
 import { pickQuietDayNote } from "../today/quiet-card";
-import type { CheckIn, Habit, Meal, DayMeals, QuietDayNote } from "../types";
+import { computeRetestStatus } from "../today/retest";
+import { getAllMarkers } from "../data/userMarkers";
+import type {
+  CheckIn, Habit, Meal, DayMeals, Plan, Panel, QuietDayNote, RetestStatus,
+} from "../types";
 
 /* -------------------------------------------------------------------------- */
 /*  Sunday recap card                                                         */
@@ -170,6 +174,118 @@ function renderQuietCard(note: QuietDayNote): string {
   `;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Retest-due card (ticket 0028)                                             */
+/* -------------------------------------------------------------------------- */
+/*
+ * The plan's retest cadence — markers + weeks + reason the generator wrote —
+ * carried forward as a calm, dated nudge. When the latest plan's soonest draw
+ * is due within 14 days (`due-soon`) or already past (`overdue`), a single card
+ * surfaces below the day's meals and above the habit stack. `upcoming` (more
+ * than 14 days out) renders nothing. The whole card is a single tap to the labs
+ * upload surface — the place the new draw goes. Computed entirely from local
+ * data; no Anthropic call. Ink and ink-soft only (overdue is calm, not an
+ * error) — no oxblood.
+ *
+ * Suppression: once the user has actually drawn blood — a panel covering ALL of
+ * the soonest cadence's markers, drawn on or after the plan's generation date —
+ * the draw happened and the card clears. The plan-creation anchor is the honest
+ * default per the ticket; the schema carries no per-marker last-draw anchor.
+ */
+
+/** Day-precision ISO (local) for a ms timestamp — for comparing draw dates. */
+function isoDay(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+/**
+ * The soonest-due cadence's marker keys, mirroring `computeRetestStatus`'s
+ * selection. Used for the covering-draw suppression check (the status itself
+ * carries only display names, by contract). Returns [] when the plan has no
+ * usable cadence.
+ */
+function soonestCadenceKeys(plan: Plan): string[] {
+  const cadences = (plan.retest ?? []).filter(c => c.markerKeys?.length);
+  if (!cadences.length) return [];
+  const WEEK_MS = 7 * 86_400_000;
+  let best = cadences[0]!;
+  for (const c of cadences) {
+    if (plan.generatedAt + c.whenWeeks * WEEK_MS < plan.generatedAt + best.whenWeeks * WEEK_MS) {
+      best = c;
+    }
+  }
+  return best.markerKeys;
+}
+
+/**
+ * True when a panel drawn on or after the plan's generation date covers ALL of
+ * the given marker keys — the retest draw the cadence asked for has happened.
+ */
+function coveringDrawExists(panels: Panel[], plan: Plan, keys: string[]): boolean {
+  if (!keys.length) return false;
+  const planDay = isoDay(plan.generatedAt);
+  return panels.some(p => {
+    if (p.drawnAt < planDay) return false;     // the draw the plan was composed from
+    const present = new Set(p.results.map(r => r.markerKey));
+    return keys.every(k => present.has(k));
+  });
+}
+
+function joinMarkers(markers: string[]): string {
+  if (markers.length <= 1) return markers[0] ?? "";
+  if (markers.length === 2) return `${markers[0]} and ${markers[1]}`;
+  return `${markers.slice(0, -1).join(", ")} and ${markers[markers.length - 1]}`;
+}
+
+function monthDay(d: Date): string {
+  return d.toLocaleDateString("en-US", { month: "long", day: "numeric" });
+}
+
+/** "yesterday" / "N days ago" / "last week" for an overdue draw. */
+function overdueRelative(daysAgo: number): string {
+  if (daysAgo <= 1) return "yesterday";
+  if (daysAgo >= 7) return "last week";
+  return `${daysAgo} days ago`;
+}
+
+function renderRetestCard(status: RetestStatus): string {
+  const markers = joinMarkers(status.markers);
+
+  const body = status.state === "overdue"
+    ? `Your ${esc(markers)} recheck has been due since ${esc(overdueRelative(-status.daysUntil))} — when you have the new draw, it goes here.`
+    : `${esc(markers)} due for a recheck in ${status.daysUntil} ${status.daysUntil === 1 ? "day" : "days"} — the protocol set this draw on ${esc(monthDay(status.setOn))}.`;
+
+  const eyebrow = status.state === "overdue" ? "A draw, overdue" : "A draw, coming due";
+
+  // The whole card is the tap target — an anchor to the upload surface.
+  return `
+    <a href="#/labs" class="retest-card" data-state="${esc(status.state)}" role="note">
+      <span class="retest-card__eyebrow">${eyebrow}</span>
+      <span class="retest-card__body">${body}</span>
+    </a>
+  `;
+}
+
+/**
+ * Resolve the retest card HTML for the real-user Today render, or "" when no
+ * card should surface. Reads the latest plan + panels (already loaded) and the
+ * merged marker catalog. Returns "" for `upcoming`, no cadence, or a covering
+ * draw that already landed.
+ */
+async function retestCardHtml(plan: Plan, panels: Panel[]): Promise<string> {
+  const catalog = await getAllMarkers();
+  const status = computeRetestStatus(plan, new Date(), catalog);
+  if (!status) return "";
+  if (status.state === "upcoming") return "";
+
+  // The draw already happened — a panel covering the cadence's markers landed
+  // on or after the plan date. Suppress the card; the loop closed.
+  const keys = soonestCadenceKeys(plan);
+  if (coveringDrawExists(panels, plan, keys)) return "";
+
+  return renderRetestCard(status);
+}
+
 export async function renderToday(): Promise<void> {
   // Shared-view (ticket 0017): the recipient sees a stripped-down Today —
   // the habit stack, today's meals if shared, and the date. No streak strip
@@ -218,13 +334,23 @@ export async function renderToday(): Promise<void> {
 
   const recapCardHtml = quarterlyQuarter == null && recapCardActive() ? renderRecapCard() : "";
 
+  // Panels are read once and shared by the retest-due check (ticket 0028) and
+  // the quiet-day card's projection lookup — both are local-only reads.
+  const panels = await allPanels();
+
+  // The retest-due card (ticket 0028) sits between the meals row and the habit
+  // stack, gated on the latest plan's soonest cadence being due-soon or overdue
+  // (and not already satisfied by a covering draw). It is independent of the
+  // adaptive-card precedence above — those lead the page; this one is anchored
+  // to the meals/habits boundary because it is about the labs loop, not the day.
+  const retestHtml = await retestCardHtml(plan, panels);
+
   // The quiet-day card (ticket 0015) only renders Mon–Sat AND only when neither
   // the quarterly nor the recap card is already taking the slot. The quarterly
   // and recap cards are cadence-aligned rituals; the quiet card is the everyday
   // fallback — never two cards at once.
   let quietCardHtml = "";
   if (quarterlyQuarter == null && !recapCardActive() && !quietCardDismissedToday(day)) {
-    const panels = await allPanels();
     const latestPanelId = panels[0]?.id;       // newest-first by drawnAt
     const projections = latestPanelId != null
       ? await getProjectionsFor(latestPanelId)
@@ -258,6 +384,8 @@ export async function renderToday(): Promise<void> {
           <div class="section-mark">Today's meals</div>
           ${mealsHtml}
         </section>
+
+        ${retestHtml}
 
         <section data-scroll="habits" style="margin-top: 2.6rem;">
           <div class="section-mark">Habit stack</div>
