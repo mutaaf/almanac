@@ -1,7 +1,7 @@
 ---
 id: 0035
 title: Keep the meals that stuck — carry the dishes you actually ate into the next week's re-roll
-status: proposed
+status: groomed
 priority: P2
 area: meals
 created: 2026-05-21
