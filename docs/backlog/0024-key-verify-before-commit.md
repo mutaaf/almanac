@@ -1,7 +1,7 @@
 ---
 id: 0024
 title: Verify-before-commit — prove the BYOK key works before the user trusts it with their labs
-status: groomed
+status: in-progress
 priority: P1
 area: onboarding
 created: 2026-05-20
