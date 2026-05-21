@@ -1,7 +1,7 @@
 ---
 id: 0028
 title: The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back
-status: proposed
+status: groomed
 priority: P1
 area: today
 created: 2026-05-21

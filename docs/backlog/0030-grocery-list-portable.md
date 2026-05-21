@@ -1,7 +1,7 @@
 ---
 id: 0030
 title: The grocery list, out of the app — copy or share the week's shopping to the partner who actually shops
-status: proposed
+status: groomed
 priority: P2
 area: meals
 created: 2026-05-21
