@@ -1,7 +1,7 @@
 ---
 id: 0021
 title: The hundred-day mark — a quarterly reflective surface for the user who actually stayed
-status: groomed
+status: in-progress
 priority: P1
 area: progress
 created: 2026-05-19
@@ -91,4 +91,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-20 [implementation-dev] Picked up. Branch `feat/0021-hundred-day-mark`. Status → in-progress. Plan: pure `computeHundredDayState()` in `src/progress/hundred-day.ts` (re-uses `evaluateLanded()` from `projection.ts`); page `src/pages/hundred-day.ts` registered at `#/hundred-day` in `main.ts` (tour + shared-view short-circuit, same gate posture as `#/recap`); Today card via `quarterlyCardActive()` above the recap/quiet chain; print via a `mountAndPrintHundredDay(state)` shim + `renderHundredDayTemplate()` re-using the `.print-sheet` tokens; new db reads `firstPlanGeneratedAt()` and `allCheckInsInWindow()`. No schema migration, no egress change, no new deps.

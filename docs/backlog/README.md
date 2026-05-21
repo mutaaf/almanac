@@ -59,7 +59,7 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0021 | The hundred-day mark — a quarterly reflective surface for the user who actually stayed | P1 | groomed | progress |
+| 0021 | The hundred-day mark — a quarterly reflective surface for the user who actually stayed | P1 | in-progress | progress |
 | 0024 | Verify-before-commit — prove the BYOK key works before the user trusts it with their labs | P1 | groomed | onboarding |
 | 0025 | The egress receipt — show exactly what leaves this device before a lab upload calls Claude | P1 | groomed | privacy |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
