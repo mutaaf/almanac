@@ -1,7 +1,7 @@
 ---
 id: 0026
 title: Same marker, different lab — surface the canonicalization that lets a trend span report formats
-status: proposed
+status: groomed
 priority: P2
 area: labs
 created: 2026-05-20

@@ -1,7 +1,7 @@
 ---
 id: 0025
 title: The egress receipt — show exactly what leaves this device before a lab upload calls Claude
-status: proposed
+status: groomed
 priority: P1
 area: privacy
 created: 2026-05-20

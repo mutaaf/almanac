@@ -1,7 +1,7 @@
 ---
 id: 0027
 title: Your almanac, in plain text — a readable Markdown export of the whole timeline
-status: proposed
+status: groomed
 priority: P2
 area: settings
 created: 2026-05-20
