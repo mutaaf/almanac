@@ -3130,6 +3130,52 @@ body {
   align-items: center;
 }
 
+/* ---- Retest-due card on Today — ticket 0028 --------------------------- */
+/*
+ * The plan's retest cadence, carried forward as a dated nudge between the meals
+ * row and the habit stack. The WHOLE card is the tap target (an anchor to the
+ * labs upload surface), so it sets box-sizing + a min-height ≥45px to clear the
+ * 44px HIG floor on every device-pixel-ratio (see docs/LESSONS.md 2026-05-21).
+ * Ink and ink-soft only — overdue is calm, not an error, so NO oxblood. The
+ * left rule is a quiet ink-faint hairline, deliberately not the oxblood accent
+ * the recap/quiet/quarterly cards carry.
+ */
+.retest-card {
+  box-sizing: border-box;
+  min-height: 45px;
+  display: block;
+  margin: 1.6rem 0 0.2rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-faint);
+  background: var(--paper-deep);
+  padding: 0.95rem 1.2rem 1.05rem;
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color 180ms var(--ease), background 180ms var(--ease);
+}
+.retest-card:hover {
+  border-left-color: var(--ink-soft);
+  background: var(--paper);
+}
+.retest-card__eyebrow {
+  display: block;
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.retest-card__body {
+  display: block;
+  font-family: var(--display);
+  font-size: 1.08rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  max-width: 60ch;
+}
+
 /* =============================================================================
    THE HUNDRED-DAY MARK — quarterly reflective surface at #/hundred-day
    Ticket 0021. Single column, mirrors the recap page's left margin; mobile

@@ -290,6 +290,31 @@ export interface RetestItem {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Retest-due surface (ticket 0028)                                          */
+/* -------------------------------------------------------------------------- */
+/*
+ * Computed by `computeRetestStatus()` (in `src/today/retest.ts`) from the
+ * latest plan's `retest` cadence anchored to the plan's `generatedAt`. Nothing
+ * here is persisted (no schema change) — it is a render-time read over data the
+ * user already owns. Returns null when the plan carries no retest cadence; a
+ * populated status otherwise. The Today page surfaces the card only for the
+ * `due-soon` and `overdue` states; `upcoming` renders nothing.
+ *
+ *   markers:    human display names of the soonest-due cadence's markers.
+ *   dueDate:    generatedAt + whenWeeks * 7 days.
+ *   daysUntil:  whole calendar days from `now` to `dueDate` (negative = past).
+ *   state:      "overdue" (daysUntil < 0) | "due-soon" (0..14) | "upcoming".
+ *   setOn:      the plan's generation date — the date the cadence was set.
+ */
+export interface RetestStatus {
+  markers: string[];
+  dueDate: Date;
+  daysUntil: number;
+  state: "upcoming" | "due-soon" | "overdue";
+  setOn: Date;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Weekly meal plan (separate generation, separate table)                    */
 /* -------------------------------------------------------------------------- */
 
