@@ -268,7 +268,19 @@ test.describe("Retest-due surface", () => {
 
   test("tour mode: no card when the fixture cadence is far out", async ({ page }) => {
     // The tour fixture's plan generated 13 days ago with a 12-week cadence →
-    // due ~71 days out (upcoming). The card must NOT fabricate a draw.
+    // due ~71 days out (upcoming). The card must NOT fabricate a draw. Touring
+    // is not consenting, so wipe the onboarded device state from beforeEach
+    // first — enterTour() expects a fresh visitor at #/welcome.
+    await page.goto("/");
+    await page.evaluate(() => {
+      localStorage.clear();
+      return new Promise<void>((resolve) => {
+        const req = indexedDB.deleteDatabase("almanac");
+        req.onsuccess = () => resolve();
+        req.onerror   = () => resolve();
+        req.onblocked = () => resolve();
+      });
+    });
     await enterTour(page);
     await page.goto("/#/today");
     await page.locator(".headline").first().waitFor();
