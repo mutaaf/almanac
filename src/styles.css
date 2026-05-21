@@ -4206,8 +4206,13 @@ body {
 .share-protocol__btn {
   /* Sits next to .print-share__btn. Same chip rhythm; the data-action attr is
      what differentiates them in the JS handler. Minimum 44×44 tap target on
-     mobile so iOS HIG passes. */
-  min-height: 44px;
+     mobile so iOS HIG passes.
+     box-sizing + a 1px cushion above 44 so WebKit's fractional device-pixel
+     rounding (it reports the box at 43.99998px on the iPhone-15 DPR, tripping
+     protocol-link.spec.ts's `>= 44` tap-target assertion) clears the floor on
+     every viewport rather than landing a ten-thousandth of a pixel short. */
+  box-sizing: border-box;
+  min-height: 45px;
 }
 
 .share-modal-root {
