@@ -70,6 +70,7 @@ owner: gtm-innovation
 | 0028 | The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back | P1 | proposed | today |
 | 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | proposed | plan |
 | 0030 | The grocery list, out of the app — copy or share the week's shopping to the partner who actually shops | P2 | proposed | meals |
+| 0031 | Draw day — when today is the day your blood is being drawn, the app should know it | P2 | proposed | today |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
