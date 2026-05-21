@@ -12,12 +12,15 @@ import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
   latestPlan, recentCheckIns, saveProjections,
 } from "../db";
-import { panelsFromFiles, type ExtractedRow } from "../extractor";
+import { panelsFromFiles, hashStagedFiles, type ExtractedRow } from "../extractor";
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import { listUserMarkers, addUserMarker, getAllMarkers } from "../data/userMarkers";
 import { computeProjection } from "../progress/projection";
 import { route } from "../main";
 import { isSharedView } from "../share/shared-state";
+import { isTour } from "../sample/state";
+import { getCachedExtraction } from "../db";
+import { ANTHROPIC_HOST } from "../claude";
 import type { MarkerCategory, MarkerDef, Panel, ProjectionSnapshot, Result } from "../types";
 
 /* The staging set lives outside render so paste handlers can mutate it
@@ -79,6 +82,8 @@ export async function renderLabs(): Promise<void> {
         </div>
 
         <div id="staged" class="staged"></div>
+
+        <div id="egress-receipt"></div>
 
         <div id="actions" style="margin-top: 1rem; display: none; flex-wrap: wrap; gap: 1rem; align-items: center;">
           <button id="extract" class="btn btn--accent">Extract</button>
@@ -256,8 +261,11 @@ function renderStaged(): void {
   if (!staged.length) {
     stage.innerHTML = "";
     actions.style.display = "none";
+    renderEgressReceipt(staged);
     return;
   }
+
+  renderEgressReceipt(staged);
 
   actions.style.display = "flex";
   // Single text node — inline spans + letter-spacing render with phantom gaps.
@@ -300,6 +308,105 @@ function formatBytes(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Egress receipt (ticket 0025)                                              */
+/* -------------------------------------------------------------------------- */
+/*
+ * A render-time, zero-network "what leaves this device" statement painted at
+ * the extraction trigger whenever files are staged. It names where the bytes
+ * go (ANTHROPIC_HOST, the same constant the privacy allow-list enforces), what
+ * travels (the staged pages), and what stays (everything else). The host is
+ * shown verbatim, in body weight — informational, not navigable.
+ *
+ * The receipt is computed entirely from `staged` + a constant: no network call
+ * paints it. The optional cache-replay line reads `getCachedExtraction()` off
+ * the SAME hash the extraction cache uses (`hashStagedFiles`), which is a
+ * local-only IndexedDB lookup — it adds a fact, not an egress. We paint the
+ * base receipt synchronously so it shows instantly on a flaky connection, then
+ * fold in the cache fact when the local lookup resolves.
+ */
+function renderEgressReceipt(files: File[]): void {
+  const slot = document.getElementById("egress-receipt");
+  if (!slot) return;
+
+  if (!files.length) {
+    slot.innerHTML = "";
+    return;
+  }
+
+  const n = files.length;
+  const noun = n === 1 ? "page" : "pages";
+
+  // Tour mode (ticket 0014): the upload screen is live but extraction is
+  // simulated — nothing actually leaves. The receipt says so plainly and
+  // omits the host (the sample sends nowhere).
+  if (isTour()) {
+    slot.innerHTML = `
+      <div class="egress-receipt" role="note">
+        <p class="egress-receipt__summary">In this sample, nothing is sent — extraction is simulated.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const names = files.map((f) => f.name);
+  const summary =
+    `${n} ${noun} will be sent to ${ANTHROPIC_HOST} with your key, for extraction only. ` +
+    `Your profile, your prior panels, and these files stay on this device.`;
+
+  slot.innerHTML = `
+    <div class="egress-receipt" role="note">
+      <p class="egress-receipt__summary"><span class="egress-receipt__summary-text">${esc(summary)}</span><span class="egress-receipt__cache" hidden></span></p>
+      <button type="button" class="egress-receipt__disclosure" role="button" aria-expanded="false">what travels →</button>
+      <div class="egress-receipt__detail" hidden>
+        <div class="egress-receipt__row egress-receipt__row--travels"><span class="egress-receipt__rowlabel">Travels:</span> ${esc(names.join(", "))}</div>
+        <div class="egress-receipt__row egress-receipt__row--destination"><span class="egress-receipt__rowlabel">Destination:</span> ${esc(ANTHROPIC_HOST)}</div>
+        <div class="egress-receipt__row egress-receipt__row--stays"><span class="egress-receipt__rowlabel">Stays:</span> your profile, your prior panels, and the original files.</div>
+      </div>
+    </div>
+  `;
+
+  // The disclosure toggles the inline detail panel. ink eyebrow link; no URL
+  // change, no network — pure DOM.
+  const disclosure = slot.querySelector<HTMLButtonElement>(".egress-receipt__disclosure");
+  const detail = slot.querySelector<HTMLElement>(".egress-receipt__detail");
+  disclosure?.addEventListener("click", () => {
+    if (!detail) return;
+    const open = detail.hasAttribute("hidden");
+    if (open) detail.removeAttribute("hidden");
+    else detail.setAttribute("hidden", "");
+    disclosure.setAttribute("aria-expanded", String(open));
+  });
+
+  // Fold in the cached-replay fact when the local cache lookup resolves. Guard
+  // against a stale async resolution (the user cleared/changed the stage in the
+  // meantime) by re-confirming the slot still holds the same file count.
+  void surfaceCacheFact(files, slot);
+}
+
+/**
+ * If the staged set's hash matches a prior extraction in the local cache, add
+ * the cached-replay line to the receipt's summary. Pure-local: hashes the files
+ * and reads IndexedDB, never the network. No-op in tour mode (no real cache).
+ */
+async function surfaceCacheFact(files: File[], slot: HTMLElement): Promise<void> {
+  if (isTour()) return;
+  let hash: string;
+  try { hash = await hashStagedFiles(files); }
+  catch { return; }
+  const cached = await getCachedExtraction(hash);
+  if (!cached) return;
+
+  // Re-confirm the stage hasn't changed under us before painting.
+  const cacheEl = slot.querySelector<HTMLElement>(".egress-receipt__cache");
+  if (!cacheEl) return;
+  if (files.length !== staged.length) return;
+
+  cacheEl.textContent =
+    " These files were already extracted — re-running replays the cached result at no cost and sends nothing.";
+  cacheEl.hidden = false;
 }
 
 /**
@@ -918,6 +1025,10 @@ async function renderManualEntry(): Promise<void> {
         <div class="eyebrow">Manual entry</div>
         <h1 class="headline" style="margin-top: 0.4rem;">Type the values <em>by hand</em>.</h1>
         <p class="lede" style="max-width: 60ch; margin-top: 0.8rem;">Fill the markers you have — leave the rest blank.</p>
+
+        <div class="egress-receipt egress-receipt--manual" role="note" style="margin-top: 1.4rem;">
+          <p class="egress-receipt__summary">Manual entry sends nothing — these values are typed straight into this device.</p>
+        </div>
 
         <form id="manual" style="margin-top: 2.2rem;">
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">

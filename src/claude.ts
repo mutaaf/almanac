@@ -18,6 +18,16 @@ import { age, addDays } from "./db";
 import { computeInsights, formatInsightsForPrompt } from "./insights";
 import { recordCall } from "./telemetry";
 
+/**
+ * The single source of truth for Almanac's one egress host. Every BYOK call
+ * the SDK makes goes here; the test egress allow-list enforces it; and the
+ * egress receipt (ticket 0025) DISPLAYS it. Importing this constant — rather
+ * than re-typing the literal — guarantees the destination a user sees can
+ * never drift from the destination the privacy contract enforces. This is a
+ * read-only constant: it does NOT widen anything, it names what already is.
+ */
+export const ANTHROPIC_HOST = "api.anthropic.com";
+
 /* ============================================================================
    KEY VERIFICATION (ticket 0024)
    ============================================================================

@@ -124,8 +124,14 @@ function mediaTypeOf(file: File): Mt {
  * SHA-256 hash of the concatenated file contents — stable across re-pastes,
  * so we can cache the extraction result and avoid re-billing Claude Vision
  * if the user (re)uploads the same screenshots.
+ *
+ * Exported (ticket 0025) so the egress receipt can ask "is this set already
+ * cached?" through the SAME hash the cache decision uses — the receipt and the
+ * extraction cache must agree on what counts as the same upload. Reading the
+ * cache off this hash is a local-only IndexedDB lookup, so the receipt stays
+ * zero-network.
  */
-async function hashFiles(files: File[]): Promise<string> {
+export async function hashStagedFiles(files: File[]): Promise<string> {
   const enc = new TextEncoder();
   const buffers: ArrayBuffer[] = [];
   for (const f of files) {
@@ -154,7 +160,7 @@ async function hashFiles(files: File[]): Promise<string> {
 export async function extractFromFiles(files: File[], profile: Profile): Promise<ExtractionResult> {
   if (!files.length) throw new Error("No files to extract from.");
 
-  const hash = await hashFiles(files);
+  const hash = await hashStagedFiles(files);
   const cached = await getCachedExtraction<ExtractionResult>(hash);
   if (cached) return cached;
 
