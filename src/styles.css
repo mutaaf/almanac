@@ -1282,6 +1282,10 @@ body {
   gap: 0.4rem;
   max-width: 64ch;
 }
+/* `display: grid` would otherwise override the [hidden] UA rule — keep the
+   collapsed state actually hidden. */
+.egress-receipt__detail[hidden] { display: none; }
+.egress-receipt__cache[hidden]  { display: none; }
 .egress-receipt__row {
   font-size: 0.82rem;
   line-height: 1.5;
