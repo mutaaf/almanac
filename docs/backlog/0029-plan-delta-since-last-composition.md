@@ -1,7 +1,7 @@
 ---
 id: 0029
 title: What changed since last time — show the delta between this plan and the one it replaced
-status: groomed
+status: shipped
 priority: P1
 area: plan
 created: 2026-05-21
@@ -83,4 +83,23 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-21 [implementation-dev] Picked up; branch `feat/0029-plan-delta`. Confirmed the
+  domain sub-shapes against `src/types.ts` before writing code, and reconciled two
+  ticket/code naming gaps that don't change the design:
+  - The ticket's `Plan.createdAt` references map to the actual field `Plan.generatedAt`
+    (the plans store is indexed on `generatedAt`). The delta uses `generatedAt` as the
+    chronological key and the elapsed-span anchor.
+  - The `recentPlans(n)` helper named in the engineering notes is unnecessary —
+    `allPlans()` already exists and returns plans newest-first by `generatedAt`, with the
+    tour/shared-view shims in place. The page reads the newest two from it; no new db helper.
+  Identity fields confirmed: eat/avoid by `food`, habit by `title`, insight by `title`.
+  Shared-view is excluded by construction (it never reaches the summary render path), and
+  the tour fixture carries one plan only, so the tour shows no summary (never fabricated).
+- 2026-05-21 [implementation-dev] Shipped on `feat/0029-plan-delta` (PR #61). Pure engine in
+  `src/plan/delta.ts` (`computePlanDelta` + `isEmptyDelta` + `relativeSpan`); render wired into
+  `src/pages/plan.ts` above the snapshot in both modes; `.plan-delta` styles (ink/ink-soft,
+  `min-width:0` + `overflow-wrap` for long names); `PlanDelta` added to `src/types.ts`; a
+  `seedPlan()` helper in `tests/helpers/flows.ts`; `tests/e2e/plan-delta.spec.ts` (13 scenarios,
+  green on chromium + mobile-webkit). No new deps, no egress change, no schema migration. Full
+  local gate green (typecheck, build, full chromium suite — the residual flakes are the known
+  parallel-load ones in LESSONS.md and pass on retry).

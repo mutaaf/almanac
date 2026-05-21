@@ -12,9 +12,10 @@ import { glossForRule, type PreComputedInsight } from "../insights";
 import { simulateInsights } from "../insights/simulate";
 import { masthead, foot } from "../chrome";
 import {
-  getProfile, allPanels, latestPlan, savePlan, saveProfile, recentCheckIns,
+  getProfile, allPanels, latestPlan, allPlans, savePlan, saveProfile, recentCheckIns,
   latestMealPlan, today, checkInFor, upsertCheckIn, db,
 } from "../db";
+import { computePlanDelta, isEmptyDelta, relativeSpan } from "../plan/delta";
 import {
   WELCOME_BACK_THRESHOLD_DAYS, WELCOME_BACK_MAX_SYNTHETIC_SKIP_DAYS,
 } from "./welcome-back";
@@ -22,7 +23,7 @@ import { route } from "../main";
 import { ClaudeClient, TruncatedResponseError } from "../claude";
 import type {
   Plan, EatItem, AvoidItem, Recommendation, Panel, Profile, CheckIn, Insight, MealPlan,
-  SimulationOverride, InsightProvenance,
+  SimulationOverride, InsightProvenance, PlanDelta,
 } from "../types";
 import { findMarker } from "./../data/markers";
 import { getAllMarkers } from "../data/userMarkers";
@@ -407,6 +408,16 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
   const toggleHtml = renderViewToggle(mode);
   const shareHtml = renderShareControl();
 
+  // "Since your last plan" summary (ticket 0029). Diff the two most recent
+  // plans by `generatedAt`; a third, older plan never contributes. Rendered
+  // above the snapshot in both view modes when a prior plan exists. Pure +
+  // local — no network, no inference. Shared-view never reaches here (it
+  // returns early in paintShared above), and tour mode carries one plan only
+  // so `prior` is undefined there — the summary is absent, never fabricated.
+  const recent2 = await allPlans();      // newest-first by generatedAt
+  const prior = recent2.find(p => p.id !== plan.id) ?? recent2[1];
+  const deltaHtml = prior ? renderPlanDelta(plan, prior) : "";
+
   const body = mode === "dashboard"
     ? renderDashboard(plan, profile, panels, recent, ci, !!haveMeals)
     : renderEditorial(plan, !!haveMeals, mealPlan?.generatedAt);
@@ -422,6 +433,7 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
             ${shareHtml}
           </div>
         </div>
+        ${deltaHtml}
         ${body}
         <div style="margin-top: 3rem; display: flex; gap: 1rem; flex-wrap: wrap;">
           <a href="#/today" class="btn btn--accent">Go to today</a>
@@ -1414,6 +1426,109 @@ function retestHtml(plan: Plan): string {
 
 function priorityOrder(p: "high" | "medium" | "low"): number {
   return p === "high" ? 0 : p === "medium" ? 1 : 2;
+}
+
+/* ============================================================================
+   Since your last plan — the plan-to-plan delta (ticket 0029)
+   ============================================================================
+   A short, deterministic, zero-network account of what changed between the two
+   most recent plans, rendered above the snapshot. Editorial prose in ink /
+   ink-soft — declarative lines, no diff coloring, no strikethroughs. The diff
+   itself is pure (`computePlanDelta`); this function only resolves marker keys
+   to human names and lays the lines out. When the two plans are identical it
+   renders a single honest line rather than an empty summary.
+*/
+
+function renderPlanDelta(current: Plan, prior: Plan): string {
+  const delta = computePlanDelta(current, prior);
+  const span = relativeSpan(current.generatedAt, prior.generatedAt);
+  const eyebrow = `<div class="plan-delta__eyebrow eyebrow">Since your last plan — ${esc(span)}</div>`;
+
+  if (isEmptyDelta(delta)) {
+    return `
+      <section class="plan-delta" aria-label="Since your last plan">
+        ${eyebrow}
+        <p class="plan-delta__line plan-delta__line--quiet">Nothing changed since your last plan — your inputs were the same.</p>
+      </section>
+    `;
+  }
+
+  const lines: string[] = [];
+
+  // Eat list — changed, added, retired.
+  for (const c of delta.eat.changed) {
+    lines.push(line(`${esc(c.item.food)} moved from ${esc(c.was)} to ${esc(c.now)}${markerReason(c.item.markerKeys)}.`));
+  }
+  for (const e of delta.eat.added) {
+    lines.push(line(`${esc(e.food)} was added — ${esc(e.frequency)}${markerReason(e.markerKeys)}.`));
+  }
+  for (const e of delta.eat.removed) {
+    lines.push(line(`${esc(e.food)} retired from the eat list.`));
+  }
+
+  // Avoid list — joined / left.
+  for (const a of delta.avoid.added) {
+    lines.push(line(`${esc(a.food)} joined the avoid list.`));
+  }
+  for (const a of delta.avoid.removed) {
+    lines.push(line(`${esc(a.food)} left the avoid list.`));
+  }
+
+  // Habits — added / retired.
+  for (const hbt of delta.habits.added) {
+    lines.push(line(`${esc(hbt.title)} was added.`));
+  }
+  for (const hbt of delta.habits.retired) {
+    lines.push(line(`${esc(hbt.title)} retired.`));
+  }
+
+  // Insights — newly noted / resolved, each under its own sub-line.
+  let insightHtml = "";
+  if (delta.insights.newlyFiring.length) {
+    insightHtml += `<div class="plan-delta__sub">Newly noted</div>`;
+    for (const title of delta.insights.newlyFiring) {
+      insightHtml += line(esc(title) + ".");
+    }
+  }
+  if (delta.insights.resolved.length) {
+    insightHtml += `<div class="plan-delta__sub">Resolved</div>`;
+    for (const title of delta.insights.resolved) {
+      insightHtml += line(`${esc(title)} — resolved.`);
+    }
+  }
+
+  return `
+    <section class="plan-delta" aria-label="Since your last plan">
+      ${eyebrow}
+      <div class="plan-delta__lines">
+        ${lines.join("")}
+        ${insightHtml}
+      </div>
+    </section>
+  `;
+}
+
+/** One declarative change line in ink-soft. */
+function line(html: string): string {
+  return `<p class="plan-delta__line">${html}</p>`;
+}
+
+/**
+ * Resolve an eat item's `markerKeys` to a short " — <human marker names>"
+ * suffix for a change/add line, via `findMarker()` so a raw key never reaches
+ * the page. Empty when the item targets no markers. Caps at two names so the
+ * line stays a sentence.
+ */
+function markerReason(markerKeys: string[] | undefined): string {
+  const keys = (markerKeys ?? []).slice(0, 2);
+  if (!keys.length) return "";
+  const names = keys
+    .map(k => {
+      const m = findMarker(k, _simCtx?.catalog ?? []);
+      return m?.shortName ?? m?.name ?? k;
+    })
+    .map(esc);
+  return ` — ${names.join(", ")}`;
 }
 
 /* ============================================================================

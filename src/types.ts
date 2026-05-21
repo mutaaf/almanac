@@ -206,6 +206,41 @@ export interface InsightProvenance {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Plan-to-plan delta (ticket 0029)                                          */
+/* -------------------------------------------------------------------------- */
+/*
+ * The structural diff between the two most recent plans, computed by
+ * `computePlanDelta(current, prior)` in `src/plan/delta.ts`. Render-time only —
+ * nothing here is persisted (no schema change). Items are matched across plans
+ * by their natural identity field: `food` for eat/avoid, `title` for habits,
+ * `title` for insights. The eat list also captures a same-food frequency or
+ * portion change in `changed`. Pure: no DOM, no Dexie, no network.
+ */
+
+export interface PlanDelta {
+  eat: {
+    added: EatItem[];
+    removed: EatItem[];
+    /** Same-food change: `was`/`now` describe the frequency-or-portion shift. */
+    changed: { item: EatItem; was: string; now: string }[];
+  };
+  avoid: {
+    added: AvoidItem[];
+    removed: AvoidItem[];
+  };
+  habits: {
+    added: Habit[];
+    retired: Habit[];
+  };
+  insights: {
+    /** Insight titles firing now that did not fire in the prior plan. */
+    newlyFiring: string[];
+    /** Insight titles present before and absent now. */
+    resolved: string[];
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /*  What-if simulation (ticket 0019)                                          */
 /* -------------------------------------------------------------------------- */
 /*
