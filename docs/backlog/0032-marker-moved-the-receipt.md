@@ -87,3 +87,10 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
   - Direction word: "came up/down" is chosen from the sign of the delta; the toward state uses "eased" when the value fell and "came up" when it rose. "moved from" is the neutral verb for the `away` state (no euphemism).
   - Sex-specific name: `ferritin_m` resolves through `findMarker()` to its human `name` ("Ferritin (Male)") — the row never shows the suffixed key. The criterion is satisfied by asserting the raw key never appears and the human name does.
   - "Most recent prior draw" = the newest panel (by `drawnAt`) strictly older than the new panel that also carries the same `markerKey`.
+- 2026-05-21 [implementation-dev] Shipped the slice:
+  - New `src/labs/movement-receipt.ts` — `computeMovementReceipt(newPanel, priorPanels, extras)` (pure; no DOM/Dexie/network) + `moveSentence()` voice helper. State classification uses a single direction-agnostic distance-to-range metric so `higherIsBetter` and `lowerIsBetter` markers need no special case (the range bounds already encode direction).
+  - `src/types.ts` — additive `MarkerMove` (render-only; no schema migration).
+  - `src/pages/labs.ts` — `renderPanelDetail` computes the receipt from `allPanels()` and renders the "Since your last draw" section below the results table; absent on a first-ever panel; gated by the existing `isSharedView()` empty-state (panel detail is not in the shared payload) and surfaces in tour mode against the fixture's two-panel movement.
+  - `src/styles.css` — `.movement-receipt` (+ `__eyebrow`, `__lines`, `__row`); ink/ink-soft only, `min-width:0` wrap fix, no into-range color flourish.
+  - `tests/helpers/flows.ts` — added `seedPanel()` (the sibling seeding helper the ticket called for).
+  - `tests/e2e/movement-receipt.spec.ts` — 12 scenarios, all green on chromium. One real find during the test-first loop: the receipt must display `shortName ?? name` (ApoB, not "Apolipoprotein B") to match the page's result-row convention.
