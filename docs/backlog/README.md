@@ -59,17 +59,20 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0021 | The hundred-day mark — a quarterly reflective surface for the user who actually stayed | P1 | shipped | progress |
 | 0024 | Verify-before-commit — prove the BYOK key works before the user trusts it with their labs | P1 | groomed | onboarding |
 | 0025 | The egress receipt — show exactly what leaves this device before a lab upload calls Claude | P1 | groomed | privacy |
+| 0028 | The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back | P1 | groomed | today |
+| 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | groomed | plan |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
 | 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |
 | 0026 | Same marker, different lab — surface the canonicalization that lets a trend span report formats | P2 | groomed | labs |
 | 0027 | Your almanac, in plain text — a readable Markdown export of the whole timeline | P2 | groomed | settings |
-| 0028 | The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back | P1 | proposed | today |
-| 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | proposed | plan |
-| 0030 | The grocery list, out of the app — copy or share the week's shopping to the partner who actually shops | P2 | proposed | meals |
-| 0031 | Draw day — when today is the day your blood is being drawn, the app should know it | P2 | proposed | today |
+| 0030 | The grocery list, out of the app — copy or share the week's shopping to the partner who actually shops | P2 | groomed | meals |
+| 0031 | Draw day — when today is the day your blood is being drawn, the app should know it | P2 | groomed | today |
+| 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | proposed | progress |
+| 0033 | The protocol on the fridge — a phone-shaped image of today's eat, avoid, and habits that lives on a home screen | P2 | proposed | growth |
+| 0034 | You earned the next tier — show the user the adherence that promoted a habit when the plan recomposes | P2 | proposed | plan |
+| 0035 | Keep the meals that stuck — carry the dishes you actually ate into the next week's re-roll | P2 | proposed | meals |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
@@ -86,6 +89,7 @@ owner: gtm-innovation
 | 0018 | Lapse-aware welcome-back surface — the re-engagement page for the user who came back after a long quiet | P1 | shipped | today |
 | 0019 | What-if marker simulator — drag any value to see which insights would fire | P1 | shipped | plan |
 | 0020 | Adopt-and-adapt — turn a friend's shared protocol into the seed of your own first plan | P1 | shipped | growth |
+| 0021 | The hundred-day mark — a quarterly reflective surface for the user who actually stayed | P1 | shipped | progress |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | shipped | infra |
 | 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | shipped | plan |
 | 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | shipped | plan |

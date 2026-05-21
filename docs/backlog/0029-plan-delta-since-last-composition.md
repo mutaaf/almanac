@@ -1,7 +1,7 @@
 ---
 id: 0029
 title: What changed since last time — show the delta between this plan and the one it replaced
-status: proposed
+status: groomed
 priority: P1
 area: plan
 created: 2026-05-21

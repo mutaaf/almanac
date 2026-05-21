@@ -1,7 +1,7 @@
 ---
 id: 0031
 title: Draw day — when today is the day your blood is being drawn, the app should know it
-status: proposed
+status: groomed
 priority: P2
 area: today
 created: 2026-05-21
