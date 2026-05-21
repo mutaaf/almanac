@@ -10,7 +10,7 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type {
-  Profile, Panel, Plan, CheckIn, Result, MealPlan, Meal, Day, MarkerDef,
+  Profile, Panel, Plan, CheckIn, Result, MealPlan, Meal, Day, MarkerDef, AdoptSeed,
 } from "./types";
 import { findMarker } from "./data/markers";
 import { getAllMarkers } from "./data/userMarkers";
@@ -836,7 +836,7 @@ function findMatchingInsight(
 
 function formatProfile(p: Profile): string {
   const a = age(p.birthDate) ?? "?";
-  return [
+  const base = [
     `# Reader`,
     `Name:    ${p.ownerName}`,
     `Age:     ${a}`,
@@ -854,6 +854,35 @@ function formatProfile(p: Profile): string {
     `# Dietary pattern`,
     p.dietPattern || "(none stated — assume omnivore, no constraints)",
   ].filter(Boolean).join("\n");
+
+  // Adopt-and-adapt referral block (ticket 0020). Appended as the LAST thing in
+  // the intake section, separated by a blank line, ONLY when the profile carries
+  // a single-use adopt seed. The block is gated by the seed: absent seed, the
+  // output is byte-identical to the pre-0020 version (no empty line, no trailing
+  // whitespace). The parenthetical "(not constraint)" is load-bearing — it tells
+  // the model to treat the seed as context, not as a literal eat-list to
+  // reproduce.
+  const referral = formatAdoptReferral(p.adoptSeed);
+  return referral ? `${base}\n\n${referral}` : base;
+}
+
+/**
+ * The labeled referral block for the adopt seed (ticket 0020). Returns "" when
+ * there is no seed — the caller appends nothing in that case, so the prompt is
+ * unchanged from pre-0020. Single-use: the Plan page clears `profile.adoptSeed`
+ * after the first compose, so a recompose never carries this.
+ */
+function formatAdoptReferral(seed: AdoptSeed | undefined): string {
+  if (!seed) return "";
+  const habits = seed.habitTitles.join(", ");
+  const foods  = seed.topEatFoods.join(", ");
+  return [
+    `# Referral context (not constraint)`,
+    `Referral context (not constraint): the user arrived after reading a friend's `
+      + `protocol that leaned on: ${habits}. The friend's eat list emphasized: ${foods}. `
+      + `Treat this as context only — build the plan against this user's own intake, `
+      + `but you may acknowledge the pattern in a single line if it lands honestly.`,
+  ].join("\n");
 }
 
 /**

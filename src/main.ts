@@ -36,9 +36,11 @@ import {
 } from "./pages/welcome-back";
 import { isTour, exitTour } from "./sample/state";
 import {
-  isSharedView, enterSharedView, exitSharedView,
+  isSharedView, enterSharedView, exitSharedView, sharedState, extractAdoptSeed,
 } from "./share/shared-state";
+import { persistAdoptSeed } from "./share/adopt-seed";
 import { decodeProtocolPayload } from "./share/protocol-link";
+import { esc } from "./ui";
 
 /**
  * localStorage key the welcome page reads to render the inline "your shared
@@ -211,6 +213,68 @@ function dispatch(path: string): Promise<void> {
     default:             return renderToday();
   }
 }
+
+/* ============================================================================
+   Adopt-and-adapt — the shared-view banner's second CTA (ticket 0020)
+   ============================================================================
+   The "Adopt as a starting point" CTA lives in the masthead banner, which is
+   re-rendered by every page's `mount()`. Rather than re-wire a handler on each
+   render, a single document-level delegated listener (installed once below)
+   catches the click. It opens a small modal naming what will and will not
+   travel. Continue does three things in order: (1) writes the AdoptSeed from
+   the live shared state by literal field reads, (2) calls `exitSharedView()`
+   so the sentinel + in-memory payload clear, (3) routes to `#/welcome` where
+   the welcome page surfaces the inline notice. Cancel closes with zero side
+   effects.
+*/
+
+const ADOPT_MODAL_COPY =
+  "We will not copy your friend's labs, insights, or biology — only the pattern "
+  + "of what they were already trying. You will set up your own profile, and your "
+  + "first plan will be built against your own answers.";
+
+function openAdoptModal(): void {
+  // Capture the seed NOW, while shared-view is still active and the in-memory
+  // payload is readable. If there's no shared state (defensive — the CTA only
+  // renders in shared-view), do nothing.
+  const state = sharedState();
+  if (!state) return;
+
+  const html = `
+    <div class="adopt-modal-backdrop" data-adopt-close></div>
+    <div class="adopt-modal" role="dialog" aria-modal="true" aria-label="Adopt as a starting point">
+      <h2 class="adopt-modal__title">Adopt as a starting point</h2>
+      <p class="adopt-modal__body">${esc(ADOPT_MODAL_COPY)}</p>
+      <div class="adopt-modal__actions">
+        <button type="button" class="btn btn--accent" data-adopt-continue>Continue</button>
+        <button type="button" class="btn btn--ghost" data-adopt-cancel>Cancel</button>
+      </div>
+    </div>
+  `;
+
+  const wrap = document.createElement("div");
+  wrap.className = "adopt-modal-root";
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+
+  const close = () => wrap.remove();
+  wrap.querySelector("[data-adopt-close]")?.addEventListener("click", close);
+  wrap.querySelector("[data-adopt-cancel]")?.addEventListener("click", close);
+  wrap.querySelector("[data-adopt-continue]")?.addEventListener("click", () => {
+    // (1) seed, (2) clear shared-view, (3) route to welcome.
+    persistAdoptSeed(extractAdoptSeed(state));
+    exitSharedView();
+    close();
+    location.hash = "#/welcome";
+  });
+}
+
+document.addEventListener("click", (e) => {
+  const target = (e.target as HTMLElement | null)?.closest?.("[data-action='adopt-protocol']");
+  if (!target) return;
+  e.preventDefault();
+  openAdoptModal();
+});
 
 window.addEventListener("hashchange", () => { void route(); });
 window.addEventListener("DOMContentLoaded", () => { void route(); });
