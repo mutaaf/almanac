@@ -1,7 +1,7 @@
 ---
 id: 0033
 title: The protocol on the fridge — a phone-shaped image of today's eat, avoid, and habits that lives on a home screen
-status: proposed
+status: groomed
 priority: P2
 area: growth
 created: 2026-05-21

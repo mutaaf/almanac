@@ -1,7 +1,7 @@
 ---
 id: 0032
 title: The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it
-status: proposed
+status: groomed
 priority: P1
 area: progress
 created: 2026-05-21
