@@ -2992,6 +2992,114 @@ body {
   max-width: 56ch;
 }
 
+/* ---- Quarterly note card on Today — ticket 0021 ----------------------- */
+/*
+ * The hundred-day mark's entry point. Re-uses the .recap-card layout; the
+ * --quarterly modifier letter-spaces the eyebrow a touch wider so the long-arc
+ * note reads as the most significant of the three cards. No new colors — the
+ * same oxblood accent rule the Sunday and quiet cards carry. The dismiss
+ * control is given a ≥44px touch target so the per-quarter dismissal is a
+ * comfortable tap on a phone.
+ */
+.recap-card--quarterly .recap-card__eyebrow {
+  letter-spacing: 0.26em;
+}
+.recap-card--quarterly .recap-card__dismiss {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* =============================================================================
+   THE HUNDRED-DAY MARK — quarterly reflective surface at #/hundred-day
+   Ticket 0021. Single column, mirrors the recap page's left margin; mobile
+   stacks the three sections (they're already a single column, so the stack is
+   the same flow with tightened gaps). Re-uses the .section-mark small-caps and
+   the editorial type tokens; no new colors.
+   ============================================================================= */
+.hundred-day__range {
+  margin-top: 0.6rem;
+  font-style: italic;
+}
+
+.hundred-day__section {
+  margin-top: 2.4rem;
+}
+
+.hundred-day__arc-list,
+.hundred-day__movement-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.hundred-day__arc-row,
+.hundred-day__movement-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.3rem 1.2rem;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.6rem;
+}
+
+.hundred-day__arc-title,
+.hundred-day__movement-marker {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 1.18rem;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.hundred-day__arc-count,
+.hundred-day__movement-delta {
+  font-family: var(--body);
+  font-size: 0.86rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.hundred-day__arc-note,
+.hundred-day__movement-verdict {
+  grid-column: 1 / -1;
+  font-family: var(--body);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.hundred-day__para {
+  font-family: var(--display);
+  font-size: 1.22rem;
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 0 0 0.9em;
+  max-width: 60ch;
+}
+
+.hundred-day__quiet {
+  font-family: var(--body);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  max-width: 60ch;
+}
+
+.hundred-day__cta {
+  margin-top: 2.8rem;
+}
+.hundred-day__print {
+  min-height: 44px;
+}
+
+@media (max-width: 820px) {
+  .hundred-day__section { margin-top: 2rem; }
+}
+
 /* ---- The recap page ----------------------------------------------------- */
 .recap-grid {
   display: grid;

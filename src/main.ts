@@ -30,6 +30,7 @@ import { renderMeals }      from "./pages/meals";
 import { renderLabs }       from "./pages/labs";
 import { renderProgress }   from "./pages/progress";
 import { renderRecap }      from "./pages/recap";
+import { renderHundredDay } from "./pages/hundred-day";
 import { renderSettings }   from "./pages/settings";
 import {
   renderWelcomeBack, computeWelcomeBackState, setPendingWelcomeBackState,
@@ -208,6 +209,7 @@ function dispatch(path: string): Promise<void> {
     case "#/meals":      return renderMeals();
     case "#/progress":   return renderProgress();
     case "#/recap":      return renderRecap();
+    case "#/hundred-day": return renderHundredDay();
     case "#/settings":   return renderSettings();
     case "#/today":
     default:             return renderToday();

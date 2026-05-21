@@ -9,6 +9,7 @@ import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
 import {
   onboard, addManualPanel, composePlan, enterTour, enterSharedViewWithAdopt,
+  seedHundredDayState,
 } from "../helpers/flows";
 
 const ALLOWED_HOSTS = [
@@ -112,6 +113,42 @@ test.describe("Privacy contract", () => {
       expect(typeof row.at).toBe("number");
       expect(typeof row.id).toBe("number");
     }
+  });
+
+  test("the hundred-day surface (ticket 0021) renders with no off-allow-list egress", async ({ page }) => {
+    const stats = await installMocks(page);
+    await onboard(page);
+    // Seed a quarter-1 timeline (105-day-old plan + 55 check-ins + two draws),
+    // then visit the surface. It must paint from IndexedDB only — zero new
+    // hostnames, and the BYOK call is the only off-device call (and none fires
+    // here since the surface is computed locally).
+    const checkIns = [] as Array<{ dayOffset: number; habitsCompleted: string[] }>;
+    let placed = 0;
+    for (let d = 0; d < 100 && placed < 55; d += 1) {
+      if (d % 6 === 5) continue;
+      checkIns.push({ dayOffset: d, habitsCompleted: ["h1"] });
+      placed += 1;
+    }
+    await seedHundredDayState(page, {
+      plans: [{ daysAgo: 105, habits: [{ id: "h1", title: "Walk" }] }],
+      checkIns,
+      panels: [
+        { dayOffset: 5,  results: [{ markerKey: "ferritin_m", value: 32, unit: "ng/mL" }] },
+        { dayOffset: 90, results: [{ markerKey: "ferritin_m", value: 48, unit: "ng/mL" }] },
+      ],
+    });
+    await page.goto("/#/hundred-day");
+    await page.reload();
+    await expect(page.locator(".hundred-day")).toBeVisible();
+
+    const offending = stats.outboundUrls.filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
   });
 
   test("the adopt-and-adapt flow (ticket 0020) never widens the egress allow-list", async ({ page }) => {

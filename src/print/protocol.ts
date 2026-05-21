@@ -21,8 +21,8 @@
 // renderer. The API key cannot end up in the printed bytes because it
 // never enters this code path.
 
-import type { Plan, Panel, Profile } from "../types";
-import { renderForDoctor, renderForFriend } from "./template";
+import type { Plan, Panel, Profile, HundredDayState } from "../types";
+import { renderForDoctor, renderForFriend, renderHundredDayTemplate } from "./template";
 import { today } from "../db";
 
 export type Audience = "doctor" | "friend";
@@ -70,6 +70,39 @@ export function mountAndPrint(opts: MountAndPrintOpts): string {
     // queueMicrotask is intentional: some browsers read document.title
     // asynchronously when the print dialog mounts, so restore on the next
     // tick rather than synchronously inside the same frame.
+    queueMicrotask(() => { document.title = prevTitle; });
+  }
+
+  return filenameStem;
+}
+
+/**
+ * Mount the hundred-day print sheet (ticket 0021) and fire window.print().
+ *
+ * A parallel to `mountAndPrint()` rather than a new `Audience` case: the
+ * hundred-day's input is a `HundredDayState`, not a Plan + Profile + Panels, so
+ * a separate shim keeps the existing signature clean. The audience is "user /
+ * clinician" — informational, not a clinical hand-off — and the state carries no
+ * profile, no API key, no goals/conditions/meal plan, so none of those can leak
+ * into the printed bytes. Re-uses the same suggested-filename + title-restore
+ * plumbing as `mountAndPrint()`.
+ */
+export function mountAndPrintHundredDay(state: HundredDayState): string {
+  const filenameStem = suggestedFilename();
+  const html = renderHundredDayTemplate(state);
+
+  removeMountedSheet();
+
+  const wrap = document.createElement("div");
+  wrap.className = "print-sheet-wrap";
+  wrap.innerHTML = html;
+  document.body.appendChild(wrap);
+
+  const prevTitle = document.title;
+  document.title = filenameStem;
+  try {
+    window.print();
+  } finally {
     queueMicrotask(() => { document.title = prevTitle; });
   }
 

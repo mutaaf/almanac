@@ -324,6 +324,20 @@ export async function allPlans(): Promise<Plan[]> {
   return db.plans.orderBy("generatedAt").reverse().toArray();
 }
 
+/**
+ * The `generatedAt` of the OLDEST plan, or null when no plan exists. The
+ * hundred-day surface (ticket 0021) uses this as the window anchor — the user's
+ * "real anniversary" is 100 days from their actual first compose, not a calendar
+ * date. Tour and shared-view mode have no real timeline; they return null so the
+ * surface short-circuits upstream.
+ */
+export async function firstPlanGeneratedAt(): Promise<number | null> {
+  if (isSharedView()) return null;
+  if (isTour())      return null;
+  const oldest = await db.plans.orderBy("generatedAt").first();
+  return oldest?.generatedAt ?? null;
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Meal plans                                                                */
 /* -------------------------------------------------------------------------- */
@@ -385,6 +399,19 @@ export async function recentCheckIns(days = 14): Promise<CheckIn[]> {
   if (isSharedView()) return [];
   if (isTour()) return tourCheckIns(days);
   return db.checkins.orderBy("day").reverse().limit(days).toArray();
+}
+
+/**
+ * Every check-in whose `day` falls inside the inclusive [startDay, endDay]
+ * window. The hundred-day surface (ticket 0021) reads the full 100-day window,
+ * not the recap's 14 days. The `day` index is a string YYYY-MM-DD so a Dexie
+ * `between` range query is lexicographically correct. Tour and shared-view mode
+ * have no real timeline; they return an empty list.
+ */
+export async function allCheckInsInWindow(startDay: Day, endDay: Day): Promise<CheckIn[]> {
+  if (isSharedView()) return [];
+  if (isTour())      return [];
+  return db.checkins.where("day").between(startDay, endDay, true, true).toArray();
 }
 
 /* -------------------------------------------------------------------------- */
