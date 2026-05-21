@@ -59,7 +59,7 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0028 | The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back | P1 | groomed | today |
+| 0028 | The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back | P1 | in-progress | today |
 | 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | groomed | plan |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
 | 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |
