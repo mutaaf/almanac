@@ -536,6 +536,82 @@ body {
   overflow-wrap: anywhere; /* long single-token marker names break, not overflow */
 }
 
+/* =============================================================================
+   Report card (ticket 0036) — "Against the optimum," the at-rest tally of how a
+   panel's markers stack up against the FUNCTIONAL optimum. It sits at the top of
+   the panel review screen, above the results table + the movement receipt. Calm
+   editorial copy plus a row of tap-target chips that scroll to the matching
+   rows. No celebratory or alarmist color — ink and ink-soft only; oxblood
+   reserved. The count chips clear the 44×44 css-px target (with a 1px cushion so
+   iPhone-15 DPR rounding can't drop the box under 44 — see docs/LESSONS.md).
+   ============================================================================= */
+.report-card {
+  margin: 2.2rem 0 0.2rem;
+  padding: 1.1rem 0 0.4rem;
+  border-top: 1px solid var(--rule);
+  min-width: 0;            /* grid/flex child must allow long lines to wrap     */
+}
+.report-card__eyebrow {
+  color: var(--ink-faint);
+  border-bottom: 0;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0;
+}
+.report-card__line {
+  font-family: var(--body);
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 0;
+  max-width: 64ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.report-card__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  min-width: 0;
+}
+.report-card__count {
+  box-sizing: border-box;  /* count border + padding toward the 44px target     */
+  min-height: 45px;        /* 1px cushion over 44 for WebKit DPR rounding        */
+  min-width: 45px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 180ms var(--ease), color 180ms var(--ease);
+}
+.report-card__count:hover { border-color: var(--ink); color: var(--ink); }
+.report-card__count-num {
+  font-family: var(--display);
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.report-card__count-label {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* The transient highlight a chip tap leaves on its matching rows. A thin ink
+   left-edge — no flood, no glow; the chip + the scroll do the pointing. */
+.result.is-report-highlight {
+  box-shadow: inset 3px 0 0 0 var(--ink);
+  transition: box-shadow 200ms var(--ease);
+}
+
 .view-toggle {
   display: inline-flex;
   border: 1px solid var(--rule);

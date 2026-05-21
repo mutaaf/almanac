@@ -1,7 +1,7 @@
 ---
 id: 0036
 title: The "normal" that isn't — a panel report card that counts how many markers sit below the optimum the lab called fine
-status: groomed
+status: in-progress
 priority: P1
 area: labs
 created: 2026-05-21
@@ -81,4 +81,19 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+### 2026-05-21 — implementation-dev
+
+Picked up 0036 (top groomed P1). Branch `feat/0036-normal-that-isnt`.
+
+Interpretation notes (proceeding without blocking — no privacy/public-API change implied):
+- "Report card" is a new pure module `src/labs/report-card.ts` exposing
+  `computeReportCard(panel, markers)`, modeled on the 0032 movement-receipt
+  module: pure, no DOM/Dexie/network. The page (`renderPanelDetail`) passes the
+  merged marker set (seed + user markers) in.
+- The card renders ABOVE the results table AND above the 0032 movement receipt,
+  under the "Against the optimum" eyebrow, only when `total > 0`.
+- The count chips scroll the matching class's rows into view by re-using the
+  per-row `markerKey`; tapped chips add a transient highlight to those rows.
+  No new detail surface.
+- The index-card `README.md` row flips to `shipped` in the SAME commit as the
+  ticket frontmatter flip on green CI, so the squash-on-green can't orphan it.

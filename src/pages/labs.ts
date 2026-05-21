@@ -17,12 +17,13 @@ import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import { listUserMarkers, addUserMarker, getAllMarkers } from "../data/userMarkers";
 import { computeProjection } from "../progress/projection";
 import { computeMovementReceipt, moveSentence } from "../labs/movement-receipt";
+import { computeReportCard, reportCardSentence, reportClassFor, resolveResultFlag } from "../labs/report-card";
 import { route } from "../main";
 import { isSharedView } from "../share/shared-state";
 import { isTour } from "../sample/state";
 import { getCachedExtraction } from "../db";
 import { ANTHROPIC_HOST } from "../claude";
-import type { MarkerCategory, MarkerDef, MarkerMove, Panel, ProjectionSnapshot, Result } from "../types";
+import type { MarkerCategory, MarkerDef, MarkerMove, Panel, ProjectionSnapshot, ReportCard, Result } from "../types";
 
 /* The staging set lives outside render so paste handlers can mutate it
    without re-running the whole component. */
@@ -550,6 +551,16 @@ async function renderPanelDetail(id: number): Promise<void> {
     ? renderUnmatchedSection(unmatched, profile?.sex, extras, userMarkerKeys)
     : "";
 
+  // Report card (ticket 0036) — "Against the optimum," the at-rest tally of how
+  // this panel's markers stack up against the FUNCTIONAL optimum. Pure,
+  // zero-network: it reduces the panel's already-flagged results (with
+  // `flagFor()` as fallback) over the resolved marker ranges. Renders nothing
+  // when no marker is classifiable (a panel of only range-less rows). It sits
+  // ABOVE the movement receipt — the at-rest picture comes first, then the
+  // movement context.
+  const reportCard = computeReportCard(panel, extras);
+  const reportCardHtml = reportCard.total > 0 ? renderReportCard(reportCard) : "";
+
   // Movement receipt (ticket 0032) — "Since your last draw," one calm dated
   // line per marker that also has an earlier draw. Pure, zero-network: it reads
   // this panel + every prior panel already loaded from IndexedDB. Renders
@@ -574,6 +585,7 @@ async function renderPanelDetail(id: number): Promise<void> {
           <em>${panel.results.length}</em> markers, drawn ${esc(panel.drawnAt)}.
         </h1>
 
+        ${reportCardHtml}
         ${groupsHtml || `<div class="quiet">No matched results.</div>`}
         ${movementHtml}
         ${unmatchedHtml}
@@ -596,6 +608,7 @@ async function renderPanelDetail(id: number): Promise<void> {
   });
 
   wireUnmatchedHandlers(id);
+  wireReportCard();
 }
 
 /* -------------------------------------------------------------------------- */
@@ -620,6 +633,79 @@ function renderMovementReceipt(moves: MarkerMove[]): string {
       <div class="movement-receipt__lines">${lines}</div>
     </section>
   `;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Report card (ticket 0036)                                                  */
+/* -------------------------------------------------------------------------- */
+/*
+ * Render the "Against the optimum" section: one editorial sentence over a small
+ * tally of class chips. The sentence carries only the non-zero clauses; the
+ * chips are ≥44×44 css-px tap targets that scroll + highlight the matching rows.
+ * No celebratory or alarmist color — ink and ink-soft only; the satisfaction and
+ * the seriousness both live in the copy. The caller only invokes this when the
+ * card has at least one classifiable marker (`total > 0`).
+ */
+function renderReportCard(card: ReportCard): string {
+  // Each chip names a class, its count, and a label. Optimal is always shown
+  // (it's the denominator the user came to read); suboptimal + out-of-range
+  // chips appear only when non-zero so a clean panel reads as reassurance.
+  const chips: string[] = [
+    chip("optimal", card.optimal, "optimal"),
+  ];
+  if (card.suboptimal > 0) {
+    chips.push(chip("suboptimal", card.suboptimal, "below optimum"));
+  }
+  if (card.outOfLabRange > 0) {
+    chips.push(chip("outOfLabRange", card.outOfLabRange, "out of lab range"));
+  }
+
+  return `
+    <section class="report-card" aria-label="Against the optimum">
+      <div class="section-mark report-card__eyebrow">Against the optimum</div>
+      <p class="report-card__line">${esc(reportCardSentence(card))}</p>
+      <div class="report-card__counts">${chips.join("")}</div>
+    </section>
+  `;
+}
+
+/** One report-card class chip — a tap target that scrolls to its rows. */
+function chip(cls: "optimal" | "suboptimal" | "outOfLabRange", count: number, label: string): string {
+  return `
+    <button type="button" class="report-card__count" data-class="${esc(cls)}">
+      <span class="report-card__count-num">${count}</span>
+      <span class="report-card__count-label">${esc(label)}</span>
+    </button>
+  `;
+}
+
+/**
+ * Wire the report-card chips: tapping a chip scrolls the first row of that class
+ * into view and adds a transient highlight to every row in the class. Pure DOM —
+ * no URL change, no network. The rows carry `data-report-class` (assigned by
+ * `resultRow` via the same flag resolution the card counted with), so a chip tap
+ * selects exactly the rows it tallied.
+ */
+function wireReportCard(): void {
+  const card = document.querySelector(".report-card");
+  if (!card) return;
+
+  for (const btn of card.querySelectorAll<HTMLButtonElement>(".report-card__count")) {
+    btn.addEventListener("click", () => {
+      const cls = btn.dataset.class;
+      if (!cls) return;
+
+      // Clear any prior highlight so repeated taps don't accumulate.
+      for (const prev of document.querySelectorAll(".result.is-report-highlight")) {
+        prev.classList.remove("is-report-highlight");
+      }
+
+      const rows = document.querySelectorAll<HTMLElement>(`.result[data-report-class="${cls}"]`);
+      if (!rows.length) return;
+      for (const row of rows) row.classList.add("is-report-highlight");
+      rows[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -1016,8 +1102,14 @@ function resultRow(r: Result, extras: MarkerDef[] = []): string {
   const optimal = r.optimalRange ? rangeStr(r.optimalRange, r.unit) : "—";
   const flag = r.flag ?? "";
 
+  // The report card (ticket 0036) scrolls + highlights the rows in a class by
+  // selecting on `data-report-class`. Resolve the flag the same way the card
+  // does — stored flag first, `flagFor()` fallback — so a chip tap finds exactly
+  // the rows the chip counted.
+  const reportClass = reportClassFor(resolveResultFlag(r, extras));
+
   return `
-    <div class="result">
+    <div class="result"${reportClass ? ` data-report-class="${esc(reportClass)}"` : ""} data-marker-key="${esc(r.markerKey)}">
       <div class="result__name">${esc(name)}</div>
       <div class="result__value">
         <span class="result__num">${esc(r.value)}</span>

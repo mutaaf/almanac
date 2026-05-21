@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
 import {
   onboard, addManualPanel, composePlan, enterTour, enterSharedViewWithAdopt,
-  seedHundredDayState, seedPlanWithRetest,
+  seedHundredDayState, seedPlanWithRetest, seedPanel,
 } from "../helpers/flows";
 
 const ALLOWED_HOSTS = [
@@ -267,6 +267,43 @@ test.describe("Privacy contract", () => {
     await page.goto("/#/today");
     await page.reload();
     await expect(page.locator(".retest-card")).toBeVisible();
+
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+
+    // And specifically: no inference call to api.anthropic.com fired while the
+    // local-only card rendered.
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+  });
+
+  test("the report card (ticket 0036) renders with no off-allow-list egress", async ({ page }) => {
+    const stats = await installMocks(page);
+    await onboard(page, { sex: "male" });
+    // Seed a panel with a known mix of flags, then open its review screen. The
+    // card is a pure local reduction over the panel's already-flagged results —
+    // it must paint with zero new hostnames and zero inference call.
+    const id = await seedPanel(page, {
+      drawnAt: "2026-05-15", labName: "Quest", clearFirst: true,
+      results: [
+        { markerKey: "hemoglobin_m", value: 14.4, unit: "g/dL", labRange: { low: 13.5, high: 17.5 }, optimalRange: { low: 14.0, high: 15.5 }, flag: "optimal" },
+        { markerKey: "ferritin_m", value: 50, unit: "ng/mL", labRange: { low: 30, high: 400 }, optimalRange: { low: 70, high: 150 }, flag: "suboptimal" },
+        { markerKey: "vit_d_25oh", value: 24, unit: "ng/mL", labRange: { low: 30, high: 100 }, optimalRange: { low: 50, high: 80 }, flag: "low" },
+      ],
+    });
+    const before = stats.outboundUrls.length;
+    await page.goto(`/#/labs?id=${id}`);
+    await page.reload();
+    await expect(page.locator(".report-card")).toBeVisible();
 
     const offending = stats.outboundUrls.slice(before).filter(u => {
       if (!u.startsWith("http://") && !u.startsWith("https://")) return false;

@@ -278,6 +278,36 @@ export interface MarkerMove {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Panel report card (ticket 0036)                                           */
+/* -------------------------------------------------------------------------- */
+/*
+ * The at-rest tally a panel produces against the FUNCTIONAL optimum, computed by
+ * `computeReportCard(panel, markers)` in `src/labs/report-card.ts`. Render-time
+ * only — nothing here is persisted (no schema change). It reduces the panel's
+ * already-flagged results over the existing `Flag` classification (with
+ * `flagFor()` as the fallback classifier when a result carries no stored flag),
+ * counting each classifiable marker into exactly one bucket. Results whose marker
+ * does not resolve to a range — nothing to judge against — are excluded from
+ * `total`. Pure: no DOM, no Dexie, no network.
+ *
+ *   total          markers with a range to judge against (the denominator).
+ *   optimal        flag `optimal` — inside the functional range.
+ *   suboptimal     flag `suboptimal` — inside the lab range but below the
+ *                  functional optimum. The wedge.
+ *   outOfLabRange  flag `low` OR `high` — outside the lab range entirely. A
+ *                  marker here is NEVER also counted as suboptimal.
+ *   lowOrHigh      `outOfLabRange` rolled up (kept for callers that want the
+ *                  raw low+high sum); identical to `outOfLabRange` today.
+ */
+export interface ReportCard {
+  total: number;
+  optimal: number;
+  suboptimal: number;
+  outOfLabRange: number;
+  lowOrHigh: number;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  What-if simulation (ticket 0019)                                          */
 /* -------------------------------------------------------------------------- */
 /*
