@@ -59,10 +59,10 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | shipped | plan |
-| 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | groomed | progress |
+| 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | in-progress | progress |
 | 0036 | The "normal" that isn't — a panel report card that counts how many markers sit below the optimum the lab called fine | P1 | groomed | labs |
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | groomed | growth |
+| 0041 | The days you kept — a quiet milestone the morning a run of consistent check-ins reaches 7, 30, or 100 | P1 | groomed | today |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
 | 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |
 | 0026 | Same marker, different lab — surface the canonicalization that lets a trend span report formats | P2 | groomed | labs |
@@ -75,9 +75,11 @@ owner: gtm-innovation
 | 0037 | What this costs to run — an honest pennies-per-action estimate before the user trusts a key, and a running tally after | P2 | groomed | onboarding |
 | 0038 | The functional-range reference — let a prospect read the marker library, with both ranges, before they trust the app with a key | P2 | groomed | growth |
 | 0039 | What we ruled out — name the patterns the engine checked and did NOT find, so a clean panel reads as reassurance | P2 | groomed | plan |
-| 0041 | The days you kept — a quiet milestone the morning a run of consistent check-ins reaches 7, 30, or 100 | P1 | proposed | today |
-| 0042 | The protocol, over time — browse every plan you have composed and diff any two of them | P2 | proposed | plan |
-| 0043 | Why this isn't a chat box — put the anti-wrapper argument in front of the prospect, before the key | P2 | proposed | growth |
+| 0042 | The protocol, over time — browse every plan you have composed and diff any two of them | P2 | groomed | plan |
+| 0043 | Why this isn't a chat box — put the anti-wrapper argument in front of the prospect, before the key | P2 | groomed | growth |
+| 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | proposed | labs |
+| 0044 | Same marker, different units — reconcile a draw reported in another unit into the canonical trend, with an honest receipt | P2 | proposed | labs |
+| 0045 | The record — one dated spine of every draw and every plan, paged back through like a journal | P2 | proposed | progress |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
@@ -98,6 +100,7 @@ owner: gtm-innovation
 | 0024 | Verify-before-commit — prove the BYOK key works before the user trusts it with their labs | P1 | shipped | onboarding |
 | 0025 | The egress receipt — show exactly what leaves this device before a lab upload calls Claude | P1 | shipped | privacy |
 | 0028 | The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back | P1 | shipped | today |
+| 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | shipped | plan |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | shipped | infra |
 | 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | shipped | plan |
 | 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | shipped | plan |
