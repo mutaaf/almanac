@@ -607,6 +607,69 @@ export async function seedHundredDayState(page: Page, opts: SeedHundredDayOpts):
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Panel seeding (ticket 0032 movement-receipt; sibling of 0026)              */
+/* -------------------------------------------------------------------------- */
+
+/** One fully-formed panel for `seedPanel`. `drawnAt` is the ISO draw date
+ *  the receipt diffs on; `results` are the marker readings. */
+export interface SeedPanelInput {
+  drawnAt: Day;
+  labName?: string;
+  results: Array<{ markerKey: string; value: number; unit: string; optimalRange?: { low?: number; high?: number } }>;
+  /** Clear the `panels` store before writing this row. Default false. */
+  clearFirst?: boolean;
+}
+
+/** A `Day` is just a YYYY-MM-DD string in the app's domain types. */
+type Day = string;
+
+/**
+ * Write one fully-formed Panel straight into IndexedDB (ticket 0032). Lets the
+ * movement-receipt spec seed exact value pairs across two panels with
+ * controlled `drawnAt` so it can assert the into-range / toward / away /
+ * unchanged copy without paying the extraction round-trip. Each call appends a
+ * row; pass `clearFirst: true` on the FIRST seed of a scenario so a re-seed
+ * isn't shadowed by a prior panel.
+ *
+ * The row carries each result's `optimalRange` (resolved from the marker DB by
+ * the caller when it needs the receipt's range crossing to be exact) so the
+ * seeded panel is shaped like a real extracted panel. After seeding, navigate
+ * to `#/labs?id=N` and reload so the router reads the fresh rows.
+ *
+ * Returns the auto-assigned panel id so the spec can deep-link to its detail.
+ */
+export async function seedPanel(page: Page, panel: SeedPanelInput): Promise<number> {
+  return page.evaluate((p: SeedPanelInput) => {
+    return new Promise<number>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error ?? new Error("open failed"));
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction("panels", "readwrite");
+        const store = tx.objectStore("panels");
+        if (p.clearFirst) store.clear();
+        let newId = -1;
+        const add = store.add({
+          drawnAt: p.drawnAt,
+          ...(p.labName ? { labName: p.labName } : {}),
+          source: "manual",
+          createdAt: Date.now(),
+          results: p.results.map((r) => ({
+            markerKey: r.markerKey,
+            value: r.value,
+            unit: r.unit,
+            ...(r.optimalRange ? { optimalRange: r.optimalRange } : {}),
+          })),
+        });
+        add.onsuccess = () => { newId = add.result as number; };
+        tx.oncomplete = () => { db.close(); resolve(newId); };
+        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+      };
+    });
+  }, panel);
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Retest-due surface seeding (ticket 0028)                                   */
 /* -------------------------------------------------------------------------- */
 

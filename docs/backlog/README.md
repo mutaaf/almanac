@@ -60,7 +60,7 @@ owner: gtm-innovation
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
 | 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | shipped | plan |
-| 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | groomed | progress |
+| 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | shipped | progress |
 | 0036 | The "normal" that isn't — a panel report card that counts how many markers sit below the optimum the lab called fine | P1 | groomed | labs |
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | groomed | growth |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
