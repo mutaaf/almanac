@@ -257,7 +257,11 @@ export interface PlanDelta {
  */
 export interface MarkerMove {
   markerKey: string;
-  /** Human display name resolved via the marker DB (sex-specific + user keys). */
+  /**
+   * Human display name resolved via the marker DB (sex-specific + user keys).
+   * Prefers the marker's `shortName` (e.g. "ApoB") when present, matching the
+   * panel result-row convention, else the full `name`.
+   */
   canonicalName: string;
   priorValue: number;
   newValue: number;

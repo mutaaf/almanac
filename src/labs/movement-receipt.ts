@@ -82,7 +82,10 @@ export function computeMovementReceipt(
     if (!prior) continue;   // first time we've seen this marker — nothing to compare
 
     const marker = findMarker(result.markerKey, extras);
-    const canonicalName = marker?.name ?? result.markerKey;
+    // Match the panel's result-row convention: prefer the marker's shortName
+    // (e.g. "ApoB" over "Apolipoprotein B") so the receipt reads the way the
+    // table above it does. Falls back to the full name, then the raw key.
+    const canonicalName = marker?.shortName ?? marker?.name ?? result.markerKey;
     // Prefer the resolved marker's functional range; fall back to the value the
     // panel stored at draw time so a marker whose DB range later changed still
     // diffs against what the user actually saw.
