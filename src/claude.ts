@@ -19,6 +19,100 @@ import { computeInsights, formatInsightsForPrompt } from "./insights";
 import { recordCall } from "./telemetry";
 
 /* ============================================================================
+   KEY VERIFICATION (ticket 0024)
+   ============================================================================
+   verify-before-commit: prove the BYOK key authenticates and the chosen model
+   is reachable BEFORE the user trusts it with a lab PDF. The probe is the
+   cheapest possible authenticated round-trip — max_tokens 1, a single-token
+   user message, no system prompt, no caching, no labs. It runs directly from
+   the browser to api.anthropic.com exactly like every other call (no proxy).
+
+   The result is a discriminated union the UI paints into one deterministic
+   line. The key is NEVER returned in the resolved value, NEVER attached to a
+   thrown error, NEVER logged. On success it records the probe's tokens through
+   the same telemetry path the generators use, so the local AI-calls log
+   accounts for every call we made on the user's behalf — the probe included.
+*/
+
+/** The bounded client-side timeout for the probe. No existing call-timeout
+ *  convention lives in this module, so we use the 15s the ticket names. */
+const KEY_CHECK_TIMEOUT_MS = 15_000;
+
+export type KeyCheckResult =
+  | { ok: true }
+  | { ok: false; reason: "auth" | "model" | "billing" | "network" };
+
+/**
+ * Fire one minimal authenticated probe and classify the outcome. Pure of the
+ * key: the caller passes it in, we build a one-shot client, and nothing about
+ * the key leaks into the resolved value, a thrown error, or the console.
+ *
+ * Classification:
+ *   - 401 / authentication_error            → "auth"   (bad or partial key)
+ *   - 404 / not_found_error (model)          → "model"  (key fine, model isn't)
+ *   - 400 with a "credit balance" message    → "billing" (key fine, no funds)
+ *   - connection error / abort / our timeout → "network"
+ *   - anything else non-2xx                  → "network" (advisory fallback;
+ *                                              a real generation will surface
+ *                                              the precise SDK error later)
+ */
+export async function verifyKey(key: string, model: string): Promise<KeyCheckResult> {
+  const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+
+  // Bound the probe so a hung socket on a cafe connection still resolves into
+  // the "could not reach Anthropic" line rather than spinning forever. The SDK
+  // honors an AbortSignal; we also race a timer so an environment that ignores
+  // the signal can't strand the promise.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), KEY_CHECK_TIMEOUT_MS);
+
+  try {
+    const resp = await client.messages.create(
+      { model, max_tokens: 1, messages: [{ role: "user", content: "hi" }] },
+      { signal: controller.signal },
+    );
+    // Account for the probe's tokens locally, exactly as the generators do.
+    recordCall("verify", model, resp);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: classifyKeyError(err) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Map a caught error to a KeyCheckResult reason WITHOUT touching the key. We
+ * read only the SDK's `status` number and a lowercased copy of the error
+ * `type` / `message` (neither contains the key). Default is "network" — the
+ * advisory line that asks the user to retry; the precise SDK error surfaces at
+ * the real generation if it persists.
+ */
+function classifyKeyError(err: unknown): "auth" | "model" | "billing" | "network" {
+  const e = err as { status?: number; name?: string; error?: unknown; message?: string };
+
+  // Abort (our timeout) and connection failures are "network".
+  if (e?.name === "APIUserAbortError" || e?.name === "AbortError") return "network";
+  if (e?.name === "APIConnectionError" || e?.name === "APIConnectionTimeoutError") return "network";
+
+  // The SDK exposes the JSON body on `.error`; dig for the inner type/message.
+  const body = (e?.error ?? {}) as { error?: { type?: string; message?: string } };
+  const innerType = String(body?.error?.type ?? "").toLowerCase();
+  const innerMsg  = String(body?.error?.message ?? e?.message ?? "").toLowerCase();
+
+  if (e?.status === 401 || innerType === "authentication_error") return "auth";
+
+  // Billing reads from the message — Anthropic returns credit exhaustion as an
+  // invalid_request_error whose message names the credit balance. Check this
+  // BEFORE the generic 404/400 buckets so a billing 400 isn't misread.
+  if (innerMsg.includes("credit balance") || innerType === "billing_error") return "billing";
+
+  if (e?.status === 404 || innerType === "not_found_error" || innerMsg.includes("model")) return "model";
+
+  return "network";
+}
+
+/* ============================================================================
    PLAN GENERATION
    ============================================================================ */
 

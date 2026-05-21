@@ -81,11 +81,26 @@ function patchedMealPlan(): unknown {
   return meals;
 }
 
+/**
+ * How the mock should respond to the next key-verify probe (ticket 0024). The
+ * probe is the cheapest authenticated round-trip — `max_tokens === 1`, a single
+ * "hi" user message, no system prompt — so a spec can drive `verifyKey()` down
+ * each of its branches without a live key. `"ok"` (the default) returns a 200;
+ * the others return the exact error shapes the Anthropic API emits.
+ */
+export type KeyCheckOutcome = "ok" | "auth" | "model" | "billing" | "network";
+
 export interface MockStats {
   extractCalls: number;
   planCalls: number;
   mealsCalls: number;
   swapCalls: number;
+  /** Number of min-token probe calls served (ticket 0024). */
+  keyCheckCalls: number;
+  /** The `max_tokens` of the most recent probe served — asserted to be 1. */
+  lastKeyCheckMaxTokens: number;
+  /** Whether the most recent probe carried a non-empty system prompt. */
+  lastKeyCheckHadSystem: boolean;
   /** Every request URL the page attempted to make off-device. */
   outboundUrls: string[];
   /**
@@ -96,6 +111,12 @@ export interface MockStats {
    * Returns "" before any call has been served.
    */
   lastPromptBody(): string;
+  /**
+   * Drive the NEXT key-verify probe (ticket 0024) into a specific outcome.
+   * Stays set until changed, so a spec that runs several checks in a row picks
+   * the outcome before each tap. Default is "ok".
+   */
+  setKeyCheckOutcome(outcome: KeyCheckOutcome): void;
 }
 
 /**
@@ -107,9 +128,13 @@ export interface MockStats {
  */
 export async function installMocks(page: Page): Promise<MockStats> {
   let lastPrompt = "";
+  let keyCheckOutcome: KeyCheckOutcome = "ok";
   const stats: MockStats = {
-    extractCalls: 0, planCalls: 0, mealsCalls: 0, swapCalls: 0, outboundUrls: [],
+    extractCalls: 0, planCalls: 0, mealsCalls: 0, swapCalls: 0,
+    keyCheckCalls: 0, lastKeyCheckMaxTokens: 0, lastKeyCheckHadSystem: false,
+    outboundUrls: [],
     lastPromptBody: () => lastPrompt,
+    setKeyCheckOutcome: (outcome) => { keyCheckOutcome = outcome; },
   };
 
   // Allow-list of hosts the browser may talk to. Anything else gets blocked
@@ -138,6 +163,76 @@ export async function installMocks(page: Page): Promise<MockStats> {
         .map((b: any) => b.text as string)
         .join("\n");
       lastPrompt = [sys, userText].filter(Boolean).join("\n");
+
+      // Key-verify probe (ticket 0024). The cheapest authenticated round-trip:
+      // max_tokens === 1, no system prompt. Sniffed BEFORE every fixture branch
+      // because the probe carries no voice sentinel and would otherwise fall
+      // through to the default plan branch. The per-test `keyCheckOutcome`
+      // drives it down each of verifyKey()'s discriminated-union arms.
+      if (body.max_tokens === 1 && sys.trim() === "") {
+        stats.keyCheckCalls++;
+        stats.lastKeyCheckMaxTokens = body.max_tokens;
+        stats.lastKeyCheckHadSystem = sys.trim().length > 0;
+
+        if (keyCheckOutcome === "network") {
+          // Mirror a dropped connection / timeout — the SDK surfaces this as an
+          // APIConnectionError, which verifyKey() must classify as "network".
+          await route.abort("connectionfailed");
+          return;
+        }
+        if (keyCheckOutcome === "auth") {
+          await route.fulfill({
+            status: 401,
+            contentType: "application/json",
+            body: JSON.stringify({
+              type: "error",
+              error: { type: "authentication_error", message: "invalid x-api-key" },
+            }),
+          });
+          return;
+        }
+        if (keyCheckOutcome === "model") {
+          await route.fulfill({
+            status: 404,
+            contentType: "application/json",
+            body: JSON.stringify({
+              type: "error",
+              error: { type: "not_found_error", message: "model: " + body.model },
+            }),
+          });
+          return;
+        }
+        if (keyCheckOutcome === "billing") {
+          await route.fulfill({
+            status: 400,
+            contentType: "application/json",
+            body: JSON.stringify({
+              type: "error",
+              error: {
+                type: "invalid_request_error",
+                message: "Your credit balance is too low to access the Anthropic API.",
+              },
+            }),
+          });
+          return;
+        }
+        // ok — a minimal 200 with a one-token completion + usage so recordCall
+        // can increment the local telemetry log (acceptance: telemetry +1).
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            id: `msg_probe_${Math.random().toString(36).slice(2, 10)}`,
+            type: "message",
+            role: "assistant",
+            model: body.model,
+            content: [{ type: "text", text: "ok" }],
+            stop_reason: "end_turn",
+            usage: { input_tokens: 4, output_tokens: 1 },
+          }),
+        });
+        return;
+      }
 
       if (sys.includes("extracting structured biomarker")) {
         stats.extractCalls++;

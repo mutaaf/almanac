@@ -196,6 +196,27 @@ test.describe("Privacy contract", () => {
     expect(offending).toEqual([]);
   });
 
+  test("the key-verify probe (ticket 0024) hits only api.anthropic.com", async ({ page }) => {
+    const stats = await installMocks(page);
+    // Reach the onboarding form, type a key, and run the check. The probe is a
+    // direct BYOK call to api.anthropic.com — already on the allow-list — and
+    // must not introduce any new hostname or a validation endpoint we operate.
+    await onboard(page);
+    await page.goto("/#/settings");
+    await page.locator("#key").waitFor({ state: "visible" });
+    await page.locator(".key-check__action").click();
+    await expect(page.locator(".key-check__ok, .key-check__fail")).toBeVisible();
+
+    const offending = stats.outboundUrls.filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+  });
+
   test("import of a malformed export does not crash the app", async ({ page }) => {
     await installMocks(page);
     await onboard(page);
