@@ -500,26 +500,32 @@ export interface SeedHundredDayOpts {
  */
 export async function seedHundredDayState(page: Page, opts: SeedHundredDayOpts): Promise<void> {
   await page.evaluate((o: SeedHundredDayOpts) => {
-    return new Promise<void>((resolve, reject) => {
-      const DAY_MS = 86_400_000;
-      const now = Date.now();
+    const DAY_MS = 86_400_000;
+    const now = Date.now();
+    // The earliest plan is the window anchor (day 0).
+    const oldestDaysAgo = Math.max(...o.plans.map((p) => p.daysAgo));
+    const firstPlanAt = now - oldestDaysAgo * DAY_MS;
+    const isoForOffset = (offset: number): string =>
+      new Date(firstPlanAt + offset * DAY_MS).toISOString().slice(0, 10);
 
-      // The earliest plan is the window anchor (day 0).
-      const oldestDaysAgo = Math.max(...o.plans.map((p) => p.daysAgo));
-      const firstPlanAt = now - oldestDaysAgo * DAY_MS;
-      const isoForOffset = (offset: number): string =>
-        new Date(firstPlanAt + offset * DAY_MS).toISOString().slice(0, 10);
+    const open = (): Promise<IDBDatabase> =>
+      new Promise((resolve, reject) => {
+        const req = indexedDB.open("almanac");
+        req.onerror = () => reject(req.error ?? new Error("open failed"));
+        req.onsuccess = () => resolve(req.result);
+      });
 
-      const req = indexedDB.open("almanac");
-      req.onerror = () => reject(req.error ?? new Error("open failed"));
-      req.onsuccess = () => {
-        const db = req.result;
+    // Phase 1: clear the four stores, write plans + check-ins + panels, and
+    // capture each panel's auto-assigned id keyed by its day-offset. We resolve
+    // only on tx.oncomplete, so every id is committed before phase 2 runs —
+    // no reassigning a request's onsuccess after it may already have fired.
+    const writeBase = (db: IDBDatabase): Promise<Map<number, number>> =>
+      new Promise((resolve, reject) => {
         const tx = db.transaction(["plans", "checkins", "panels", "projections"], "readwrite");
         const plans = tx.objectStore("plans");
         const checkins = tx.objectStore("checkins");
         const panelsStore = tx.objectStore("panels");
         const projections = tx.objectStore("projections");
-
         plans.clear();
         checkins.clear();
         panelsStore.clear();
@@ -553,8 +559,7 @@ export async function seedHundredDayState(page: Page, opts: SeedHundredDayOpts):
           });
         }
 
-        // Panels are keyed by their day-offset so projections can join to them.
-        const panelIdByOffset = new Map<number, IDBRequest<IDBValidKey>>();
+        const panelIdByOffset = new Map<number, number>();
         for (const panel of o.panels ?? []) {
           const r = panelsStore.add({
             drawnAt: isoForOffset(panel.dayOffset),
@@ -562,33 +567,42 @@ export async function seedHundredDayState(page: Page, opts: SeedHundredDayOpts):
             createdAt: now,
             results: panel.results,
           });
-          panelIdByOffset.set(panel.dayOffset, r);
+          r.onsuccess = () => { panelIdByOffset.set(panel.dayOffset, r.result as number); };
         }
 
-        // Projection snapshots reference the panel they were computed FROM.
-        for (const proj of o.projections ?? []) {
-          const panelReq = panelIdByOffset.get(proj.panelDayOffset);
-          const writeProjection = (panelId: number) => {
-            projections.add({
-              markerKey: proj.markerKey,
-              panelId,
-              low: proj.low,
-              high: proj.high,
-              weeksOut: [8, 12],
-              createdAt: now,
-            });
-          };
-          if (panelReq) {
-            // The add() has already been queued; read its result key when ready.
-            if (typeof panelReq.result === "number") writeProjection(panelReq.result);
-            else panelReq.onsuccess = () => writeProjection(panelReq.result as number);
-          }
-        }
+        tx.oncomplete = () => resolve(panelIdByOffset);
+        tx.onerror    = () => reject(tx.error ?? new Error("base tx failed"));
+      });
 
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
-      };
-    });
+    // Phase 2: write projection snapshots, joining each to its source panel's
+    // now-committed id. Skipped when there are no projections to seed.
+    const writeProjections = (db: IDBDatabase, panelIdByOffset: Map<number, number>): Promise<void> =>
+      new Promise((resolve, reject) => {
+        const projs = o.projections ?? [];
+        if (!projs.length) { resolve(); return; }
+        const tx = db.transaction(["projections"], "readwrite");
+        const store = tx.objectStore("projections");
+        for (const proj of projs) {
+          const panelId = panelIdByOffset.get(proj.panelDayOffset);
+          if (panelId == null) continue;
+          store.add({
+            markerKey: proj.markerKey,
+            panelId,
+            low: proj.low,
+            high: proj.high,
+            weeksOut: [8, 12],
+            createdAt: now,
+          });
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror    = () => reject(tx.error ?? new Error("projection tx failed"));
+      });
+
+    return open().then((db) =>
+      writeBase(db)
+        .then((ids) => writeProjections(db, ids))
+        .finally(() => db.close()),
+    );
   }, opts);
 }
 

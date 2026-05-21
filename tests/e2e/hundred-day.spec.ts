@@ -92,10 +92,12 @@ test.describe("Hundred-day — the firing gate", () => {
   });
 
   test("a user before day 100 sees no card and the route renders the empty state", async ({ page }) => {
-    // Plan only 40 days old — well short of 100.
+    // Plan only 40 days old — well short of 100. Check-in count is irrelevant
+    // here (the gate returns null on the date alone), so seed unique days only:
+    // the `checkins` store has a &day unique index, so duplicate days throw.
     await seedHundredDayState(page, {
       plans: [{ daysAgo: 40, habits: [{ id: "h1", title: "Walk" }] }],
-      checkIns: Array.from({ length: 60 }, (_, i) => ({ dayOffset: i % 40, habitsCompleted: ["h1"] })),
+      checkIns: Array.from({ length: 30 }, (_, i) => ({ dayOffset: i, habitsCompleted: ["h1"] })),
     });
     await openAt(page, "#/today");
     await expect(page.locator(".headline").first()).toBeVisible();
