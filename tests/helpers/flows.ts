@@ -727,3 +727,118 @@ export async function composePlan(page: Page): Promise<void> {
   }
   await expect(page.locator(".dash-snapshot, .prose").first()).toBeVisible({ timeout: 20_000 });
 }
+
+/* -------------------------------------------------------------------------- */
+/*  Plan-to-plan delta seeding (ticket 0029)                                    */
+/* -------------------------------------------------------------------------- */
+
+/** A partial eat item — only the identity + diffed fields need supplying. */
+interface SeedEat {
+  id?: string;
+  food: string;
+  frequency?: string;
+  portion?: string;
+  why?: string;
+  markerKeys?: string[];
+}
+
+/** A partial avoid item — identity is `food`. */
+interface SeedAvoid { id?: string; food: string; why?: string; swap?: string }
+
+/** A partial habit — identity is `title`. */
+interface SeedHabitDelta { id?: string; title: string; cue?: string; why?: string }
+
+/** A partial insight — identity is `title`. */
+interface SeedInsight {
+  title: string;
+  detail?: string;
+  priority?: "high" | "medium" | "low";
+  markerKey?: string;
+}
+
+/**
+ * One fully-formed Plan for `seedPlan`. `generatedDaysAgo` controls the row's
+ * `generatedAt` (the chronological key the delta diffs on); the section arrays
+ * default to empty so a spec supplies only the fields its scenario diffs.
+ */
+export interface SeedPlanInput {
+  generatedDaysAgo: number;
+  snapshot?: string;
+  eatList?: SeedEat[];
+  avoidList?: SeedAvoid[];
+  habits?: SeedHabitDelta[];
+  insights?: SeedInsight[];
+  /** Clear the `plans` store before writing this row. Default false. */
+  clearFirst?: boolean;
+}
+
+/**
+ * Write one fully-formed Plan straight into IndexedDB with a controlled
+ * `generatedAt` (ticket 0029). Lets the plan-delta spec construct exact
+ * deltas — salmon 2x → 3x, a retired habit, a resolved insight — across two
+ * (or three) plans without depending on generator output. Each call appends a
+ * row; pass `clearFirst: true` on the FIRST seed of a scenario so a re-seed
+ * isn't shadowed by a prior plan. The row is shaped exactly like a composed
+ * Plan so the page's normal render path (and the delta render above it) read it
+ * with no special-casing.
+ *
+ * After seeding the rows a spec wants live, navigate to #/plan and reload so
+ * the router reads the fresh rows — `seedPlan` itself does not navigate.
+ */
+export async function seedPlan(page: Page, plan: SeedPlanInput): Promise<void> {
+  await page.evaluate((p: SeedPlanInput) => {
+    const DAY_MS = 86_400_000;
+    const now = Date.now();
+    const row = {
+      generatedAt: now - p.generatedDaysAgo * DAY_MS,
+      basedOnPanelIds: [] as number[],
+      snapshot: p.snapshot ?? "A seeded plan for the plan-delta test.",
+      insights: (p.insights ?? []).map((i) => ({
+        title: i.title,
+        detail: i.detail ?? "Seeded insight detail.",
+        priority: i.priority ?? "medium",
+        ...(i.markerKey ? { markerKey: i.markerKey } : {}),
+      })),
+      eatList: (p.eatList ?? []).map((e, idx) => ({
+        id: e.id ?? `e${idx + 1}`,
+        food: e.food,
+        frequency: e.frequency ?? "weekly",
+        portion: e.portion ?? "1 serving",
+        why: e.why ?? "Seeded reason.",
+        markerKeys: e.markerKeys ?? [],
+      })),
+      avoidList: (p.avoidList ?? []).map((a, idx) => ({
+        id: a.id ?? `a${idx + 1}`,
+        food: a.food,
+        why: a.why ?? "Seeded reason.",
+        ...(a.swap ? { swap: a.swap } : {}),
+      })),
+      lifestyle: [],
+      supplements: [],
+      habitStack: {
+        intro: "Small actions.",
+        habits: (p.habits ?? []).map((h, idx) => ({
+          id: h.id ?? `h${idx + 1}`,
+          title: h.title,
+          cue: h.cue ?? "AM",
+          why: h.why ?? "Seeded reason.",
+        })),
+      },
+      retest: [],
+    };
+
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error ?? new Error("open failed"));
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction("plans", "readwrite");
+        const store = tx.objectStore("plans");
+        if (p.clearFirst) store.clear();
+        store.add(row);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+      };
+    });
+  }, plan);
+}

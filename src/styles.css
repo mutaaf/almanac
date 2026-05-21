@@ -460,6 +460,48 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   gap: 1rem; flex-wrap: wrap;
 }
+
+/* Since your last plan — the plan-to-plan delta (ticket 0029).
+   Editorial prose in ink / ink-soft. No diff coloring, no rounded corners.
+   A hairline rule sets it apart from the snapshot below without a card. */
+.plan-delta {
+  margin: 1.6rem 0 0.2rem;
+  padding: 1.1rem 0 1.3rem;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;            /* grid/flex child must allow long names to wrap   */
+}
+.plan-delta__eyebrow {
+  margin-bottom: 0.7rem;
+}
+.plan-delta__lines {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;            /* documented overflow fix for long food names     */
+}
+.plan-delta__line {
+  font-family: var(--body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere; /* long single-token food names break, not overflow */
+}
+.plan-delta__line--quiet {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+.plan-delta__sub {
+  font-family: var(--body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 0.5rem;
+}
+
 .view-toggle {
   display: inline-flex;
   border: 1px solid var(--rule);
