@@ -1,7 +1,7 @@
 ---
 id: 0036
 title: The "normal" that isn't — a panel report card that counts how many markers sit below the optimum the lab called fine
-status: proposed
+status: groomed
 priority: P1
 area: labs
 created: 2026-05-21

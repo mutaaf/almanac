@@ -1,7 +1,7 @@
 ---
 id: 0037
 title: What this costs to run — an honest pennies-per-action estimate before the user trusts a key, and a running tally after
-status: proposed
+status: groomed
 priority: P2
 area: onboarding
 created: 2026-05-21
