@@ -1,7 +1,7 @@
 ---
 id: 0049
 title: Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel
-status: proposed
+status: groomed
 priority: P2
 area: onboarding
 created: 2026-05-22
