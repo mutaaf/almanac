@@ -1,7 +1,7 @@
 ---
 id: 0046
 title: Paste your results as text — the lowest-friction first panel, straight from the patient portal
-status: proposed
+status: groomed
 priority: P1
 area: labs
 created: 2026-05-21

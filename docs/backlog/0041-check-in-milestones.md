@@ -2,7 +2,7 @@
 id: 0041
 title: The days you kept — a quiet milestone the morning a run of consistent check-ins reaches 7, 30, or 100
 status: groomed
-priority: P1
+priority: P2
 area: today
 created: 2026-05-21
 owner: gtm-innovation

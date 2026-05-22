@@ -1,7 +1,7 @@
 ---
 id: 0044
 title: Same marker, different units — reconcile a draw reported in another unit into the canonical trend, with an honest receipt
-status: proposed
+status: groomed
 priority: P2
 area: labs
 created: 2026-05-21
