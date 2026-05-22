@@ -1,7 +1,7 @@
 ---
 id: 0051
 title: The pre-draw primer — Today surfaces a quiet contextual card 48 hours before the retest date, with marker-specific prep advice
-status: groomed
+status: in-progress
 priority: P1
 area: today
 created: 2026-05-22
@@ -87,4 +87,17 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-22 [implementation-dev] Picked up; branch `feat/0051-pre-draw-primer`. Test-first.
+  Interpretations recorded here so they don't block:
+  - **Next-draw date source.** 0031 (concrete `drawDate`) has NOT shipped (it is `groomed`),
+    so there is no per-plan concrete draw instant in the schema. The primer reads the same
+    next-draw date the 0028 retest-due card computes: the soonest cadence's
+    `generatedAt + whenWeeks*7days`, hour-precise (no calendar-day rounding, since the 48h
+    window is hour-precise). When 0031 ships a concrete `drawDate`, the primer's date source
+    should prefer it (documented in `src/today/pre-draw.ts`).
+  - **0028 coexistence/precedence.** Within the 48h window the pre-draw primer renders and the
+    0028 retest-due countdown is SUPPRESSED — the countdown's job ("it's coming") is subsumed
+    by the primer's ("here's how to draw well"), so the two never present duplicated copy.
+    Outside the window the 0028 card is byte-for-byte unchanged.
+  - **Uncovered retest markers.** Listed by name with a neutral "No special prep needed." note
+    rather than omitted, so the user sees the full set being rechecked.
