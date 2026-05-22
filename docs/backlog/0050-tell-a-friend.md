@@ -1,7 +1,7 @@
 ---
 id: 0050
 title: Tell a friend — a native-share button on Plan that pre-composes a personalized recommendation with the top protocol action and the tour link
-status: groomed
+status: in-progress
 priority: P1
 area: growth
 created: 2026-05-22
@@ -84,4 +84,14 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-22 [implementation-dev] Picked up on branch `feat/0050-tell-a-friend`. Plan:
+  - New pure module `src/plan/share-message.ts` — `composeShareMessage(plan, profile, improved)`,
+    ASCII-only string assembly, no I/O, marker line only when `improved` is non-null, only
+    link token is the literal `#/try`.
+  - `src/pages/plan.ts` — a "Share with a friend" action in the plan-actions row, gated on a
+    composed plan existing, OFF in shared-view, ON in tour mode. Reuses `selectMostImproved`
+    (0047) verbatim against `allPanels()` + profile, then `composeShareMessage`. `navigator.share`
+    when available, falling back to `navigator.clipboard.writeText` + a transient "Copied."
+  - `src/styles.css` — one new action styled like the 0017 share-link action; `min-height: 45px`
+    + `box-sizing: border-box` per the sub-pixel tap-target lesson.
+  - New `tests/e2e/tell-a-friend.spec.ts`; privacy spec extended with both share branches.
