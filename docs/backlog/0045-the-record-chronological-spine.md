@@ -1,7 +1,7 @@
 ---
 id: 0045
 title: The record — one dated spine of every draw and every plan, paged back through like a journal
-status: proposed
+status: groomed
 priority: P2
 area: progress
 created: 2026-05-21
