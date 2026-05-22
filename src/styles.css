@@ -2590,6 +2590,52 @@ body {
   }
 }
 
+/* ---- the improvement card affordance (ticket 0047) --------------------- */
+.improvement {
+  margin-top: 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.improvement-save {
+  box-sizing: border-box;
+  min-height: 45px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: 0.7rem 1.2rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 180ms var(--ease), color 180ms var(--ease), border-color 180ms var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.improvement-save:hover,
+.improvement-save:focus-visible {
+  color: var(--paper);
+  background: var(--oxblood);
+  border-color: var(--oxblood);
+}
+.improvement-save:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+.improvement__note {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  max-width: 52ch;
+}
+
 /* =============================================================================
    FOOD — eat list, avoid list, meals, grocery
    ============================================================================= */

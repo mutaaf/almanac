@@ -16,6 +16,8 @@ import { route } from "../main";
 import { computeComparison, type ComparisonRow } from "../progress/compare";
 import { computeProjection, evaluateLanded, type ProjectionBand, type LandedVerdict } from "../progress/projection";
 import { generateMarkerCardPng, markerCardFilename, shareOrDownload } from "../share/marker-card";
+import { selectMostImproved, type ImprovedMarker } from "../progress/most-improved";
+import { saveImprovementCard } from "../progress/improvement-card";
 import { isSharedView } from "../share/shared-state";
 import type { CheckIn, MarkerDef, Panel, Plan, ProjectionSnapshot, Result } from "../types";
 
@@ -125,6 +127,15 @@ export async function renderProgress(): Promise<void> {
   // and adding empty selects would be confusing.
   const pickerHtml = panels.length >= 2 ? renderPicker(panels) : "";
 
+  // The improvement card (ticket 0047). Select the single most-improved marker
+  // across the whole timeline; render the "Save the improvement" affordance
+  // ONLY when a favorable move exists (≥2 draws of a marker that moved toward
+  // its functional optimum). On a single panel / intake-only profile the
+  // selection is null and the page is byte-for-byte unchanged.
+  const markers = await getAllMarkers();
+  const improved = selectMostImproved(panels, profile, markers);
+  const improvementHtml = improved ? renderImprovementAction() : "";
+
   const frag = h(`
     <div class="reveal">
       ${masth}
@@ -133,6 +144,7 @@ export async function renderProgress(): Promise<void> {
         <h1 class="headline" style="margin-top: 0.4rem;">
           What is <em>moving</em>.
         </h1>
+        ${improvementHtml}
         ${pickerHtml}
         ${projectionHtml}
         ${panels.length === 0
@@ -149,6 +161,44 @@ export async function renderProgress(): Promise<void> {
   mount(frag);
   wirePicker();
   wireProjectionCards(projectionItems);
+  if (improved) wireImprovementAction(improved, profile.ownerName);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The improvement card affordance (ticket 0047)                             */
+/* -------------------------------------------------------------------------- */
+/*
+ * A quiet "Save the improvement" button above the trends. Tapping it renders
+ * the user's single most-improved marker as a portrait PNG entirely on-device
+ * (the same canvas-render-and-download mechanism 0011's marker-hero card uses)
+ * and ships it via the OS share sheet or a download. No Anthropic call, no
+ * network — a pure render of local data.
+ */
+
+function renderImprovementAction(): string {
+  return `
+    <section class="improvement" aria-label="Save your most-improved marker as an image">
+      <button type="button" class="improvement-save"
+              aria-label="Save the improvement — your most-improved marker as an image">
+        Save the improvement
+      </button>
+      <p class="improvement__note">
+        Your single most-improved marker over time, as a phone-shaped image — drawn on this device.
+      </p>
+    </section>
+  `;
+}
+
+function wireImprovementAction(improved: ImprovedMarker, ownerName: string): void {
+  const btn = document.querySelector<HTMLButtonElement>(".improvement-save");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    // Optimistic state — disable while we draw to avoid double-fires.
+    btn.disabled = true;
+    void saveImprovementCard(improved, ownerName).finally(() => {
+      btn.disabled = false;
+    });
+  });
 }
 
 /* -------------------------------------------------------------------------- */

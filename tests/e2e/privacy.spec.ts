@@ -422,6 +422,56 @@ test.describe("Privacy contract", () => {
     expect(extractionBody).not.toContain("sk-ant-canary-TEXTPASTE-55555");
   });
 
+  test("the improvement card (ticket 0047) saves with no off-allow-list egress and no inference call", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", "programmatic download interception lives on chromium");
+    const stats = await installMocks(page);
+    await onboard(page, { name: "Dana Reed", sex: "male", key: "sk-ant-canary-IMPROVEMENT-77777" });
+    // Two dated draws of one marker with a favorable move → a non-null
+    // most-improved selection → the "Save the improvement" affordance.
+    await seedPanel(page, {
+      drawnAt: "2026-02-01", clearFirst: true,
+      results: [{ markerKey: "ferritin_m", value: 32, unit: "ng/mL" }],
+    });
+    await seedPanel(page, {
+      drawnAt: "2026-05-01",
+      results: [{ markerKey: "ferritin_m", value: 48, unit: "ng/mL" }],
+    });
+    await page.goto("/#/progress");
+    await page.locator(".headline").first().waitFor();
+    // Force the download branch so the click is deterministic.
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "canShare", { configurable: true, writable: true, value: () => false });
+      Object.defineProperty(navigator, "share",    { configurable: true, writable: true, value: async () => undefined });
+    });
+
+    const before = stats.outboundUrls.length;
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.locator(".improvement-save").click(),
+    ]);
+    await download.path();
+
+    // The card is a pure local render — nothing leaves the device while it draws.
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+
+    // The key never appears in the rendered surface.
+    const html = await page.content();
+    expect(html).not.toContain("sk-ant-canary-IMPROVEMENT-77777");
+  });
+
   test("import of a malformed export does not crash the app", async ({ page }) => {
     await installMocks(page);
     await onboard(page);
