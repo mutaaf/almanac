@@ -266,7 +266,8 @@ test.describe("Labs — paste results as text (0046)", () => {
 
     // The existing error card surfaces — same path the file route shows on an
     // empty extraction. The user stays on the labs surface (no panel created).
-    await expect(page.locator(".error-card, #status")).toContainText(/no/i, { timeout: 20_000 });
+    await expect(page.locator(".error-card__msg")).toContainText(/no (panels|markers)/i, { timeout: 20_000 });
+    await expect(page).toHaveURL(/#\/labs$/);
   });
 
   test("text paste is unreachable pre-consent (the consent gate is intact)", async ({ page }) => {
