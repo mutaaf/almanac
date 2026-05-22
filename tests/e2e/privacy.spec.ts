@@ -9,8 +9,10 @@ import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
 import {
   onboard, addManualPanel, composePlan, enterTour, enterSharedViewWithAdopt,
-  seedHundredDayState, seedPlanWithRetest, seedPanel, addPanelFromText,
+  seedHundredDayState, seedPlanWithRetest, seedPanel, seedPlan, addPanelFromText,
 } from "../helpers/flows";
+
+const TELL_FRIEND_SENTINEL = "sk-ant-canary-TELLAFRIEND-66666";
 
 const ALLOWED_HOSTS = [
   "127.0.0.1", "localhost",
@@ -470,6 +472,100 @@ test.describe("Privacy contract", () => {
     // The key never appears in the rendered surface.
     const html = await page.content();
     expect(html).not.toContain("sk-ant-canary-IMPROVEMENT-77777");
+  });
+
+  test("tell-a-friend (ticket 0050) shares with zero off-allow-list egress and never leaks the key", async ({ page, browserName }) => {
+    const stats = await installMocks(page);
+    await onboard(page, { sex: "male", key: TELL_FRIEND_SENTINEL });
+    // Seed a composed plan + two dated draws with a favorable move directly into
+    // IndexedDB (a non-null most-improved selection → the marker line is part of
+    // the composed text). Seeding avoids the slow, flake-prone compose round-trip
+    // and keeps this a pure local-render assertion.
+    await seedPlan(page, {
+      generatedDaysAgo: 1, clearFirst: true,
+      snapshot: "A seeded plan for the tell-a-friend privacy test.",
+      eatList: [{ id: "fatty-fish", food: "Fatty fish (salmon, sardines, mackerel)", frequency: "3x per week", portion: "~4 oz", why: "Omega-3s.", markerKeys: ["triglycerides"] }],
+      habits: [{ id: "h-oats", title: "1/2 cup oats with breakfast" }],
+    });
+    await seedPanel(page, {
+      drawnAt: "2026-02-01", clearFirst: true,
+      results: [{ markerKey: "ferritin_m", value: 32, unit: "ng/mL" }],
+    });
+    await seedPanel(page, {
+      drawnAt: "2026-05-01",
+      results: [{ markerKey: "ferritin_m", value: 48, unit: "ng/mL" }],
+    });
+    await page.goto("/#/plan");
+    await page.reload();
+    await page.locator(".dash-snapshot, .prose").first().waitFor();
+
+    // Capture both the navigator.share payload and the clipboard payload so the
+    // spec can confirm the key never travels in EITHER branch.
+    await page.evaluate(() => {
+      (window as unknown as { __sharedText?: string }).__sharedText = undefined;
+      (window as unknown as { __copiedText?: string }).__copiedText = undefined;
+      const writeText = async (t: string) => {
+        (window as unknown as { __copiedText?: string }).__copiedText = t;
+      };
+      try {
+        Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+      } catch {
+        try { (navigator.clipboard as unknown as { writeText: typeof writeText }).writeText = writeText; }
+        catch { /* page try/catch handles it */ }
+      }
+    });
+
+    // --- Branch 1: navigator.share present (the OS share-sheet path). ---
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "share", {
+        configurable: true, writable: true,
+        value: async (data: { text?: string }) => {
+          (window as unknown as { __sharedText?: string }).__sharedText = data.text ?? "";
+        },
+      });
+    });
+    const beforeShare = stats.outboundUrls.length;
+    await page.locator(".tell-friend__btn").click();
+    await expect.poll(async () =>
+      page.evaluate(() => (window as unknown as { __sharedText?: string }).__sharedText),
+    ).toBeTruthy();
+
+    // --- Branch 2: navigator.share absent (the clipboard-fallback path). ---
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "share", { configurable: true, writable: true, value: undefined });
+    });
+    await page.locator(".tell-friend__btn").click();
+    await expect(page.locator(".tell-friend__confirm")).toHaveText("Copied.");
+
+    // Neither share branch fired any off-allow-list request, and specifically
+    // nothing hit Anthropic — the message is a pure on-device transform.
+    const offending = stats.outboundUrls.slice(beforeShare).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+    const anthropic = stats.outboundUrls.slice(beforeShare).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+
+    // The key never appears in EITHER payload, nor in the only link the message
+    // carries (the canonical #/try fragment, which is the same for everyone).
+    const shared = await page.evaluate(() => (window as unknown as { __sharedText?: string }).__sharedText);
+    const copied = await page.evaluate(() => (window as unknown as { __copiedText?: string }).__copiedText);
+    expect(shared).not.toContain(TELL_FRIEND_SENTINEL);
+    expect(copied).not.toContain(TELL_FRIEND_SENTINEL);
+    expect(copied).toContain("#/try");
+    expect((copied ?? "").toLowerCase()).not.toContain("http");
+
+    // The key never appears in the rendered surface either.
+    const html = await page.content();
+    expect(html).not.toContain(TELL_FRIEND_SENTINEL);
+    void browserName;
   });
 
   test("import of a malformed export does not crash the app", async ({ page }) => {
