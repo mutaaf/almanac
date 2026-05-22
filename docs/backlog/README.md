@@ -61,6 +61,7 @@ owner: gtm-innovation
 |----|-------|----------|--------|------|
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | groomed | growth |
 | 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | groomed | labs |
+| 0047 | The improvement card — a phone-shaped image of your most-improved marker, three months in, that carries the brand to a friend | P1 | groomed | growth |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
 | 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |
 | 0026 | Same marker, different lab — surface the canonicalization that lets a trend span report formats | P2 | groomed | labs |
@@ -78,8 +79,8 @@ owner: gtm-innovation
 | 0043 | Why this isn't a chat box — put the anti-wrapper argument in front of the prospect, before the key | P2 | groomed | growth |
 | 0044 | Same marker, different units — reconcile a draw reported in another unit into the canonical trend, with an honest receipt | P2 | groomed | labs |
 | 0045 | The record — one dated spine of every draw and every plan, paged back through like a journal | P2 | groomed | progress |
-| 0047 | The improvement card — a phone-shaped image of your most-improved marker, three months in, that carries the brand to a friend | P1 | proposed | growth |
 | 0048 | The coach packet — a one-tap longitudinal export a functional-medicine practitioner can actually work from | P2 | proposed | settings |
+| 0049 | Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel | P2 | proposed | onboarding |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
