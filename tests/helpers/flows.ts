@@ -81,6 +81,20 @@ export async function onboard(page: Page, overrides: OnboardOverrides = {}): Pro
 }
 
 /**
+ * Add a panel by pasting results text (ticket 0046). Sets the
+ * `.labs-paste-text` textarea to `text` and clicks its extract button, mirroring
+ * a portal copy-and-paste. Mocks must already be installed (the text extraction
+ * routes to the same Anthropic extraction mock the file path uses). Assumes the
+ * caller has navigated to `#/labs` and the dropzone has painted. Leaves the page
+ * wherever the extraction lands it (panel detail for one date, labs index for a
+ * multi-date split) — the caller asserts that.
+ */
+export async function addPanelFromText(page: Page, text: string): Promise<void> {
+  await page.locator(".labs-paste-text__input").fill(text);
+  await page.locator(".labs-paste-text__extract").click();
+}
+
+/**
  * Add a panel via manual entry. Fills three markers and saves. Leaves the
  * page on the panel detail.
  */

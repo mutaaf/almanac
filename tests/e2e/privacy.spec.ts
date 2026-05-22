@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
 import {
   onboard, addManualPanel, composePlan, enterTour, enterSharedViewWithAdopt,
-  seedHundredDayState, seedPlanWithRetest, seedPanel,
+  seedHundredDayState, seedPlanWithRetest, seedPanel, addPanelFromText,
 } from "../helpers/flows";
 
 const ALLOWED_HOSTS = [
@@ -372,6 +372,54 @@ test.describe("Privacy contract", () => {
       });
     });
     expect(panelCount).toBe(0);
+  });
+
+  test("paste-results-as-text (ticket 0046) makes exactly one Anthropic call and never leaks the key", async ({ page }) => {
+    const stats = await installMocks(page);
+    await onboard(page, { key: "sk-ant-canary-TEXTPASTE-55555" });
+
+    // Capture the extraction request body to confirm the key travels only on the
+    // header the SDK sets, never in the prompt.
+    let extractionBody = "";
+    await page.route("**/api.anthropic.com/v1/messages", async (route, request) => {
+      const body = request.postDataJSON();
+      const sys = (body.system ?? []).map((s: any) => s.text).join("\n");
+      if (sys.includes("extracting structured biomarker")) {
+        extractionBody = request.postData() ?? "";
+      }
+      await route.fallback();
+    });
+
+    await page.goto("/#/labs");
+    await page.locator(".labs-paste-text").waitFor();
+    const before = stats.outboundUrls.length;
+    await addPanelFromText(
+      page,
+      "MyChart results — Cholesterol, Total 244 mg/dL · Triglycerides 165 mg/dL · Vitamin D 32 ng/mL",
+    );
+    await expect(page).toHaveURL(/#\/labs\?id=\d+$/, { timeout: 20_000 });
+
+    // Exactly one off-device call fired for the paste, and it hit only the
+    // allow-listed Anthropic host — no new hostname, no proxy.
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic.length).toBe(1);
+
+    // The key never appears in the rendered surface or the prompt body.
+    const html = await page.content();
+    expect(html).not.toContain("sk-ant-canary-TEXTPASTE-55555");
+    expect(extractionBody).not.toContain("sk-ant-canary-TEXTPASTE-55555");
   });
 
   test("import of a malformed export does not crash the app", async ({ page }) => {
