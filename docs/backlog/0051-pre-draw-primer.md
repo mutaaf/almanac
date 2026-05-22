@@ -1,7 +1,7 @@
 ---
 id: 0051
 title: The pre-draw primer — Today surfaces a quiet contextual card 48 hours before the retest date, with marker-specific prep advice
-status: in-progress
+status: shipped
 priority: P1
 area: today
 created: 2026-05-22
@@ -101,3 +101,12 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
     Outside the window the 0028 card is byte-for-byte unchanged.
   - **Uncovered retest markers.** Listed by name with a neutral "No special prep needed." note
     rather than omitted, so the user sees the full set being rechecked.
+- 2026-05-22 [implementation-dev] Shipped via PR #77. New: `src/data/draw-prep.ts` (`DRAW_PREP`
+  + load-time `findMarker()` guard), `src/today/pre-draw.ts` (`prepForDraw()`, hour-precise 48h
+  window, sex-qualifier-stripping display name), `PreDrawPrep`/`PreDrawMarker` in `src/types.ts`,
+  `.pre-draw-card` styles (ink/ink-soft only, grid lines `min-width: 0`), `soonestCadenceDue()`
+  in `src/today/retest.ts`, and the Today wiring that suppresses the 0028 card inside the window.
+  Tests: `tests/e2e/pre-draw.spec.ts` (17), a privacy probe in `privacy.spec.ts`, a re-anchored
+  0028 singular-day test + a precedence test in `retest-due.spec.ts`, and a `seedPlanWithDrawIn()`
+  helper. No deps, no egress change, no schema migration. Marker name fix: the primer strips the
+  " (Male)"/" (Female)" qualifier so a sex-specific key renders "Ferritin" per the ticket.
