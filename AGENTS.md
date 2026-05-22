@@ -217,6 +217,26 @@ fixed in ticket 0005 by route-awaiting in `plan.ts compose()` and adding the
 - **CSS overflow** → grid children need `min-width: 0` to actually respect `text-overflow: ellipsis`. See `.staged__chip` and `.result__ranges` for prior fix.
 - **`page.goto("/#/route")` returns before the SPA renders** → hash-only navigations don't trigger `'load'`. After each goto, wait for a sentinel element of the target page (e.g. `await page.locator(".eyebrow").waitFor()`). Use the `composePlan` helper for the post-compose pattern — it does the reload-after-write that makes WebKit reads deterministic.
 
+## Agent parameters
+
+> Read by the shared `agent-fleet` runners at runtime. This is the one place the
+> generic ship/groom/review prompts look for Almanac's specifics.
+
+- **Gating checks** — EXACTLY these three GitHub check names gate a merge.
+  Everything else (`Vercel`, `Vercel Preview Comments`, any informational check)
+  MUST be ignored when deciding mergeability or what to "fix":
+  - `Typecheck + build`
+  - `E2E (chromium)`
+  - `E2E (mobile-webkit)`
+- **Agent branch prefixes**: `feat/` (features, ship), `chore/gtm-` (backlog
+  refresh, groom). No `eng/` queue (ENG_ENABLED=0).
+- **Local gate command** (heal/dev runs this before pushing; all must pass):
+  `npm run typecheck && npm run build && npx playwright test --project=chromium`
+- **Subagents** (`.claude/agents/`): `implementation-dev`, `gtm-innovation`, `review`
+- **Backlog areas**: labs | plan | meals | today | progress | settings | infra | privacy | growth
+- **Backlog validator**: `node scripts/check-backlog.mjs` (run as `npm run backlog:check`
+  inside the `Typecheck + build` gating job — keeps ticket files and the index in sync)
+
 ## License
 
 Private. For me, and for whoever I hand a copy to. AI agents may contribute, but credit yourself in the commit trailer.
