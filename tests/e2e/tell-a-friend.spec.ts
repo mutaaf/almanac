@@ -66,7 +66,9 @@ async function seedComposedPlan(page: Page): Promise<void> {
 async function gotoPlan(page: Page): Promise<void> {
   await page.goto("/#/plan");
   await page.reload();
-  await page.locator(".dash-snapshot, .prose, #compose").first().waitFor();
+  // Either a composed plan (dashboard / prose) or one of the two empty-state
+  // compose CTAs (#compose with labs, #compose-from-intake without).
+  await page.locator(".dash-snapshot, .prose, #compose, #compose-from-intake").first().waitFor();
 }
 
 /**
@@ -422,9 +424,12 @@ test.describe("Tell a friend (ticket 0050)", () => {
     expect(msg).not.toBeNull();
     // Built from the sample plan's top eat item.
     expect(msg!).toContain("Lean red meat");
-    // The fixture carries ApoB 102 → 88 (a ≥2-draw favorable move) so the marker
-    // line appears.
-    expect(msg!).toContain("ApoB");
+    // The fixture carries multiple ≥2-draw favorable moves (hs-CRP 2.4 → 1.6,
+    // ApoB 102 → 88, ferritin 32 → 42); selectMostImproved picks the single
+    // largest normalized move, so the marker line is present and reads as an
+    // honest "moved from <start> to <now>" — we assert the line exists rather
+    // than hard-coding which marker wins (that is 0047's concern, not this one).
+    expect(msg!).toMatch(/My .+ moved from \d/);
     expect(msg!).toContain("#/try");
   });
 

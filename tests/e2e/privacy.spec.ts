@@ -9,7 +9,7 @@ import { test, expect } from "@playwright/test";
 import { installMocks } from "../helpers/mocks";
 import {
   onboard, addManualPanel, composePlan, enterTour, enterSharedViewWithAdopt,
-  seedHundredDayState, seedPlanWithRetest, seedPanel, addPanelFromText,
+  seedHundredDayState, seedPlanWithRetest, seedPanel, seedPlan, addPanelFromText,
 } from "../helpers/flows";
 
 const TELL_FRIEND_SENTINEL = "sk-ant-canary-TELLAFRIEND-66666";
@@ -477,9 +477,16 @@ test.describe("Privacy contract", () => {
   test("tell-a-friend (ticket 0050) shares with zero off-allow-list egress and never leaks the key", async ({ page, browserName }) => {
     const stats = await installMocks(page);
     await onboard(page, { sex: "male", key: TELL_FRIEND_SENTINEL });
-    await composePlan(page);
-    // Two dated draws of one marker with a favorable move → a non-null
-    // most-improved selection → the marker line is part of the composed text.
+    // Seed a composed plan + two dated draws with a favorable move directly into
+    // IndexedDB (a non-null most-improved selection → the marker line is part of
+    // the composed text). Seeding avoids the slow, flake-prone compose round-trip
+    // and keeps this a pure local-render assertion.
+    await seedPlan(page, {
+      generatedDaysAgo: 1, clearFirst: true,
+      snapshot: "A seeded plan for the tell-a-friend privacy test.",
+      eatList: [{ id: "fatty-fish", food: "Fatty fish (salmon, sardines, mackerel)", frequency: "3x per week", portion: "~4 oz", why: "Omega-3s.", markerKeys: ["triglycerides"] }],
+      habits: [{ id: "h-oats", title: "1/2 cup oats with breakfast" }],
+    });
     await seedPanel(page, {
       drawnAt: "2026-02-01", clearFirst: true,
       results: [{ markerKey: "ferritin_m", value: 32, unit: "ng/mL" }],
@@ -489,6 +496,7 @@ test.describe("Privacy contract", () => {
       results: [{ markerKey: "ferritin_m", value: 48, unit: "ng/mL" }],
     });
     await page.goto("/#/plan");
+    await page.reload();
     await page.locator(".dash-snapshot, .prose").first().waitFor();
 
     // Capture both the navigator.share payload and the clipboard payload so the
