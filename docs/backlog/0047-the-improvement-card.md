@@ -1,7 +1,7 @@
 ---
 id: 0047
 title: The improvement card — a phone-shaped image of your most-improved marker, three months in, that carries the brand to a friend
-status: groomed
+status: in-progress
 priority: P1
 area: growth
 created: 2026-05-22
@@ -83,4 +83,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-22 [implementation-dev] Picked up 0047. Branch `feat/0047-improvement-card`. Status → in-progress. Plan: two new pure modules — `src/progress/most-improved.ts` (`selectMostImproved`) and `src/progress/improvement-card.ts` (`renderImprovementCard` + a pure `composeImprovementText` so the spec can assert wordmark / no-URL / key-sentinel / "110 → 84 mg/dL" against the composed strings, since the PNG is compressed and text won't survive deflate — mirrors how 0011's spec asserts filename + PNG header rather than glyph bytes). Card reuses 0011's canvas setup, palette tokens, font-ready await, and `shareOrDownload` download path verbatim. Affordance wired into `src/pages/progress.ts`, gated on `selectMostImproved(...)` being non-null. Shared-view is already excluded because `renderProgress()` returns the shared-empty state before the trends; tour is included because `allPanels()`/`getProfile()` are tour-aware shims and the tour fixture carries ≥2-draw favorable markers (ApoB 102→88, ferritin_m 32→42).
