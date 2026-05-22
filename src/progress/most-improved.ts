@@ -154,12 +154,16 @@ export function selectMostImproved(
 /* -------------------------------------------------------------------------- */
 
 /**
- * The bare human name for the card: the full `name` with a trailing
- * sex-qualifier parenthetical stripped ("Ferritin (Male)" → "Ferritin"), so a
- * sex-specific key reads as the marker, not the variant. User-defined markers
- * (0002) and markers without a parenthetical are returned as-is.
+ * The bare human name for the card. Matches the rest of the app's convention
+ * (`m.shortName ?? m.name` on the trend rows; `MarkerMove.canonicalName` in
+ * 0032): prefer the curated `shortName` ("ApoB", "HbA1c") when present, else
+ * the full `name` with a trailing sex-qualifier parenthetical stripped
+ * ("Ferritin (Male)" → "Ferritin"), so a sex-specific key reads as the marker,
+ * not the variant. User-defined markers (0002) and markers without either are
+ * returned as-is.
  */
 function displayName(marker: MarkerDef): string {
+  if (marker.shortName && marker.shortName.trim().length > 0) return marker.shortName.trim();
   return marker.name.replace(/\s*\((male|female|intersex)\)\s*$/i, "").trim();
 }
 
