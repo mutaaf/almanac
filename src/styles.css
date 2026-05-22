@@ -3651,6 +3651,64 @@ body {
   max-width: 60ch;
 }
 
+/* -----------------------------------------------------------------------------
+   PRE-DRAW PRIMER — ticket 0051
+   The day-before half of the retest loop. Sits at the same meals/habits
+   boundary as the 0028 card (it suppresses that card inside the 48h window) and
+   matches its quiet idiom: a paper-deep panel with an ink-faint left hairline.
+   Ink and ink-soft only — calm guidance, not an alert, so NO oxblood. The marker
+   lines are a plain list; grid/flex children carry min-width: 0 so a long prep
+   note wraps cleanly at 390px instead of forcing horizontal overflow (the
+   documented overflow fix, docs/LESSONS.md / AGENTS.md "CSS overflow").
+   --------------------------------------------------------------------------- */
+.pre-draw-card {
+  box-sizing: border-box;
+  display: block;
+  margin: 1.6rem 0 0.2rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-faint);
+  background: var(--paper-deep);
+  padding: 0.95rem 1.2rem 1.05rem;
+  color: var(--ink);
+  max-width: 60ch;
+}
+.pre-draw-card__eyebrow {
+  display: block;
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.pre-draw-card__lead {
+  font-family: var(--display);
+  font-size: 1.08rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  margin: 0 0 0.7rem;
+}
+.pre-draw-card__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.pre-draw-card__line {
+  min-width: 0;
+  font-family: var(--body);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+.pre-draw-card__marker {
+  color: var(--ink);
+  font-weight: 600;
+}
+
 /* =============================================================================
    THE HUNDRED-DAY MARK — quarterly reflective surface at #/hundred-day
    Ticket 0021. Single column, mirrors the recap page's left margin; mobile

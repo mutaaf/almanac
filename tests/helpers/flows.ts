@@ -789,6 +789,67 @@ export async function seedPlanWithRetest(page: Page, opts: SeedRetestPlanOpts): 
   }, opts);
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Pre-draw primer seeding (ticket 0051)                                       */
+/* -------------------------------------------------------------------------- */
+
+export interface SeedDrawInOpts {
+  /**
+   * Signed offset in milliseconds from `Date.now()` to the soonest cadence's
+   * due instant. Positive = future draw; negative = past. The helper places the
+   * draw at EXACTLY this instant so the hour-precise 48h window boundary can be
+   * asserted (use `page.clock.setFixedTime` so `Date.now()` is frozen).
+   */
+  dueInMs: number;
+  /** The retest cadence's marker keys (canonical keys from src/data/markers.ts). */
+  markerKeys: string[];
+}
+
+/**
+ * Seed a single composed plan whose soonest retest cadence places a draw at a
+ * precise ms offset from `Date.now()` (ticket 0051). The 0028/0051 due instant
+ * is `generatedAt + whenWeeks*7days`, so this fixes `whenWeeks` and back-computes
+ * `generatedAt = now - whenWeeks*7days + dueInMs`, landing the draw at exactly
+ * `now + dueInMs`. Hour precision — the 48h primer window is hour-precise, not
+ * calendar-day like the 0028 card. Clears `plans` + `panels` first so a re-seed
+ * isn't shadowed. Nothing new is persisted (no schema change).
+ */
+export async function seedPlanWithDrawIn(page: Page, opts: SeedDrawInOpts): Promise<void> {
+  await page.evaluate((o: SeedDrawInOpts) => {
+    const DAY_MS = 86_400_000;
+    const WHEN_WEEKS = 8;                       // arbitrary; the offset math cancels it out
+    const now = Date.now();
+    const generatedAt = now - WHEN_WEEKS * 7 * DAY_MS + o.dueInMs;
+
+    const planRow = {
+      generatedAt,
+      basedOnPanelIds: [] as number[],
+      snapshot: "A seeded plan for the pre-draw primer test.",
+      insights: [],
+      eatList: [], avoidList: [], lifestyle: [], supplements: [],
+      habitStack: {
+        intro: "Small actions.",
+        habits: [{ id: "h1", title: "Walk after dinner", cue: "PM", why: "x" }],
+      },
+      retest: [{ markerKeys: o.markerKeys, whenWeeks: WHEN_WEEKS, reason: "Re-test on the next draw." }],
+    };
+
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error ?? new Error("open failed"));
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["plans", "panels"], "readwrite");
+        tx.objectStore("plans").clear();
+        tx.objectStore("panels").clear();
+        tx.objectStore("plans").add(planRow);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+      };
+    });
+  }, opts);
+}
+
 /**
  * Compose the plan. Mocks must already be installed. Leaves the page on /plan.
  *

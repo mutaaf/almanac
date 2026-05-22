@@ -17,10 +17,12 @@ import {
 import { isTour } from "../sample/state";
 import { isSharedView } from "../share/shared-state";
 import { pickQuietDayNote } from "../today/quiet-card";
-import { computeRetestStatus } from "../today/retest";
+import { computeRetestStatus, soonestCadenceDue } from "../today/retest";
+import { prepForDraw } from "../today/pre-draw";
 import { getAllMarkers } from "../data/userMarkers";
 import type {
   CheckIn, Habit, Meal, DayMeals, Plan, Panel, QuietDayNote, RetestStatus,
+  PreDrawPrep,
 } from "../types";
 
 /* -------------------------------------------------------------------------- */
@@ -286,6 +288,60 @@ async function retestCardHtml(plan: Plan, panels: Panel[]): Promise<string> {
   return renderRetestCard(status);
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Pre-draw primer card (ticket 0051)                                         */
+/* -------------------------------------------------------------------------- */
+/*
+ * The day-before half of the retest loop. When the latest plan's soonest retest
+ * cadence places a draw within 48 hours (and not past), a calm "Pre-draw prep"
+ * card surfaces with a marker-specific pre-analytical note for each retest
+ * marker, pulled deterministically from the static `DRAW_PREP` lookup. Computed
+ * locally; no Anthropic call. Ink and ink-soft only — calm guidance, not an
+ * alert — so no oxblood.
+ *
+ * Coexistence with the 0028 countdown (documented precedence): inside the 48h
+ * window the primer renders and the 0028 retest-due card is SUPPRESSED — the
+ * countdown's "it's coming" job is subsumed by the primer's "here's how to draw
+ * well", so the two never present duplicated copy. Outside the window the 0028
+ * card is byte-for-byte unchanged.
+ */
+
+/** Whole-day phrasing for the lead — ceil so a 36h-out draw reads "in 2 days". */
+function drawWhenPhrase(hoursOut: number): string {
+  const days = Math.ceil(hoursOut / 24);
+  if (days <= 0) return "today";
+  if (days === 1) return "in 1 day";
+  return `in ${days} days`;
+}
+
+function renderPreDrawCard(prep: PreDrawPrep): string {
+  const names = joinMarkers(prep.markers.map(m => m.name));
+  const lead = `Your draw is ${esc(drawWhenPhrase(prep.hoursOut))} — you're rechecking ${esc(names)}.`;
+  return `
+    <aside class="pre-draw-card" role="note">
+      <div class="pre-draw-card__eyebrow">Pre-draw prep</div>
+      <p class="pre-draw-card__lead">${lead}</p>
+      <ul class="pre-draw-card__lines">
+        ${prep.markers.map(m => `
+          <li class="pre-draw-card__line"><span class="pre-draw-card__marker">${esc(m.name)}:</span> ${esc(m.note)}</li>
+        `).join("")}
+      </ul>
+    </aside>
+  `;
+}
+
+/**
+ * Resolve the pre-draw primer for the real-user Today render, or null when no
+ * card should surface. Reads the latest plan's soonest cadence (the same
+ * next-draw date the 0028 card computes) and the merged marker catalog.
+ */
+async function preDrawPrep(plan: Plan): Promise<PreDrawPrep | null> {
+  const cadence = soonestCadenceDue(plan);
+  if (!cadence) return null;
+  const catalog = await getAllMarkers();
+  return prepForDraw(cadence.dueDate, cadence.markerKeys, new Date(), catalog);
+}
+
 export async function renderToday(): Promise<void> {
   // Shared-view (ticket 0017): the recipient sees a stripped-down Today —
   // the habit stack, today's meals if shared, and the date. No streak strip
@@ -338,12 +394,21 @@ export async function renderToday(): Promise<void> {
   // the quiet-day card's projection lookup — both are local-only reads.
   const panels = await allPanels();
 
+  // The pre-draw primer (ticket 0051) is the day-before half of the retest
+  // loop: within 48 hours of the soonest cadence's draw it surfaces the
+  // marker-specific prep that makes the draw read truest. When it fires, it
+  // takes the meals/habits-boundary slot AND suppresses the 0028 countdown —
+  // the documented coexistence rule, so the two never duplicate copy.
+  const prep = await preDrawPrep(plan);
+
   // The retest-due card (ticket 0028) sits between the meals row and the habit
   // stack, gated on the latest plan's soonest cadence being due-soon or overdue
   // (and not already satisfied by a covering draw). It is independent of the
   // adaptive-card precedence above — those lead the page; this one is anchored
   // to the meals/habits boundary because it is about the labs loop, not the day.
-  const retestHtml = await retestCardHtml(plan, panels);
+  // Inside the 48h pre-draw window the primer subsumes it.
+  const retestHtml = prep ? "" : await retestCardHtml(plan, panels);
+  const preDrawHtml = prep ? renderPreDrawCard(prep) : "";
 
   // The quiet-day card (ticket 0015) only renders Mon–Sat AND only when neither
   // the quarterly nor the recap card is already taking the slot. The quarterly
@@ -385,6 +450,7 @@ export async function renderToday(): Promise<void> {
           ${mealsHtml}
         </section>
 
+        ${preDrawHtml}
         ${retestHtml}
 
         <section data-scroll="habits" style="margin-top: 2.6rem;">

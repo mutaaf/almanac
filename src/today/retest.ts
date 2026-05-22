@@ -74,3 +74,26 @@ function markerLabel(key: string, extras: MarkerDef[]): string {
   const marker = findMarker(key, extras);
   return marker?.shortName ?? marker?.name ?? key;
 }
+
+/**
+ * The soonest-due retest cadence's due instant + marker keys, or null when the
+ * plan carries no usable cadence. Mirrors the "soonest wins" selection in
+ * `computeRetestStatus`, but exposes the raw `dueDate` + `markerKeys` so the
+ * pre-draw primer (ticket 0051) can read the same next-draw date the 0028 card
+ * computes — without duplicating the anchor math or re-resolving display names.
+ * Pure: no I/O. The honest anchor is the plan's `generatedAt + whenWeeks*7days`
+ * (0031's concrete `drawDate` has not shipped; prefer it here if it ever does).
+ */
+export function soonestCadenceDue(
+  latestPlan: Plan,
+): { dueDate: Date; markerKeys: string[] } | null {
+  const cadences = latestPlan.retest ?? [];
+  let soonest: { due: number; markerKeys: string[] } | null = null;
+  for (const c of cadences) {
+    if (!c.markerKeys?.length) continue;
+    const due = latestPlan.generatedAt + c.whenWeeks * WEEK_MS;
+    if (!soonest || due < soonest.due) soonest = { due, markerKeys: c.markerKeys };
+  }
+  if (!soonest) return null;
+  return { dueDate: new Date(soonest.due), markerKeys: soonest.markerKeys };
+}
