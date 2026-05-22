@@ -31,6 +31,7 @@ import { renderLabs }       from "./pages/labs";
 import { renderProgress }   from "./pages/progress";
 import { renderRecap }      from "./pages/recap";
 import { renderHundredDay } from "./pages/hundred-day";
+import { renderTry }        from "./pages/try";
 import { renderSettings }   from "./pages/settings";
 import {
   renderWelcomeBack, computeWelcomeBackState, setPendingWelcomeBackState,
@@ -118,6 +119,17 @@ export async function route(): Promise<void> {
     exitSharedView();
     return renderWelcome();
   }
+
+  // Try-your-numbers sandbox (ticket 0040). Like the tour and shared-view
+  // branches, this sits ABOVE the consent + profile gates so a first-time
+  // visitor reaches it without acknowledging consent or having a profile. It
+  // is a stateless page with in-memory component state — it enters no
+  // session/tour/shared-view flag, reads no IndexedDB, and routing TO
+  // `#/welcome` (its only off-page affordance) reinstates the gate.
+  if (path === "#/try") {
+    return renderTry();
+  }
+
   if (isTour() || isSharedView()) {
     return dispatch(path);
   }

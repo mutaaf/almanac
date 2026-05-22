@@ -323,6 +323,57 @@ test.describe("Privacy contract", () => {
     expect(anthropic).toEqual([]);
   });
 
+  test("the try-your-numbers sandbox (ticket 0040) never widens egress and writes no IndexedDB", async ({ page }) => {
+    const stats = await installMocks(page);
+    // A fresh prospect — no consent, no profile. Reach `#/try` directly, type
+    // three values, and confirm the sandbox is a pure static-data render: zero
+    // off-allow-list egress, zero inference call, and zero IndexedDB write.
+    await page.goto("/#/try");
+    await page.locator(".try").waitFor();
+    const before = stats.outboundUrls.length;
+
+    for (const [key, value] of [["fasting_insulin", 8], ["apo_b", 90], ["hs_crp", 5]] as const) {
+      await page.selectOption("#try-marker", key);
+      await page.fill("#try-value", String(value));
+      await page.locator("#try-add").click();
+    }
+    await expect(page.locator(".report-card__line")).toBeVisible();
+
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+
+    // No inference call to api.anthropic.com fired while the sandbox rendered.
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+
+    // The sandbox is in-memory only — the `almanac` IndexedDB carries no panels
+    // (and the prospect never consented, so there is no profile either).
+    const panelCount = await page.evaluate(() => {
+      return new Promise<number>((resolve) => {
+        const req = indexedDB.open("almanac");
+        req.onerror   = () => resolve(0);
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("panels")) { db.close(); resolve(0); return; }
+          const tx = db.transaction("panels", "readonly");
+          const all = tx.objectStore("panels").getAll();
+          all.onerror   = () => { db.close(); resolve(0); };
+          all.onsuccess = () => { db.close(); resolve((all.result as unknown[]).length); };
+        };
+      });
+    });
+    expect(panelCount).toBe(0);
+  });
+
   test("import of a malformed export does not crash the app", async ({ page }) => {
     await installMocks(page);
     await onboard(page);

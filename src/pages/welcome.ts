@@ -140,11 +140,13 @@ export async function renderWelcome(): Promise<void> {
         <div style="display: flex; gap: 1rem; margin-top: 1.6rem; flex-wrap: wrap; align-items: center;">
           <button id="continue" class="btn btn--accent" disabled>Continue to onboarding</button>
           <button id="enter-tour" class="btn btn--ghost" type="button">Take a tour with sample data</button>
+          <a id="enter-try" class="btn btn--ghost" href="#/try">Try it with your numbers</a>
         </div>
         <p class="welcome__tour-note">
           The tour renders a fictional reader's Almanac — fully populated, read-only.
           Nothing is written. No key is used. You can close the tour at any time and
-          start your own.
+          start your own. Or score a marker value you already know against the
+          functional optimum — no key, nothing saved.
         </p>
       </section>
 
