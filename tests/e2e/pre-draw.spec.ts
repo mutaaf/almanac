@@ -177,7 +177,19 @@ test.describe("Pre-draw primer", () => {
 
   test("the API key never appears in the card", async ({ page }) => {
     const sentinel = "sk-ant-canary-PREDRAW-44444";
-    // Re-onboard with the sentinel key so it's the profile key in IndexedDB.
+    // Wipe the beforeEach onboard and re-onboard with the sentinel key so it is
+    // the profile key in IndexedDB — onboard() can't run twice over an existing
+    // profile (acknowledgeConsent would never reach the form).
+    await page.goto("/");
+    await page.evaluate(() => {
+      localStorage.clear();
+      return new Promise<void>((resolve) => {
+        const req = indexedDB.deleteDatabase("almanac");
+        req.onsuccess = () => resolve();
+        req.onerror   = () => resolve();
+        req.onblocked = () => resolve();
+      });
+    });
     await onboard(page, { key: sentinel });
     await seedPlanWithDrawIn(page, {
       dueInMs: 24 * HOUR_MS,

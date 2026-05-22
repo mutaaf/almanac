@@ -10,6 +10,7 @@ import { installMocks } from "../helpers/mocks";
 import {
   onboard, addManualPanel, composePlan, enterTour, enterSharedViewWithAdopt,
   seedHundredDayState, seedPlanWithRetest, seedPanel, seedPlan, addPanelFromText,
+  seedPlanWithDrawIn,
 } from "../helpers/flows";
 
 const TELL_FRIEND_SENTINEL = "sk-ant-canary-TELLAFRIEND-66666";
@@ -286,6 +287,68 @@ test.describe("Privacy contract", () => {
       try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
     });
     expect(anthropic).toEqual([]);
+  });
+
+  test("the pre-draw primer (ticket 0051) renders local-only with no notification/permission API", async ({ page }) => {
+    const stats = await installMocks(page);
+    await page.clock.setFixedTime(new Date("2026-05-20T09:00:00.000Z"));
+    await onboard(page);
+
+    // Instrument the permission / notification surfaces BEFORE the card can
+    // render so any invocation is recorded. The primer must NEVER ask for a
+    // notification permission or schedule an OS reminder — it is an on-device,
+    // open-the-app surface (the constraint the draw-day card 0031 holds).
+    await page.addInitScript(() => {
+      (window as unknown as { __perm: string[] }).__perm = [];
+      const log = (name: string) => (window as unknown as { __perm: string[] }).__perm.push(name);
+      try {
+        if ("Notification" in window) {
+          const orig = Notification.requestPermission?.bind(Notification);
+          // @ts-expect-error override for the test probe
+          Notification.requestPermission = (...a: unknown[]) => { log("Notification.requestPermission"); return orig ? orig(...(a as [])) : Promise.resolve("denied"); };
+        }
+        if (navigator.permissions?.query) {
+          const origQ = navigator.permissions.query.bind(navigator.permissions);
+          // @ts-expect-error override for the test probe
+          navigator.permissions.query = (d: PermissionDescriptor) => { log("permissions.query"); return origQ(d); };
+        }
+        if ("serviceWorker" in navigator) {
+          const origR = navigator.serviceWorker.register?.bind(navigator.serviceWorker);
+          // @ts-expect-error override for the test probe
+          navigator.serviceWorker.register = (...a: unknown[]) => { log("serviceWorker.register"); return origR ? origR(...(a as [])) : Promise.reject(new Error("no sw")); };
+        }
+      } catch { /* probe best-effort */ }
+    });
+
+    // A draw 24h out → inside the 48h window → the primer renders.
+    await seedPlanWithDrawIn(page, {
+      dueInMs: 24 * 3_600_000,
+      markerKeys: ["ferritin_m", "ldl_c", "hdl_c", "triglycerides"],
+    });
+    const before = stats.outboundUrls.length;
+    await page.goto("/#/today");
+    await page.reload();
+    await expect(page.locator(".pre-draw-card")).toBeVisible();
+
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+
+    // No inference call fired while the local-only card rendered.
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+
+    // No notification / permission / service-worker API was touched.
+    const perm = await page.evaluate(() => (window as unknown as { __perm?: string[] }).__perm ?? []);
+    expect(perm).toEqual([]);
   });
 
   test("the report card (ticket 0036) renders with no off-allow-list egress", async ({ page }) => {

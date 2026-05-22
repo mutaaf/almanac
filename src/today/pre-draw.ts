@@ -29,6 +29,19 @@ const WINDOW_MS = 48 * HOUR_MS;
 const NEUTRAL_NOTE = "No special prep needed.";
 
 /**
+ * Display name for the primer: the marker's shortName, else its name with any
+ * trailing sex qualifier stripped — the ticket asks for "Ferritin", not
+ * "Ferritin (Male)" / `ferritin_m`. The sex split is an internal modeling
+ * detail (different functional ranges per sex); the user reading "you're
+ * rechecking Ferritin" does not need the parenthetical.
+ */
+function displayName(marker: MarkerDef | undefined, key: string): string {
+  if (marker?.shortName) return marker.shortName;
+  if (!marker) return key;
+  return marker.name.replace(/\s*\((?:Male|Female)\)\s*$/i, "");
+}
+
+/**
  * Compute the pre-draw primer, or `null` when the card should not surface.
  * Pure: no I/O, no `Date.now()` (the caller passes `now`).
  *
@@ -57,7 +70,7 @@ export function prepForDraw(
 
   const markers: PreDrawMarker[] = retestMarkerKeys.map((key) => {
     const marker = findMarker(key, extras);
-    const name = marker?.shortName ?? marker?.name ?? key;
+    const name = displayName(marker, key);
     const note = DRAW_PREP[key] ?? NEUTRAL_NOTE;
     return { key, name, note };
   });
