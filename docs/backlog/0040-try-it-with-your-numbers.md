@@ -1,7 +1,7 @@
 ---
 id: 0040
 title: Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum
-status: groomed
+status: shipped
 priority: P1
 area: growth
 created: 2026-05-21
@@ -84,4 +84,11 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-22 (implementation-dev) Shipped via PR #69 on branch `feat/0040-try-your-numbers`.
+  - `src/pages/try.ts` (new) — `renderTry()`. In-memory `rows: { key, value }[]`, resolved per row via `findMarker(key)` + `flagFor(value, optimal, lab)`; the row shows name / value+unit / lab range / functional range / flag, with a per-row remove control. The 0036 report-card tally (`computeReportCard()` + `reportCardSentence()`) renders over a synthetic in-memory `Panel` once two or more rows exist. A local `rangeStr()` mirrors the labs page's open/closed-bound formatting so this pre-gate page imports nothing from the gated labs module. No Dexie import anywhere.
+  - `src/main.ts` — `#/try` registered as a gate-bypassed branch directly after the `#/welcome` branch, above `isTour() || isSharedView()` and the consent + profile gates. It enters no session/tour/shared-view state.
+  - `src/pages/welcome.ts` — "Try it with your numbers" link (`<a class="btn btn--ghost" href="#/try">`) added beside the existing sample-tour button. (0038's reference link is not yet shipped, so only the tour + try entry points are present; the tour link is unchanged and asserted.)
+  - `src/styles.css` — `.try`, `.try__form`, `.try__row` (+ children) reusing the panel result-row + report-card idioms; ink/ink-soft, oxblood reserved for "Score it"; grid children `min-width: 0`; tap targets `box-sizing: border-box; min-height: 45px` per the 2026-05-21 sub-pixel-rounding LESSON; a 390px mobile reflow.
+  - `tests/e2e/try.spec.ts` (new, 15 tests) maps 1:1 to the acceptance criteria; `tests/e2e/privacy.spec.ts` gains a `#/try` egress + no-IndexedDB-write test.
+  - Local gate green: typecheck, build, full chromium (358 expected / 0 unexpected / 0 flaky), mobile-webkit for try + privacy + welcome (32 passed). No new deps, no egress allow-list change, no schema migration.
+  - Note (decision recorded for the GTM agent): the curated picker omits the open-low Folate, RBC marker only incidentally — all curated markers are listed; the open/closed-range test exercises hs-CRP (open-high), Omega-3 Index (open-low), and fasting insulin (closed).

@@ -1548,6 +1548,175 @@ body {
   .result__flag   { grid-area: flag; justify-self: end; }
 }
 
+/* ---- try-your-numbers sandbox (ticket 0040) ---------------------------- */
+/* A pre-key sandbox that scores a typed marker against the functional optimum.
+   Reuses the panel result-row idioms and the report-card tally styling; ink +
+   ink-soft only, oxblood reserved for the "Score it" accent. */
+.try {
+  padding: 2.6rem var(--gutter) 1.2rem;
+  max-width: 880px;
+  min-width: 0;
+}
+.try__sub { max-width: 56ch; margin-top: 0.8rem; }
+
+.try__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin: 2rem 0 0.6rem;
+  padding-bottom: 1.4rem;
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+.try__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.try__field:nth-of-type(2) { flex: 0 1 9rem; }
+.try__label {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.try__form select,
+.try__form input[type="number"] {
+  box-sizing: border-box;  /* border + padding count toward the 44px target   */
+  min-height: 45px;        /* 1px cushion over 44 for WebKit DPR rounding      */
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  font-family: var(--display);
+  font-size: 1.1rem;
+  color: var(--ink);
+  transition: border-color 180ms var(--ease);
+}
+.try__form select:focus,
+.try__form input[type="number"]:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+.try__form .btn {
+  box-sizing: border-box;
+  min-height: 45px;        /* clear 44 on every DPR (see LESSONS 2026-05-21)   */
+  min-width: 45px;
+}
+
+.try__rows { display: flex; flex-direction: column; min-width: 0; }
+.try__row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.6fr) minmax(90px, 0.8fr) minmax(180px, 1.4fr) auto auto;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--body);
+  min-width: 0;
+}
+.try__name {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  color: var(--ink);
+  min-width: 0;
+}
+.try__value { display: flex; align-items: baseline; gap: 0.35rem; min-width: 0; }
+.try__num { font-family: var(--mono); font-size: 1.05rem; color: var(--ink); }
+.try__unit { font-size: 0.78rem; color: var(--ink-faint); }
+.try__ranges {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  display: flex; flex-direction: column; gap: 0.15rem;
+  min-width: 0;
+}
+.try__ranges > div {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: baseline;
+}
+.try__rangelabel {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.try__flag {
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  justify-self: start;
+}
+.try__remove {
+  box-sizing: border-box;
+  min-height: 45px;        /* tap target clears 44 on every DPR               */
+  min-width: 45px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-faint);
+  font-family: var(--body);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  justify-self: end;
+  transition: border-color 180ms var(--ease), color 180ms var(--ease);
+}
+.try__remove:hover { border-color: var(--ink); color: var(--ink); }
+
+.try__start {
+  margin-top: 2.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem 1rem;
+  min-width: 0;
+}
+.try__start-link {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  text-decoration: none;
+  border-bottom: 1px solid var(--oxblood);
+  padding-bottom: 2px;
+}
+.try__start-link:hover { color: var(--ink); border-color: var(--ink); }
+.try__start-note { font-size: 0.82rem; color: var(--ink-faint); max-width: 44ch; }
+
+@media (max-width: 720px) {
+  .try { padding: 2rem var(--gutter) 1rem; }
+  .try__form { flex-direction: column; align-items: stretch; }
+  .try__field, .try__field:nth-of-type(2) { flex: 1 1 auto; }
+  .try__row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name flag"
+      "value remove"
+      "ranges ranges";
+    row-gap: 0.4rem;
+  }
+  .try__name   { grid-area: name; }
+  .try__value  { grid-area: value; }
+  .try__ranges { grid-area: ranges; }
+  .try__flag   { grid-area: flag; justify-self: end; }
+  .try__remove { grid-area: remove; justify-self: end; }
+}
+
 /* ---- unrecognized-rows matcher ----------------------------------------- */
 .unmatched-list {
   display: grid;
