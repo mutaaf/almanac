@@ -1,7 +1,7 @@
 ---
 id: 0050
 title: Tell a friend — a native-share button on Plan that pre-composes a personalized recommendation with the top protocol action and the tour link
-status: in-progress
+status: shipped
 priority: P1
 area: growth
 created: 2026-05-22
@@ -95,3 +95,12 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
   - `src/styles.css` — one new action styled like the 0017 share-link action; `min-height: 45px`
     + `box-sizing: border-box` per the sub-pixel tap-target lesson.
   - New `tests/e2e/tell-a-friend.spec.ts`; privacy spec extended with both share branches.
+- 2026-05-22 [implementation-dev] Shipped in PR #75 (squash-merged to `main` as 26a8656). All three
+  gating checks green: Typecheck + build (pass), E2E (chromium) (pass), E2E (mobile-webkit) (pass).
+  Auto-merge fired the instant mobile-webkit went green, so this status flip lands as a follow-up
+  `feat/0050-ship-status` PR (the documented orphaned-flip path). Implemented per spec, fully
+  additive: a pure `composeShareMessage` composer, the Plan-page affordance (gated on a composed
+  plan, OFF in shared-view, ON in tour), one CSS action, and a new spec mapping every acceptance
+  bullet 1:1. `selectMostImproved` reused verbatim — no second implementation. No schema migration,
+  no egress allow-list change, no backend/analytics/LLM call. One novel lesson recorded in
+  docs/LESSONS.md (the `composePlan` helper silently no-ops on a no-labs onboard).
