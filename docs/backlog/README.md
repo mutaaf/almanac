@@ -61,7 +61,6 @@ owner: gtm-innovation
 |----|-------|----------|--------|------|
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | shipped | growth |
 | 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | shipped | labs |
-| 0047 | The improvement card — a phone-shaped image of your most-improved marker, three months in, that carries the brand to a friend | P1 | in-progress | growth |
 | 0050 | Tell a friend — a native-share button on Plan that pre-composes a personalized recommendation with the top protocol action and the tour link | P1 | groomed | growth |
 | 0051 | The pre-draw primer — Today surfaces a quiet contextual card 48 hours before the retest date, with marker-specific prep advice | P1 | groomed | today |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
@@ -108,6 +107,7 @@ owner: gtm-innovation
 | 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | shipped | plan |
 | 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | shipped | progress |
 | 0036 | The "normal" that isn't — a panel report card that counts how many markers sit below the optimum the lab called fine | P1 | shipped | labs |
+| 0047 | The improvement card — a phone-shaped image of your most-improved marker, three months in, that carries the brand to a friend | P1 | shipped | growth |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | shipped | infra |
 | 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | shipped | plan |
 | 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | shipped | plan |
