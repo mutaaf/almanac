@@ -27,7 +27,7 @@ async function openReference(page: Page): Promise<void> {
   await page.locator(".reference").waitFor();
 }
 
-/** Seed a user-defined marker (ticket 0002) into IndexedDB. */
+/** Seed a user-defined marker (ticket 0002) into the `userMarkers` store. */
 async function seedUserMarker(page: Page): Promise<void> {
   await page.evaluate(() => {
     return new Promise<void>((resolve, reject) => {
@@ -35,9 +35,11 @@ async function seedUserMarker(page: Page): Promise<void> {
       req.onerror = () => reject(req.error ?? new Error("open failed"));
       req.onsuccess = () => {
         const db = req.result;
-        if (!db.objectStoreNames.contains("markers")) { db.close(); resolve(); return; }
-        const tx = db.transaction("markers", "readwrite");
-        tx.objectStore("markers").put({
+        if (!db.objectStoreNames.contains("userMarkers")) {
+          db.close(); reject(new Error("userMarkers store missing — onboard first")); return;
+        }
+        const tx = db.transaction("userMarkers", "readwrite");
+        tx.objectStore("userMarkers").put({
           key: "user_zonulin",
           name: "Zonulin (user-defined)",
           category: "other",

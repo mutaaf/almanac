@@ -441,9 +441,38 @@ test.describe("Privacy contract", () => {
 
   test("the functional-range reference (ticket 0038) renders static-only with no egress and no user-data read", async ({ page }) => {
     const stats = await installMocks(page);
-    // A fresh prospect — no consent, no profile. Reach `#/reference` directly
-    // and confirm it is a pure static-data render: zero off-allow-list egress,
-    // zero inference call. The reference reads `MARKERS[]` from the bundle only.
+    // Onboard so the `userMarkers` store exists, then seed a private user marker
+    // (ticket 0002) into it. The reference is a pre-gate, static-data render — it
+    // must NOT read the user's IndexedDB, so this marker must never surface on it.
+    await onboard(page, { key: "sk-ant-canary-REFERENCE-38888" });
+    await page.evaluate(() => {
+      return new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open("almanac");
+        req.onerror   = () => reject(req.error ?? new Error("open failed"));
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("userMarkers")) {
+            db.close(); reject(new Error("userMarkers store missing")); return;
+          }
+          const tx = db.transaction("userMarkers", "readwrite");
+          tx.objectStore("userMarkers").put({
+            key: "user_secret",
+            name: "Private user marker",
+            category: "other",
+            unit: "ng/mL",
+            aliases: ["secret"],
+            optimalRange: { high: 1 },
+            description: "Must never leak onto the public reference.",
+            createdAt: Date.now(),
+          });
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+        };
+      });
+    });
+
+    // Now reach `#/reference` and confirm it is a pure static-data render: zero
+    // off-allow-list egress, zero inference call. `MARKERS[]` ships in the bundle.
     const before = stats.outboundUrls.length;
     await page.goto("/#/reference");
     await page.locator(".reference").waitFor();
@@ -465,36 +494,12 @@ test.describe("Privacy contract", () => {
     });
     expect(anthropic).toEqual([]);
 
-    // Seed a user-defined marker behind the gate, then revisit. The reference
-    // must NOT read the user's IndexedDB — the user marker never appears, and
-    // the page renders identically to the no-profile pass.
-    await page.evaluate(() => {
-      return new Promise<void>((resolve) => {
-        const req = indexedDB.open("almanac");
-        req.onerror   = () => resolve();
-        req.onsuccess = () => {
-          const db = req.result;
-          if (!db.objectStoreNames.contains("markers")) { db.close(); resolve(); return; }
-          const tx = db.transaction("markers", "readwrite");
-          tx.objectStore("markers").put({
-            key: "user_secret",
-            name: "Private user marker",
-            category: "other",
-            unit: "ng/mL",
-            aliases: ["secret"],
-            optimalRange: { high: 1 },
-            description: "Must never leak onto the public reference.",
-            createdAt: Date.now(),
-          });
-          tx.oncomplete = () => { db.close(); resolve(); };
-          tx.onerror    = () => { db.close(); resolve(); };
-        };
-      });
-    });
-    await page.goto("/#/reference");
-    await page.locator(".reference").waitFor();
+    // The seeded user marker never appears — the reference reads no IndexedDB.
     await expect(page.locator(".reference__row[data-key='user_secret']")).toHaveCount(0);
     await expect(page.locator(".reference")).not.toContainText("Private user marker");
+    // And the BYOK key never reaches the rendered surface either.
+    const html = await page.content();
+    expect(html).not.toContain("sk-ant-canary-REFERENCE-38888");
   });
 
   test("paste-results-as-text (ticket 0046) makes exactly one Anthropic call and never leaks the key", async ({ page }) => {
