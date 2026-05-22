@@ -1,7 +1,7 @@
 ---
 id: 0053
 title: Habit history — a full check-in calendar grid on Progress showing every logged day per habit, like a contribution graph
-status: proposed
+status: groomed
 priority: P2
 area: progress
 created: 2026-05-22
