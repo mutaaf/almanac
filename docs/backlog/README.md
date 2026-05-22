@@ -62,7 +62,7 @@ owner: gtm-innovation
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | shipped | growth |
 | 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | shipped | labs |
 | 0050 | Tell a friend — a native-share button on Plan that pre-composes a personalized recommendation with the top protocol action and the tour link | P1 | shipped | growth |
-| 0033 | The protocol on the fridge — a phone-shaped image of today's eat, avoid, and habits that lives on a home screen | P1 | groomed | growth |
+| 0033 | The protocol on the fridge — a phone-shaped image of today's eat, avoid, and habits that lives on a home screen | P1 | in-progress | growth |
 | 0038 | The functional-range reference — let a prospect read the marker library, with both ranges, before they trust the app with a key | P1 | groomed | growth |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
 | 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |

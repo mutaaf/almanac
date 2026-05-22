@@ -1,7 +1,7 @@
 ---
 id: 0033
 title: The protocol on the fridge — a phone-shaped image of today's eat, avoid, and habits that lives on a home screen
-status: groomed
+status: in-progress
 priority: P1
 area: growth
 created: 2026-05-21
@@ -81,4 +81,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-22 [implementation-dev] Picked up against `origin/main` (ticket still `groomed`). Branched `feat/0033-protocol-on-the-fridge`. The card is a SECOND LAYOUT on the proven 0011 canvas mechanism — modelled on the most-recent sibling, the 0047 improvement card (`src/progress/improvement-card.ts`): a pure `composeProtocolCardText(plan, profile)` deterministic-text function (the spec's content-assertion surface), a `renderProtocolCard(plan, profile, opts): Promise<Blob>` canvas render (fonts.ready awaited, no new font fetch), `protocolCardFilename(ownerName)` (slug + `almanac-protocol.png` fallback), and `saveProtocolCard(...)` reusing 0011's `shareOrDownload` verbatim (one download path in the app — no new dep). The "Save the card" affordance lives in `paint()` in `src/pages/plan.ts`, which is reached for the normal AND tour plan but NOT for shared-view (`paintShared()` returns early) — so the gate-IN-for-tour / gate-OUT-of-shared-view requirements fall out of the existing structure with no extra conditional. Caps: habits ≤5, eat ≤5, avoid ≤3, all in stored order. No schema change, no egress-list change.
