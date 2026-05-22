@@ -33,6 +33,7 @@ import { encodeProtocolPayload } from "../share/protocol-link";
 import { isSharedView } from "../share/shared-state";
 import { selectMostImproved } from "../progress/most-improved";
 import { composeShareMessage } from "../plan/share-message";
+import { saveProtocolCard } from "../plan/protocol-card";
 
 type ViewMode = "read" | "dashboard";
 const VIEW_KEY = "almanac.plan.view";
@@ -443,6 +444,7 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
           <button id="recompose" class="btn btn--ghost">Re-compose plan</button>
         </div>
         ${renderTellFriend()}
+        ${renderProtocolCardAction()}
         <div id="status" class="quiet" style="display: none; margin-top: 1.4rem;"></div>
       </article>
       ${foot("iii")}
@@ -467,6 +469,9 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
 
   // Share with a friend (ticket 0050) — the text-recommendation channel.
   wireTellFriend(plan, profile, panels);
+
+  // Save the card (ticket 0033) — the protocol-on-the-fridge image.
+  wireProtocolCardAction(plan, profile);
 
   // Provenance chips render in both modes (ticket 0013) — wire here so the
   // handler is attached regardless of which view paints.
@@ -793,6 +798,54 @@ function wireTellFriend(plan: Plan, profile: Profile, panels: Panel[]): void {
     } catch {
       // Clipboard unavailable (rare; never in CI) — stay quiet rather than
       // surfacing an error for an optional growth affordance.
+    }
+  });
+}
+
+/* ============================================================================
+   Save the card — the protocol-on-the-fridge image (ticket 0033)
+   ============================================================================
+   A single action below the plan-actions row that renders the protocol's
+   glanceable essentials — the habit stack (≤5), the top eat foods with
+   frequency (≤5), the top avoid items with swap (≤3) — to one phone-shaped
+   editorial PNG entirely on-device, and hands it to the OS share sheet (or a
+   `<a download>` fallback). It renders whenever `paint()` runs, which is only
+   when a composed plan exists AND we are not in shared-view (that path returns
+   early in paintShared); tour mode reaches `paint()` so the action is offered
+   against the sample plan. Zero network, zero Anthropic, zero key — a pure
+   render of local data, reusing the 0011/0047 canvas-and-download mechanism.
+*/
+
+function renderProtocolCardAction(): string {
+  return `
+    <section class="protocol-card" aria-label="Save the protocol as an image">
+      <button type="button" class="protocol-card-save"
+              aria-label="Save the card — a phone-shaped image of today's eat, avoid, and habits">
+        Save the card
+      </button>
+      <p class="protocol-card__note">
+        A phone-shaped image of the protocol — your habits, the foods to lean into, the ones to ease off — in the almanac's own type. Save it to the fridge or a lock screen. Drawn on this device; nothing is sent anywhere.
+      </p>
+    </section>
+  `;
+}
+
+function wireProtocolCardAction(plan: Plan, profile: Profile): void {
+  const btn = document.querySelector<HTMLButtonElement>(".protocol-card-save");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    // Guard against a double-tap re-render race while the canvas draws.
+    if (btn.disabled) return;
+    btn.disabled = true;
+    try {
+      // Pure on-device render → the same shareOrDownload path 0011/0047 use.
+      await saveProtocolCard(plan, profile);
+    } catch {
+      // A canvas/toBlob failure is vanishingly rare; never surface an error for
+      // an optional keepsake affordance.
+    } finally {
+      btn.disabled = false;
     }
   });
 }
