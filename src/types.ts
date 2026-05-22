@@ -29,6 +29,32 @@ export interface Profile {
   model: string;
   createdAt: number;
   updatedAt: number;
+
+  /**
+   * Single-use editorial provenance for the user who arrived by adopting a
+   * friend's shared protocol (ticket 0020). Carried from the shared-view CTA
+   * through consent + onboarding (as `localStorage["almanac.adoptSeed"]`), then
+   * moved onto the saved profile here. Read once by the first plan compose —
+   * which appends a "Referral context (not constraint)" block to the prompt —
+   * and cleared immediately after. A user 90 days into their protocol does not
+   * carry this. Optional + additive: a v7 profile loads as v8 with `adoptSeed
+   * === undefined`. NEVER carries labs, insights, profile, or a friend's name.
+   */
+  adoptSeed?: AdoptSeed;
+}
+
+/**
+ * The structured carry-over from a friend's shared protocol (ticket 0020).
+ * Built by `extractAdoptSeed()` from the shared payload via literal field reads
+ * — at most five habit titles and at most three eat-list food names, in the
+ * order they appear (the friend's curation order is the signal). No LLM, no
+ * inference, no other field travels.
+ */
+export interface AdoptSeed {
+  version: 1;
+  habitTitles: string[];
+  topEatFoods: string[];
+  capturedAt: number;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -73,6 +99,15 @@ export interface MarkerDef {
     direction: "increase" | "decrease" | "either";
     magnitude: { low: number; high: number; unit?: string };
   };
+  /**
+   * Decimal places the what-if simulator (ticket 0019) snaps the dragged value
+   * to. Curated only for the markers where the natural granularity matters:
+   * integer-valued markers (ferritin, ApoB, vit D, MCV) carry `0`; one-decimal
+   * markers (hs-CRP, fasting insulin, HbA1c, Mg RBC) carry `1`. Markers without
+   * this field fall back to a two-significant-figures heuristic in the slider.
+   * Additive, no migration.
+   */
+  precision?: number;
 }
 
 export type MarkerCategory =
@@ -101,9 +136,10 @@ export interface Panel {
   /**
    * A single panel can come from many pages — lab reports often arrive as
    * several photos or screenshots of the same draw. "mixed" when the
-   * staged files were a combination of PDFs and images.
+   * staged files were a combination of PDFs and images. "paste" when the
+   * panel came from results text pasted from a patient portal (ticket 0046).
    */
-  source: "pdf" | "image" | "manual" | "mixed";
+  source: "pdf" | "image" | "manual" | "mixed" | "paste";
   fileNames?: string[];   // parallel to fileBlobs
   fileBlobs?: Blob[];     // originals, kept on-device
   results: Result[];
@@ -170,6 +206,134 @@ export interface InsightProvenance {
   evidence: string;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Plan-to-plan delta (ticket 0029)                                          */
+/* -------------------------------------------------------------------------- */
+/*
+ * The structural diff between the two most recent plans, computed by
+ * `computePlanDelta(current, prior)` in `src/plan/delta.ts`. Render-time only —
+ * nothing here is persisted (no schema change). Items are matched across plans
+ * by their natural identity field: `food` for eat/avoid, `title` for habits,
+ * `title` for insights. The eat list also captures a same-food frequency or
+ * portion change in `changed`. Pure: no DOM, no Dexie, no network.
+ */
+
+export interface PlanDelta {
+  eat: {
+    added: EatItem[];
+    removed: EatItem[];
+    /** Same-food change: `was`/`now` describe the frequency-or-portion shift. */
+    changed: { item: EatItem; was: string; now: string }[];
+  };
+  avoid: {
+    added: AvoidItem[];
+    removed: AvoidItem[];
+  };
+  habits: {
+    added: Habit[];
+    retired: Habit[];
+  };
+  insights: {
+    /** Insight titles firing now that did not fire in the prior plan. */
+    newlyFiring: string[];
+    /** Insight titles present before and absent now. */
+    resolved: string[];
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Marker-moved receipt (ticket 0032)                                        */
+/* -------------------------------------------------------------------------- */
+/*
+ * One "what moved since your last draw" line, computed by
+ * `computeMovementReceipt(newPanel, priorPanels)` in `src/labs/movement-receipt.ts`.
+ * Render-time only — nothing here is persisted (no schema change). For each
+ * result in the just-resolved panel that has at least one prior draw of the
+ * same `markerKey`, the function takes the most recent prior value, computes
+ * the delta, decides whether the move was toward the functional optimum and
+ * whether it crossed into the range, and classifies the `state`. Pure: no DOM,
+ * no Dexie, no network. The emotional sibling of the canonicalization receipt
+ * (0026): that says "we recognized this marker across labs," this says "and
+ * here is how far it moved."
+ */
+export interface MarkerMove {
+  markerKey: string;
+  /**
+   * Human display name resolved via the marker DB (sex-specific + user keys).
+   * Prefers the marker's `shortName` (e.g. "ApoB") when present, matching the
+   * panel result-row convention, else the full `name`.
+   */
+  canonicalName: string;
+  priorValue: number;
+  newValue: number;
+  unit: string;
+  /** Full month name of the prior draw, e.g. "February". */
+  priorMonth: string;
+  /** newValue - priorValue. Signed. */
+  delta: number;
+  /** True when the new value sits closer to the functional optimum than the prior. */
+  towardOptimal: boolean;
+  /** True when the prior value was outside the functional range and the new value is inside it. */
+  crossedIntoRange: boolean;
+  state: "into-range" | "toward" | "away" | "unchanged";
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Panel report card (ticket 0036)                                           */
+/* -------------------------------------------------------------------------- */
+/*
+ * The at-rest tally a panel produces against the FUNCTIONAL optimum, computed by
+ * `computeReportCard(panel, markers)` in `src/labs/report-card.ts`. Render-time
+ * only — nothing here is persisted (no schema change). It reduces the panel's
+ * already-flagged results over the existing `Flag` classification (with
+ * `flagFor()` as the fallback classifier when a result carries no stored flag),
+ * counting each classifiable marker into exactly one bucket. Results whose marker
+ * does not resolve to a range — nothing to judge against — are excluded from
+ * `total`. Pure: no DOM, no Dexie, no network.
+ *
+ *   total          markers with a range to judge against (the denominator).
+ *   optimal        flag `optimal` — inside the functional range.
+ *   suboptimal     flag `suboptimal` — inside the lab range but below the
+ *                  functional optimum. The wedge.
+ *   outOfLabRange  flag `low` OR `high` — outside the lab range entirely. A
+ *                  marker here is NEVER also counted as suboptimal.
+ *   lowOrHigh      `outOfLabRange` rolled up (kept for callers that want the
+ *                  raw low+high sum); identical to `outOfLabRange` today.
+ */
+export interface ReportCard {
+  total: number;
+  optimal: number;
+  suboptimal: number;
+  outOfLabRange: number;
+  lowOrHigh: number;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  What-if simulation (ticket 0019)                                          */
+/* -------------------------------------------------------------------------- */
+/*
+ * The simulator re-runs the deterministic insight engine over a hypothetical
+ * panel where one or more marker values are overridden, then diffs the two
+ * rule-output sets. Nothing here is persisted — the diff is render-time only.
+ */
+
+/** A single dragged value: replace `markerKey`'s reading with `value`. */
+export interface SimulationOverride {
+  markerKey: string;
+  value: number;
+}
+
+/**
+ * The set difference between the live insight output and the hypothetical one,
+ * keyed by rule id. `stillFires` fired in both; `wouldNoLongerFire` fired live
+ * but not hypothetically; `wouldNewlyFire` fired hypothetically but not live.
+ */
+export interface SimulationDiff {
+  stillFires: string[];
+  wouldNoLongerFire: string[];
+  wouldNewlyFire: string[];
+}
+
 /**
  * The food prescription. Specific, frequency-and-portion driven, tied to markers.
  */
@@ -226,6 +390,61 @@ export interface RetestItem {
   markerKeys: string[];
   whenWeeks: number;
   reason: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Retest-due surface (ticket 0028)                                          */
+/* -------------------------------------------------------------------------- */
+/*
+ * Computed by `computeRetestStatus()` (in `src/today/retest.ts`) from the
+ * latest plan's `retest` cadence anchored to the plan's `generatedAt`. Nothing
+ * here is persisted (no schema change) — it is a render-time read over data the
+ * user already owns. Returns null when the plan carries no retest cadence; a
+ * populated status otherwise. The Today page surfaces the card only for the
+ * `due-soon` and `overdue` states; `upcoming` renders nothing.
+ *
+ *   markers:    human display names of the soonest-due cadence's markers.
+ *   dueDate:    generatedAt + whenWeeks * 7 days.
+ *   daysUntil:  whole calendar days from `now` to `dueDate` (negative = past).
+ *   state:      "overdue" (daysUntil < 0) | "due-soon" (0..14) | "upcoming".
+ *   setOn:      the plan's generation date — the date the cadence was set.
+ */
+export interface RetestStatus {
+  markers: string[];
+  dueDate: Date;
+  daysUntil: number;
+  state: "upcoming" | "due-soon" | "overdue";
+  setOn: Date;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Pre-draw primer (ticket 0051)                                             */
+/* -------------------------------------------------------------------------- */
+/*
+ * Computed by `prepForDraw()` (in `src/today/pre-draw.ts`) from the latest
+ * plan's soonest retest cadence (the same next-draw date the 0028 card reads)
+ * and the static `DRAW_PREP` lookup. Render-time only — nothing here is
+ * persisted (no schema change). Returns null outside the 48-hour pre-draw
+ * window, when the draw date is past, or when there is no draw date. A populated
+ * value otherwise drives the calm "Pre-draw prep" card on Today.
+ *
+ *   hoursOut:  whole hours from `now` to the draw instant (>= 0; the window is
+ *              hour-precise, not calendar-day like 0028's daysUntil).
+ *   markers:   one row per retest marker key, resolved to its human name via
+ *              findMarker(), with the prep note from DRAW_PREP (or the neutral
+ *              "No special prep needed." note when the marker is uncovered).
+ */
+export interface PreDrawPrep {
+  hoursOut: number;
+  markers: PreDrawMarker[];
+}
+
+export interface PreDrawMarker {
+  key: string;
+  /** Human display name — shortName preferred, then name, then the key. */
+  name: string;
+  /** The pre-analytical note from DRAW_PREP, or the neutral uncovered note. */
+  note: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -505,6 +724,90 @@ export interface WelcomeBackRow {
     | "retest-overdue"    | "retest-coming-due";
   body: string;
   cta?: { label: string; href: string };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The hundred-day mark (ticket 0021)                                        */
+/* -------------------------------------------------------------------------- */
+/*
+ * The quarterly reflective surface. `computeHundredDayState()` (in
+ * `src/progress/hundred-day.ts`) builds a fresh state from the user's plans,
+ * panels, check-ins, and projection snapshots on every render. Nothing here is
+ * persisted (no schema migration) beyond a per-quarter dismissal localStorage
+ * key. The function is PURE — no DOM, no Dexie, no Anthropic — so the surface
+ * opens deterministically and offline.
+ *
+ * Returns null when (a) no plan has been composed, (b) the user is less than
+ * 100 days past their first plan, or (c) fewer than 50 check-ins fell inside
+ * the 100-day window. A populated state otherwise.
+ */
+
+export interface HundredDayState {
+  /** Which 100-day block this is: 1 = days 1–100, 2 = 101–200, etc. */
+  quarterIndex: number;
+  /** Inclusive window bounds as Days (offset from the first plan). */
+  windowStart: Day;
+  windowEnd: Day;
+  arc: ArcSection;
+  labs: LabsSection;
+  editorial: EditorialSection;
+}
+
+export interface ArcSection {
+  /** One row per habit that appeared in ANY plan during the window. */
+  habits: ArcHabit[];
+}
+
+export interface ArcHabit {
+  id: string;
+  title: string;
+  /** Days the habit id appears in CheckIn.habitsCompleted within the window. */
+  heldDays: number;
+  /**
+   * The first week (1–14) where adherence dropped below 50% for this habit AND
+   * stayed below for the next two weeks. Omitted when the habit held.
+   */
+  slipWeek?: number;
+  /**
+   * The day-offset within the window when the habit first appeared in a
+   * recomposed plan. Omitted when present from day 1.
+   */
+  addedOnDay?: number;
+}
+
+export interface LabsSection {
+  /** Draws inside the window, oldest first. */
+  panels: Array<{ drawnAt: Day; markerCount: number }>;
+  /** Every marker with ≥2 draws in the window, ordered by absolute delta desc. */
+  markerMovements: MarkerMovement[];
+}
+
+export interface MarkerMovement {
+  markerKey: string;
+  firstValue: number;
+  lastValue: number;
+  unit: string;
+  /**
+   * Projection evaluation via 0012's `evaluateLanded()` — whether the last
+   * value landed inside / above / below the projected band we showed the user.
+   * Null when there is no qualifying projection snapshot for the marker.
+   */
+  projectionEvaluation?: "within" | "above" | "below" | null;
+}
+
+export interface EditorialSection {
+  paragraphs: EditorialParagraph[];
+}
+
+export interface EditorialParagraph {
+  kind:
+    | "habit-marker-link"
+    | "habit-slip"
+    | "habit-add"
+    | "marker-mover"
+    | "marker-held";
+  /** One declarative sentence in the editorial voice. */
+  sentence: string;
 }
 
 /* -------------------------------------------------------------------------- */

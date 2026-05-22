@@ -313,6 +313,51 @@ body {
   font-style: italic;
 }
 
+/* ---- verify-before-commit: the "Check this key" affordance (ticket 0024) --- */
+.key-check {
+  margin-top: 0.7rem;
+}
+
+/* The affordance is a small-caps eyebrow link in ink — informational, not a
+   primary CTA, so it never wears the oxblood accent. ≥44px touch target on
+   mobile via padding + min-height; the negative margin keeps it visually flush
+   with the field while still hitting the 44px box. */
+.key-check__action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin: -0.6rem 0;
+  cursor: pointer;
+  color: var(--ink);
+  border-bottom: 1px solid var(--rule);
+  transition: color 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+
+.key-check__action:hover { border-bottom-color: var(--ink); }
+.key-check__action:focus-visible { outline: 1px solid var(--ink); outline-offset: 3px; }
+
+.key-check__action[aria-disabled="true"] {
+  color: var(--ink-faint);
+  border-bottom-color: transparent;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Reserve the result line's height so the spinner / answer arriving never
+   shifts the form layout. Wraps cleanly at the 390px phone viewport. */
+.key-check__result {
+  min-height: 1.4rem;
+  margin-top: 0.55rem;
+  font-family: var(--body);
+  font-size: 0.84rem;
+  line-height: 1.4;
+  max-width: 56ch;
+}
+
+.key-check__pending { color: var(--ink-faint); font-style: italic; }
+.key-check__ok      { color: var(--ink-soft); }
+.key-check__fail    { color: var(--oxblood); }
+
 /* Buttons: text-led, hairline-bordered, never pill-shaped.
    Tap target: ≥44px on mobile via min-height + padding. */
 .btn {
@@ -415,6 +460,158 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   gap: 1rem; flex-wrap: wrap;
 }
+
+/* Since your last plan — the plan-to-plan delta (ticket 0029).
+   Editorial prose in ink / ink-soft. No diff coloring, no rounded corners.
+   A hairline rule sets it apart from the snapshot below without a card. */
+.plan-delta {
+  margin: 1.6rem 0 0.2rem;
+  padding: 1.1rem 0 1.3rem;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;            /* grid/flex child must allow long names to wrap   */
+}
+.plan-delta__eyebrow {
+  margin-bottom: 0.7rem;
+}
+.plan-delta__lines {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;            /* documented overflow fix for long food names     */
+}
+.plan-delta__line {
+  font-family: var(--body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere; /* long single-token food names break, not overflow */
+}
+.plan-delta__line--quiet {
+  color: var(--ink-faint);
+  font-style: italic;
+}
+.plan-delta__sub {
+  font-family: var(--body);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-top: 0.5rem;
+}
+
+/* =============================================================================
+   Movement receipt (ticket 0032) — "Since your last draw," one calm dated line
+   per marker that moved relative to its most recent prior draw. The sibling of
+   the plan-delta section above; re-uses the .section-mark small-caps eyebrow and
+   the same editorial type tokens. No special color on an into-range crossing —
+   ink and ink-soft only; the satisfaction is in the copy, not the styling.
+   ============================================================================= */
+.movement-receipt {
+  margin: 2.6rem 0 0.2rem;
+  padding: 1.1rem 0 0.2rem;
+  border-top: 1px solid var(--rule);
+  min-width: 0;            /* grid/flex child must allow long names to wrap   */
+}
+.movement-receipt__eyebrow {
+  color: var(--ink-faint);
+  border-bottom: 0;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0;
+}
+.movement-receipt__lines {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;            /* documented overflow fix for long marker names   */
+}
+.movement-receipt__row {
+  font-family: var(--body);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere; /* long single-token marker names break, not overflow */
+}
+
+/* =============================================================================
+   Report card (ticket 0036) — "Against the optimum," the at-rest tally of how a
+   panel's markers stack up against the FUNCTIONAL optimum. It sits at the top of
+   the panel review screen, above the results table + the movement receipt. Calm
+   editorial copy plus a row of tap-target chips that scroll to the matching
+   rows. No celebratory or alarmist color — ink and ink-soft only; oxblood
+   reserved. The count chips clear the 44×44 css-px target (with a 1px cushion so
+   iPhone-15 DPR rounding can't drop the box under 44 — see docs/LESSONS.md).
+   ============================================================================= */
+.report-card {
+  margin: 2.2rem 0 0.2rem;
+  padding: 1.1rem 0 0.4rem;
+  border-top: 1px solid var(--rule);
+  min-width: 0;            /* grid/flex child must allow long lines to wrap     */
+}
+.report-card__eyebrow {
+  color: var(--ink-faint);
+  border-bottom: 0;
+  margin-bottom: 0.8rem;
+  padding-bottom: 0;
+}
+.report-card__line {
+  font-family: var(--body);
+  font-size: 1.02rem;
+  line-height: 1.6;
+  color: var(--ink);
+  margin: 0;
+  max-width: 64ch;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.report-card__counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 1rem;
+  min-width: 0;
+}
+.report-card__count {
+  box-sizing: border-box;  /* count border + padding toward the 44px target     */
+  min-height: 45px;        /* 1px cushion over 44 for WebKit DPR rounding        */
+  min-width: 45px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: border-color 180ms var(--ease), color 180ms var(--ease);
+}
+.report-card__count:hover { border-color: var(--ink); color: var(--ink); }
+.report-card__count-num {
+  font-family: var(--display);
+  font-size: 1.3rem;
+  line-height: 1;
+  color: var(--ink);
+}
+.report-card__count-label {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* The transient highlight a chip tap leaves on its matching rows. A thin ink
+   left-edge — no flood, no glow; the chip + the scroll do the pointing. */
+.result.is-report-highlight {
+  box-shadow: inset 3px 0 0 0 var(--ink);
+  transition: box-shadow 200ms var(--ease);
+}
+
 .view-toggle {
   display: inline-flex;
   border: 1px solid var(--rule);
@@ -1187,6 +1384,132 @@ body {
   background: rgba(122,31,43,0.06);
 }
 
+/* ---- paste-results-as-text affordance (ticket 0046) --------------------- */
+/* A third, additive input alongside the image dropzone: paste a block of
+   portal text and extract it. Ink + ink-soft only, no oxblood (it is not an
+   error state); controls clear the 44×44 css-px HIG floor. Does not disturb the
+   dropzone layout — it sits below the staged/extract block as its own region. */
+.labs-paste-text {
+  margin-top: 2rem;
+  padding: 1.4rem 1.4rem 1.5rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+}
+.labs-paste-text__title {
+  font-family: var(--display);
+  font-size: 1.3rem;
+  font-style: italic;
+  color: var(--ink);
+}
+.labs-paste-text__hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.labs-paste-text__input {
+  display: block;
+  width: 100%;
+  margin-top: 0.9rem;
+  box-sizing: border-box;
+  min-height: 88px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.labs-paste-text__input:focus {
+  outline: none;
+  border-color: var(--ink-soft);
+}
+.labs-paste-text__input::placeholder { color: var(--ink-faint); }
+.labs-paste-text__actions {
+  margin-top: 0.9rem;
+}
+.labs-paste-text__extract {
+  box-sizing: border-box;
+  min-height: 45px;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Egress receipt (ticket 0025)                                              */
+/* -------------------------------------------------------------------------- */
+/* The "what leaves this device" pre-flight line. Calm, not alarming — ink and
+   ink-soft only, NO oxblood (privacy is not an error state here). */
+.egress-receipt {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-left: 2px solid var(--paper-edge);
+  background: var(--paper-deep);
+  font-family: var(--body);
+}
+.egress-receipt__summary {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 64ch;
+}
+.egress-receipt__cache {
+  color: var(--ink);
+}
+.egress-receipt__disclosure {
+  /* ink eyebrow link, but a ≥44×44 css px touch target on every viewport. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  margin-top: 0.4rem;
+  padding: 0 0.1rem;
+  border: 0;
+  background: transparent;
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  cursor: pointer;
+  transition: color 180ms var(--ease);
+}
+.egress-receipt__disclosure:hover,
+.egress-receipt__disclosure[aria-expanded="true"] {
+  color: var(--ink);
+}
+.egress-receipt__detail {
+  margin-top: 0.5rem;
+  display: grid;
+  gap: 0.4rem;
+  max-width: 64ch;
+}
+/* `display: grid` would otherwise override the [hidden] UA rule — keep the
+   collapsed state actually hidden. */
+.egress-receipt__detail[hidden] { display: none; }
+.egress-receipt__cache[hidden]  { display: none; }
+.egress-receipt__row {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  /* long, hyphen-free file names must wrap rather than overflow at 390px. */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  min-width: 0;
+}
+.egress-receipt__row--destination {
+  color: var(--ink);   /* the host is the load-bearing fact; render it firmer. */
+}
+.egress-receipt__rowlabel {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-right: 0.35rem;
+}
+
 /* Inline keyboard-shortcut pill */
 .kbd {
   display: inline-block;
@@ -1274,6 +1597,175 @@ body {
   .result__value  { grid-area: value; }
   .result__ranges { grid-area: ranges; }
   .result__flag   { grid-area: flag; justify-self: end; }
+}
+
+/* ---- try-your-numbers sandbox (ticket 0040) ---------------------------- */
+/* A pre-key sandbox that scores a typed marker against the functional optimum.
+   Reuses the panel result-row idioms and the report-card tally styling; ink +
+   ink-soft only, oxblood reserved for the "Score it" accent. */
+.try {
+  padding: 2.6rem var(--gutter) 1.2rem;
+  max-width: 880px;
+  min-width: 0;
+}
+.try__sub { max-width: 56ch; margin-top: 0.8rem; }
+
+.try__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin: 2rem 0 0.6rem;
+  padding-bottom: 1.4rem;
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+.try__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+.try__field:nth-of-type(2) { flex: 0 1 9rem; }
+.try__label {
+  font-family: var(--body);
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.try__form select,
+.try__form input[type="number"] {
+  box-sizing: border-box;  /* border + padding count toward the 44px target   */
+  min-height: 45px;        /* 1px cushion over 44 for WebKit DPR rounding      */
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  font-family: var(--display);
+  font-size: 1.1rem;
+  color: var(--ink);
+  transition: border-color 180ms var(--ease);
+}
+.try__form select:focus,
+.try__form input[type="number"]:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+.try__form .btn {
+  box-sizing: border-box;
+  min-height: 45px;        /* clear 44 on every DPR (see LESSONS 2026-05-21)   */
+  min-width: 45px;
+}
+
+.try__rows { display: flex; flex-direction: column; min-width: 0; }
+.try__row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1.6fr) minmax(90px, 0.8fr) minmax(180px, 1.4fr) auto auto;
+  gap: 1rem;
+  align-items: baseline;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--body);
+  min-width: 0;
+}
+.try__name {
+  font-family: var(--display);
+  font-size: 1.15rem;
+  color: var(--ink);
+  min-width: 0;
+}
+.try__value { display: flex; align-items: baseline; gap: 0.35rem; min-width: 0; }
+.try__num { font-family: var(--mono); font-size: 1.05rem; color: var(--ink); }
+.try__unit { font-size: 0.78rem; color: var(--ink-faint); }
+.try__ranges {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  display: flex; flex-direction: column; gap: 0.15rem;
+  min-width: 0;
+}
+.try__ranges > div {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.6rem;
+  align-items: baseline;
+}
+.try__rangelabel {
+  font-size: 0.66rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.try__flag {
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  padding: 0.18rem 0.55rem;
+  border: 1px solid currentColor;
+  white-space: nowrap;
+  justify-self: start;
+}
+.try__remove {
+  box-sizing: border-box;
+  min-height: 45px;        /* tap target clears 44 on every DPR               */
+  min-width: 45px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink-faint);
+  font-family: var(--body);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  justify-self: end;
+  transition: border-color 180ms var(--ease), color 180ms var(--ease);
+}
+.try__remove:hover { border-color: var(--ink); color: var(--ink); }
+
+.try__start {
+  margin-top: 2.4rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem 1rem;
+  min-width: 0;
+}
+.try__start-link {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  text-decoration: none;
+  border-bottom: 1px solid var(--oxblood);
+  padding-bottom: 2px;
+}
+.try__start-link:hover { color: var(--ink); border-color: var(--ink); }
+.try__start-note { font-size: 0.82rem; color: var(--ink-faint); max-width: 44ch; }
+
+@media (max-width: 720px) {
+  .try { padding: 2rem var(--gutter) 1rem; }
+  .try__form { flex-direction: column; align-items: stretch; }
+  .try__field, .try__field:nth-of-type(2) { flex: 1 1 auto; }
+  .try__row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name flag"
+      "value remove"
+      "ranges ranges";
+    row-gap: 0.4rem;
+  }
+  .try__name   { grid-area: name; }
+  .try__value  { grid-area: value; }
+  .try__ranges { grid-area: ranges; }
+  .try__flag   { grid-area: flag; justify-self: end; }
+  .try__remove { grid-area: remove; justify-self: end; }
 }
 
 /* ---- unrecognized-rows matcher ----------------------------------------- */
@@ -2096,6 +2588,109 @@ body {
     width: 100%;
     margin-top: 0.6rem;
   }
+}
+
+/* ---- the improvement card affordance (ticket 0047) --------------------- */
+.improvement {
+  margin-top: 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: flex-start;
+}
+.improvement-save {
+  box-sizing: border-box;
+  min-height: 45px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: 0.7rem 1.2rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 180ms var(--ease), color 180ms var(--ease), border-color 180ms var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.improvement-save:hover,
+.improvement-save:focus-visible {
+  color: var(--paper);
+  background: var(--oxblood);
+  border-color: var(--oxblood);
+}
+.improvement-save:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+.improvement__note {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  max-width: 52ch;
+}
+
+/* =============================================================================
+   Tell a friend (ticket 0050)
+   The "Share with a friend" action sits below the Plan page's plan-actions row.
+   Same chip rhythm as the 0017 share-link action and the 0047 save action — no
+   new colors (ink-soft + rule, oxblood reserved for the hover). The transient
+   "Copied." confirmation reuses the editorial register. box-sizing + a 1px
+   cushion above 44 so WebKit's fractional iPhone-15 DPR rounding can't drop the
+   tap target below the 44px HIG floor (the sub-pixel lesson in docs/LESSONS.md).
+   ============================================================================= */
+.tell-friend {
+  margin-top: 1.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+.tell-friend__btn {
+  box-sizing: border-box;
+  min-height: 45px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: 0.7rem 1.2rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 180ms var(--ease), color 180ms var(--ease), border-color 180ms var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.tell-friend__btn:hover,
+.tell-friend__btn:focus-visible {
+  color: var(--paper);
+  background: var(--oxblood);
+  border-color: var(--oxblood);
+}
+.tell-friend__confirm {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  min-height: 1.2em;
+}
+.tell-friend__note {
+  flex-basis: 100%;
+  margin: 0;
+  font-family: var(--body);
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  max-width: 60ch;
 }
 
 /* =============================================================================
@@ -2990,6 +3585,218 @@ body {
   color: var(--ink);
   margin: 0 0 0.45rem;
   max-width: 56ch;
+}
+
+/* ---- Quarterly note card on Today — ticket 0021 ----------------------- */
+/*
+ * The hundred-day mark's entry point. Re-uses the .recap-card layout; the
+ * --quarterly modifier letter-spaces the eyebrow a touch wider so the long-arc
+ * note reads as the most significant of the three cards. No new colors — the
+ * same oxblood accent rule the Sunday and quiet cards carry. The dismiss
+ * control is given a ≥44px touch target so the per-quarter dismissal is a
+ * comfortable tap on a phone.
+ */
+.recap-card--quarterly .recap-card__eyebrow {
+  letter-spacing: 0.26em;
+}
+.recap-card--quarterly .recap-card__dismiss {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* ---- Retest-due card on Today — ticket 0028 --------------------------- */
+/*
+ * The plan's retest cadence, carried forward as a dated nudge between the meals
+ * row and the habit stack. The WHOLE card is the tap target (an anchor to the
+ * labs upload surface), so it sets box-sizing + a min-height ≥45px to clear the
+ * 44px HIG floor on every device-pixel-ratio (see docs/LESSONS.md 2026-05-21).
+ * Ink and ink-soft only — overdue is calm, not an error, so NO oxblood. The
+ * left rule is a quiet ink-faint hairline, deliberately not the oxblood accent
+ * the recap/quiet/quarterly cards carry.
+ */
+.retest-card {
+  box-sizing: border-box;
+  min-height: 45px;
+  display: block;
+  margin: 1.6rem 0 0.2rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-faint);
+  background: var(--paper-deep);
+  padding: 0.95rem 1.2rem 1.05rem;
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color 180ms var(--ease), background 180ms var(--ease);
+}
+.retest-card:hover {
+  border-left-color: var(--ink-soft);
+  background: var(--paper);
+}
+.retest-card__eyebrow {
+  display: block;
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.retest-card__body {
+  display: block;
+  font-family: var(--display);
+  font-size: 1.08rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  max-width: 60ch;
+}
+
+/* -----------------------------------------------------------------------------
+   PRE-DRAW PRIMER — ticket 0051
+   The day-before half of the retest loop. Sits at the same meals/habits
+   boundary as the 0028 card (it suppresses that card inside the 48h window) and
+   matches its quiet idiom: a paper-deep panel with an ink-faint left hairline.
+   Ink and ink-soft only — calm guidance, not an alert, so NO oxblood. The marker
+   lines are a plain list; grid/flex children carry min-width: 0 so a long prep
+   note wraps cleanly at 390px instead of forcing horizontal overflow (the
+   documented overflow fix, docs/LESSONS.md / AGENTS.md "CSS overflow").
+   --------------------------------------------------------------------------- */
+.pre-draw-card {
+  box-sizing: border-box;
+  display: block;
+  margin: 1.6rem 0 0.2rem;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-faint);
+  background: var(--paper-deep);
+  padding: 0.95rem 1.2rem 1.05rem;
+  color: var(--ink);
+  max-width: 60ch;
+}
+.pre-draw-card__eyebrow {
+  display: block;
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: 600;
+  margin-bottom: 0.4rem;
+}
+.pre-draw-card__lead {
+  font-family: var(--display);
+  font-size: 1.08rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  margin: 0 0 0.7rem;
+}
+.pre-draw-card__lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+.pre-draw-card__line {
+  min-width: 0;
+  font-family: var(--body);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+.pre-draw-card__marker {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* =============================================================================
+   THE HUNDRED-DAY MARK — quarterly reflective surface at #/hundred-day
+   Ticket 0021. Single column, mirrors the recap page's left margin; mobile
+   stacks the three sections (they're already a single column, so the stack is
+   the same flow with tightened gaps). Re-uses the .section-mark small-caps and
+   the editorial type tokens; no new colors.
+   ============================================================================= */
+.hundred-day__range {
+  margin-top: 0.6rem;
+  font-style: italic;
+}
+
+.hundred-day__section {
+  margin-top: 2.4rem;
+}
+
+.hundred-day__arc-list,
+.hundred-day__movement-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.hundred-day__arc-row,
+.hundred-day__movement-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.3rem 1.2rem;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 0.6rem;
+}
+
+.hundred-day__arc-title,
+.hundred-day__movement-marker {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 1.18rem;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.hundred-day__arc-count,
+.hundred-day__movement-delta {
+  font-family: var(--body);
+  font-size: 0.86rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.hundred-day__arc-note,
+.hundred-day__movement-verdict {
+  grid-column: 1 / -1;
+  font-family: var(--body);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+}
+
+.hundred-day__para {
+  font-family: var(--display);
+  font-size: 1.22rem;
+  line-height: 1.55;
+  color: var(--ink);
+  margin: 0 0 0.9em;
+  max-width: 60ch;
+}
+
+.hundred-day__quiet {
+  font-family: var(--body);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--ink-faint);
+  max-width: 60ch;
+}
+
+.hundred-day__cta {
+  margin-top: 2.8rem;
+}
+.hundred-day__print {
+  min-height: 44px;
+}
+
+@media (max-width: 820px) {
+  .hundred-day__section { margin-top: 2rem; }
 }
 
 /* ---- The recap page ----------------------------------------------------- */
@@ -3978,8 +4785,13 @@ body {
 .share-protocol__btn {
   /* Sits next to .print-share__btn. Same chip rhythm; the data-action attr is
      what differentiates them in the JS handler. Minimum 44×44 tap target on
-     mobile so iOS HIG passes. */
-  min-height: 44px;
+     mobile so iOS HIG passes.
+     box-sizing + a 1px cushion above 44 so WebKit's fractional device-pixel
+     rounding (it reports the box at 43.99998px on the iPhone-15 DPR, tripping
+     protocol-link.spec.ts's `>= 44` tap-target assertion) clears the floor on
+     every viewport rather than landing a ten-thousandth of a pixel short. */
+  box-sizing: border-box;
+  min-height: 45px;
 }
 
 .share-modal-root {
@@ -4091,6 +4903,133 @@ body {
 
 @media (max-width: 720px) {
   .share-modal {
+    padding: 1.2rem 1.2rem;
+  }
+}
+
+/* =============================================================================
+   ADOPT-AND-ADAPT — ticket 0020
+   The shared-view banner's second CTA ("Adopt as a starting point") re-uses the
+   .tour-banner__cta token (rendered as a <button> so a delegated handler can
+   open the modal). The modal mirrors the .share-modal idiom; the welcome inline
+   notice mirrors .share-decode-error; the onboarding prefix + plan-empty line
+   are quiet italic notes in the ink-soft tone. No new color tokens, one shared
+   CSS file.
+   ============================================================================= */
+
+/* The banner CTA is a <button> for the Adopt path — strip the UA button chrome
+   so it reads identically to the neighboring "Start your own →" anchor, and
+   keep a ≥44px tap target on mobile. */
+button.tour-banner__cta {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  padding: 0.4rem 0;
+  /* 46px (not 44px) so the rendered box clears the iOS HIG 44px minimum even
+     after the browser's sub-pixel rounding (a flat 44px resolves to 43.9999). */
+  min-height: 46px;
+}
+
+.adopt-modal-root {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.adopt-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 18, 16, 0.45);
+}
+
+.adopt-modal {
+  position: relative;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  box-shadow: 0 18px 50px rgba(20, 18, 16, 0.28);
+  max-width: 38rem;
+  width: 100%;
+  padding: 1.8rem 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.adopt-modal__title {
+  font-family: var(--display);
+  font-size: 1.7rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+.adopt-modal__body {
+  font-family: var(--body);
+  font-size: 0.98rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.adopt-modal__actions {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-top: 0.4rem;
+}
+
+.adopt-modal__actions .btn {
+  /* 46px so the rendered box clears 44px after sub-pixel rounding. */
+  min-height: 46px;
+}
+
+/* Inline notice on the welcome page when the recipient adopted a friend's
+   protocol. Same paper + ink tone as .share-decode-error; sits above the
+   consent points. */
+.adopt-notice {
+  font-family: var(--body);
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink);
+  color: var(--ink);
+  padding: 1rem 1.2rem;
+  margin-bottom: 1.2rem;
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
+/* The onboarding goals prefix — a quiet italic note ABOVE the editable
+   textarea, never inside it. Wraps cleanly at the mobile-webkit viewport. */
+.adopt-prefix {
+  font-family: var(--body);
+  font-style: italic;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0 0 0.5rem;
+  max-width: 60ch;
+}
+
+/* The plan-empty editorial line above the first-compose CTA. */
+.adopt-plan-line {
+  font-family: var(--body);
+  font-style: italic;
+  font-size: 0.96rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 1.2rem 0 0;
+  max-width: 60ch;
+}
+
+@media (max-width: 720px) {
+  .adopt-modal {
     padding: 1.2rem 1.2rem;
   }
 }
@@ -4218,4 +5157,286 @@ body {
   .welcome-back__ctas {
     flex-direction: column;
   }
+}
+
+/* =============================================================================
+   WHAT-IF MARKER SIMULATOR (ticket 0019)
+   The deterministic insight engine made interactive. The "What if?" chip
+   mirrors the 0013 provenance chip (small-caps eyebrow, ink token — NOT
+   oxblood; interrogation is informational). The simulation header is a
+   full-width banner with the restraint of the tour banner, but on paper with
+   a single hairline rule. The diff badges name the change tersely — the hedge
+   for trend rules lives in the tense. No new colors.
+   ============================================================================= */
+
+.sim-chip {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.55rem;
+  margin-left: 0.9rem;
+  padding: 0.18rem 0;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dotted var(--ink-faint);
+  font-family: var(--body);
+  font-size: 0.66rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink);
+  cursor: pointer;
+  transition: color 160ms var(--ease), border-bottom-color 160ms var(--ease);
+}
+.sim-chip:hover,
+.sim-chip:focus-visible {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+  outline: none;
+}
+.sim-chip:focus-visible {
+  outline: 1px solid var(--ink-faint);
+  outline-offset: 3px;
+}
+
+/* The chips row groups the provenance chip and the What if? chip on a card. */
+.insight-card__chips,
+.insight__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.insight-card__chips .sim-chip,
+.insight__chips .sim-chip {
+  margin-top: 0.55rem;
+}
+.hero-card__chips {
+  margin-top: 0.5rem;
+}
+
+/* ---- the simulation header banner ------------------------------------- */
+.sim-header {
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink);
+  padding: 0.9rem 1.1rem;
+  margin-bottom: 1.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+.sim-header__line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.sim-header__label {
+  font-family: var(--body);
+  font-size: 0.86rem;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+}
+.sim-header__actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.sim-header__actions .btn {
+  font-size: 0.7rem;
+  padding: 0.35rem 0.8rem;
+}
+.sim-header__sliders {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 0.9rem;
+}
+
+/* ---- one slider control ----------------------------------------------- */
+.sim-slider {
+  border: 1px solid var(--paper-edge);
+  background: var(--paper);
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;
+}
+.sim-slider__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.sim-slider__name {
+  font-family: var(--body);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+.sim-slider__close {
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--ink-faint);
+  padding: 0 0.2rem;
+}
+.sim-slider__close:hover { color: var(--ink); }
+.sim-slider__therm {
+  /* The interactive thermometer overlay — the handle is oxblood. */
+  position: relative;
+}
+.thermometer__slider-handle {
+  cursor: ew-resize;
+  touch-action: none;
+}
+.sim-slider__control {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.sim-slider__step {
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+  color: var(--ink);
+  font-size: 1rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.sim-slider__step:hover { border-color: var(--ink); }
+.sim-slider__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  padding: 0.3rem 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+.sim-slider__input:focus { border-color: var(--ink); }
+.sim-slider__unit {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  color: var(--ink-faint);
+}
+.sim-slider__note {
+  font-family: var(--body);
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--ink-faint);
+}
+
+/* ---- the eat-list "real values" note ---------------------------------- */
+.sim-eat-note {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--ink-faint);
+  border-left: 2px solid var(--rule);
+  padding: 0.3rem 0 0.3rem 0.8rem;
+  margin: 1.4rem 0 0.6rem;
+}
+
+/* ---- diff states on insight cards ------------------------------------- */
+.insight--would-no-longer-fire .insight-card__title,
+.insight--would-no-longer-fire .insight__title {
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+}
+.insight--would-no-longer-fire .insight-card__body,
+.insight--would-no-longer-fire .insight__detail {
+  opacity: 0.6;
+}
+
+.sim-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--body);
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink);
+  border: 1px solid var(--ink-faint);
+  padding: 0.1rem 0.45rem;
+}
+.insight__chips + .sim-badge,
+.insight--would-no-longer-fire > .sim-badge,
+.insight--would-newly-fire > .sim-badge {
+  margin-top: 0.55rem;
+}
+
+.insight--would-newly-fire {
+  /* A subtle inset so a freshly-surfaced card reads as "new" without color. */
+  background: var(--paper-deep);
+  border: 1px dashed var(--rule);
+  padding: 0.2rem 0.4rem;
+}
+.insight-card__evidence,
+.insight__evidence {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  margin: 0.5rem 0 0;
+}
+.insight-card__gloss,
+.insight__gloss {
+  font-family: var(--display);
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  margin: 0.6rem 0 0;
+}
+
+@media (max-width: 720px) {
+  .sim-header__line {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sim-header__sliders {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- panel-summary strip (ticket 0019) -------------------------------- */
+.panel-summary__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.4rem 1.2rem;
+}
+.panel-summary__row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--paper-edge);
+  min-width: 0;
+}
+.panel-summary__name {
+  font-family: var(--body);
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.panel-summary__value {
+  font-family: var(--mono);
+  font-size: 0.84rem;
+  color: var(--ink);
+}
+.panel-summary__unit {
+  color: var(--ink-faint);
+  font-size: 0.72rem;
+}
+.panel-summary__row .sim-chip {
+  margin-top: 0;
+  margin-left: 0;
 }

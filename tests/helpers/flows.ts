@@ -81,6 +81,20 @@ export async function onboard(page: Page, overrides: OnboardOverrides = {}): Pro
 }
 
 /**
+ * Add a panel by pasting results text (ticket 0046). Sets the
+ * `.labs-paste-text` textarea to `text` and clicks its extract button, mirroring
+ * a portal copy-and-paste. Mocks must already be installed (the text extraction
+ * routes to the same Anthropic extraction mock the file path uses). Assumes the
+ * caller has navigated to `#/labs` and the dropzone has painted. Leaves the page
+ * wherever the extraction lands it (panel detail for one date, labs index for a
+ * multi-date split) — the caller asserts that.
+ */
+export async function addPanelFromText(page: Page, text: string): Promise<void> {
+  await page.locator(".labs-paste-text__input").fill(text);
+  await page.locator(".labs-paste-text__extract").click();
+}
+
+/**
  * Add a panel via manual entry. Fills three markers and saves. Leaves the
  * page on the panel detail.
  */
@@ -251,6 +265,592 @@ export async function clearSessions(page: Page): Promise<void> {
 }
 
 /**
+ * Add a panel via manual entry that fires the iron-restricted erythropoiesis
+ * rule (ticket 0019). A male profile with ferritin 32 ng/mL (< the functional
+ * floor of 70) plus MCV 86 fL (< the functional 88) triggers
+ * `iron_restricted_erythropoiesis` in the deterministic engine — the panel the
+ * what-if simulator drags against. hs-CRP at 1.5 mg/L sits one signal short
+ * of `inflammation_triad`, so dragging ferritin UP past 200 both retires the
+ * iron rule and newly fires inflammation — one panel exercises both diff
+ * directions. Leaves the page on the panel detail.
+ *
+ * The default `addManualPanel` panel (cholesterol / triglycerides / vit D)
+ * fires none of the multi-marker RULES, so the simulator's "would no longer
+ * fire" / "would newly fire" scenarios need this richer panel.
+ */
+export async function addIronPanel(page: Page): Promise<void> {
+  await page.goto("/#/labs?manual=1");
+  await page.locator("#drawnAt").waitFor({ state: "visible" });
+  await page.fill("#drawnAt", "2026-05-01");
+  await page.fill("#labName", "Iron Panel");
+  await page.locator(".manual-row__input[data-key='ferritin_m']").fill("32");
+  await page.locator(".manual-row__input[data-key='mcv']").fill("86");
+  await page.locator(".manual-row__input[data-key='hs_crp']").fill("1.5");
+  await page.getByRole("button", { name: /^save panel$/i }).click();
+  await expect(page).toHaveURL(/#\/labs\?id=\d+$/);
+  await expect(page.locator(".result__name").first()).toBeVisible();
+}
+
+/**
+ * Seed a panel + a minimal composed plan directly into IndexedDB (ticket 0019
+ * test support). Lets a what-if spec exercise the simulator on a known panel
+ * without paying the onboard→compose round-trip, which is the slowest step and
+ * the dominant flake source when the whole suite runs in parallel. The seeded
+ * plan is intentionally bare: one insight (so the page has a marker chip), no
+ * eat/avoid/habit content. `results` is the panel's marker readings.
+ *
+ * After seeding, navigate to #/plan and reload so the router reads the fresh
+ * rows, then wait for the dashboard sentinel.
+ */
+export async function seedPlanAndPanel(
+  page: Page,
+  results: Array<{ markerKey: string; value: number; unit: string }>,
+  insightMarkerKey: string,
+): Promise<void> {
+  await page.evaluate(({ rows, key }) => {
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error);
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["panels", "plans"], "readwrite");
+        const panelId = tx.objectStore("panels").add({
+          drawnAt: "2026-05-01", source: "manual", createdAt: Date.now(), results: rows,
+        });
+        void panelId;
+        tx.objectStore("plans").add({
+          generatedAt: Date.now(),
+          basedOnPanelIds: [1],
+          snapshot: "A seeded plan for the what-if simulation test.",
+          insights: [
+            { markerKey: key, title: "Seeded insight", detail: "Seeded for the simulator test.", priority: "high" },
+          ],
+          eatList: [], avoidList: [], lifestyle: [], supplements: [],
+          habitStack: { intro: "Small actions.", habits: [] }, retest: [],
+        });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      };
+    });
+  }, { rows: results, key: insightMarkerKey });
+
+  await page.goto("/#/plan");
+  await page.reload();
+  await expect(page.locator(".dash-snapshot, .prose").first()).toBeVisible({ timeout: 20_000 });
+}
+
+/**
+ * Enter what-if simulation mode for a marker (ticket 0019). Taps the marker's
+ * "What if?" chip on the Plan page and waits for the simulation header to
+ * paint — the deterministic sentinel that the page entered simulation mode.
+ * The chip is keyed by `data-marker-key` so the same marker appearing in more
+ * than one place (insight supporting-marker row, panel summary) resolves to
+ * the first chip for that marker.
+ */
+export async function enterSimulation(page: Page, markerKey: string): Promise<void> {
+  await page.locator(`.sim-chip[data-marker-key="${markerKey}"]`).first().click();
+  await expect(page.locator(".sim-header")).toBeVisible();
+  await expect(page.locator(`.sim-slider[data-marker-key="${markerKey}"]`)).toBeVisible();
+}
+
+/**
+ * Drive the simulation slider for a marker to a value (ticket 0019). The
+ * slider is rendered as a number input plus +/- steppers on both projects
+ * (a true touch-drag on the SVG thermometer is flake-prone on mobile-webkit),
+ * with the SVG handle layered on top for chromium pointer-drag. The
+ * deterministic path both projects share is setting the number input's value
+ * and dispatching an `input` event, which is what this helper does — so the
+ * re-render assertion is identical across chromium and mobile-webkit.
+ */
+export async function dragSimulationSlider(
+  page: Page,
+  markerKey: string,
+  value: number,
+): Promise<void> {
+  const input = page.locator(`.sim-slider[data-marker-key="${markerKey}"] .sim-slider__input`);
+  await input.fill(String(value));
+  await input.dispatchEvent("input");
+}
+
+/**
+ * The shape of a shared protocol payload, mirrored loosely for test seeding.
+ * Only the fields the adopt-seed extractor reads (`eatList[].food`,
+ * `habitStack.habits[].title`) are load-bearing; the rest is realistic noise.
+ */
+interface SharedPayloadInput {
+  version: 1;
+  eatList: Array<Record<string, unknown>>;
+  avoidList: Array<Record<string, unknown>>;
+  habitStack: { intro: string; habits: Array<Record<string, unknown>> };
+  mealPlan?: { days: unknown[]; grocery: unknown[] };
+}
+
+/** A directly-constructed AdoptSeed for the unit-style seeding helper. */
+interface AdoptSeedInput {
+  version: 1;
+  habitTitles: string[];
+  topEatFoods: string[];
+  capturedAt: number;
+}
+
+/**
+ * Enter shared-view from a payload (ticket 0020) and — by default — tap the
+ * banner's "Adopt as a starting point" CTA + Continue, landing on #/welcome
+ * with the seed written. Encodes the payload through the SAME encoder the
+ * source exposes and visits `#/shared?p=...` so the round-trip is identical to
+ * a real recipient open (survives the page reload the module-scoped in-memory
+ * state would not).
+ *
+ *   - `tapAdopt: false`  enters shared-view and stops on #/today (so a test can
+ *                        assert banner contents or tap "Start your own" itself).
+ *   - `fresh: false`     skips navigating to "/" first (used when the caller
+ *                        deliberately keeps an existing profile + consent on the
+ *                        device, e.g. the returning-user test).
+ */
+export async function enterSharedViewWithAdopt(
+  page: Page,
+  payload: SharedPayloadInput,
+  opts: { tapAdopt?: boolean; fresh?: boolean } = {},
+): Promise<void> {
+  const tapAdopt = opts.tapAdopt ?? true;
+  const fresh = opts.fresh ?? true;
+
+  if (fresh) await page.goto("/");
+  const encoded = await page.evaluate(async (p) => {
+    const mod = await import("/src/share/protocol-link.ts");
+    // The encoder takes a Plan + optional MealPlan. Build a synthetic Plan
+    // shell carrying just the shared fields, mirroring materializeState().
+    const plan = {
+      id: 0, generatedAt: 0, basedOnPanelIds: [],
+      snapshot: "", insights: [],
+      eatList: p.eatList, avoidList: p.avoidList,
+      lifestyle: [], supplements: [],
+      habitStack: p.habitStack, retest: [],
+    } as unknown as import("../../src/types").Plan;
+    const mealPlan = p.mealPlan
+      ? ({ id: 0, planId: 0, weekStart: "", generatedAt: 0, days: p.mealPlan.days, grocery: p.mealPlan.grocery } as unknown as import("../../src/types").MealPlan)
+      : undefined;
+    return mod.encodeProtocolPayload(plan, mealPlan);
+  }, payload);
+
+  await page.goto(`/#/shared?p=${encoded}`);
+  await expect(page).toHaveURL(/#\/today$/);
+  await page.locator(".tour-banner").waitFor();
+
+  if (!tapAdopt) return;
+
+  await page.locator(".tour-banner [data-action='adopt-protocol']").click();
+  await page.locator(".adopt-modal").waitFor();
+  await page.getByRole("button", { name: /^continue$/i }).click();
+  await expect(page).toHaveURL(/#\/welcome$/);
+}
+
+/**
+ * Write an AdoptSeed straight into localStorage (ticket 0020) — the unit-style
+ * seeding path that skips the share-view round-trip when a test only needs to
+ * assert the welcome notice / onboarding prefix render from a seed.
+ */
+export async function seedAdoptInLocalStorage(page: Page, seed: AdoptSeedInput): Promise<void> {
+  await page.evaluate((s) => {
+    localStorage.setItem("almanac.adoptSeed", JSON.stringify(s));
+  }, seed);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Hundred-day mark seeding (ticket 0021)                                     */
+/* -------------------------------------------------------------------------- */
+
+/** One habit on a seeded plan. */
+interface SeedHabit { id: string; title: string; cue?: string; why?: string }
+
+/** One seeded plan, generated `daysAgo` days before the wall clock. */
+interface SeedPlan {
+  daysAgo: number;
+  habits: SeedHabit[];
+  /** Optional eat-list marker linkage (food-driven habit→marker link). */
+  eatMarkerKeys?: string[];
+}
+
+/** One seeded check-in. `dayOffset` is days after the FIRST plan's generation. */
+interface SeedCheckIn { dayOffset: number; habitsCompleted: string[] }
+
+/** One seeded panel, drawn `dayOffset` days after the first plan. */
+interface SeedPanel {
+  dayOffset: number;
+  results: Array<{ markerKey: string; value: number; unit: string }>;
+}
+
+/** One seeded projection snapshot computed FROM `panelDayOffset`'s panel. */
+interface SeedProjection {
+  markerKey: string;
+  panelDayOffset: number;
+  low: number;
+  high: number;
+}
+
+export interface SeedHundredDayOpts {
+  /** Plans the user composed during (or at the start of) the window. */
+  plans: SeedPlan[];
+  /** Check-ins spanning the window. */
+  checkIns: SeedCheckIn[];
+  /** Optional panels drawn inside the window. */
+  panels?: SeedPanel[];
+  /** Optional projection snapshots (joined to a panel by day-offset). */
+  projections?: SeedProjection[];
+}
+
+/**
+ * Seed IndexedDB with a synthetic timeline for the hundred-day surface (ticket
+ * 0021): a set of plans (each generated `daysAgo` days back), check-ins spanning
+ * the 100-day window, and optional panels + projection snapshots. This lets the
+ * spec exercise every `computeHundredDayState()` code path without paying the
+ * full onboard→compose round-trip.
+ *
+ * Day-offsets in `checkIns` / `panels` are measured from the FIRST plan's
+ * generation day (offset 0 = the first plan's day). The helper resolves them to
+ * real ISO Days off the wall clock at seed time so the in-app `now` math lines
+ * up. Clears `plans`, `checkins`, `panels`, and `projections` first so a re-seed
+ * isn't shadowed by a prior scenario.
+ */
+export async function seedHundredDayState(page: Page, opts: SeedHundredDayOpts): Promise<void> {
+  await page.evaluate((o: SeedHundredDayOpts) => {
+    const DAY_MS = 86_400_000;
+    const now = Date.now();
+    // The earliest plan is the window anchor (day 0).
+    const oldestDaysAgo = Math.max(...o.plans.map((p) => p.daysAgo));
+    const firstPlanAt = now - oldestDaysAgo * DAY_MS;
+    const isoForOffset = (offset: number): string =>
+      new Date(firstPlanAt + offset * DAY_MS).toISOString().slice(0, 10);
+
+    const open = (): Promise<IDBDatabase> =>
+      new Promise((resolve, reject) => {
+        const req = indexedDB.open("almanac");
+        req.onerror = () => reject(req.error ?? new Error("open failed"));
+        req.onsuccess = () => resolve(req.result);
+      });
+
+    // Phase 1: clear the four stores, write plans + check-ins + panels, and
+    // capture each panel's auto-assigned id keyed by its day-offset. We resolve
+    // only on tx.oncomplete, so every id is committed before phase 2 runs —
+    // no reassigning a request's onsuccess after it may already have fired.
+    const writeBase = (db: IDBDatabase): Promise<Map<number, number>> =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(["plans", "checkins", "panels", "projections"], "readwrite");
+        const plans = tx.objectStore("plans");
+        const checkins = tx.objectStore("checkins");
+        const panelsStore = tx.objectStore("panels");
+        const projections = tx.objectStore("projections");
+        plans.clear();
+        checkins.clear();
+        panelsStore.clear();
+        projections.clear();
+
+        for (const p of o.plans) {
+          plans.add({
+            generatedAt: now - p.daysAgo * DAY_MS,
+            basedOnPanelIds: [],
+            snapshot: "A seeded plan for the hundred-day surface test.",
+            insights: [],
+            eatList: (p.eatMarkerKeys && p.eatMarkerKeys.length)
+              ? [{ id: "e1", food: "Seeded food", frequency: "weekly", portion: "1", why: "x", markerKeys: p.eatMarkerKeys }]
+              : [],
+            avoidList: [],
+            lifestyle: [],
+            supplements: [],
+            habitStack: {
+              intro: "Small actions.",
+              habits: p.habits.map((h) => ({ id: h.id, title: h.title, cue: h.cue ?? "AM", why: h.why ?? "x" })),
+            },
+            retest: [],
+          });
+        }
+
+        for (const c of o.checkIns) {
+          checkins.add({
+            day: isoForOffset(c.dayOffset),
+            habitsCompleted: c.habitsCompleted,
+            createdAt: now,
+          });
+        }
+
+        const panelIdByOffset = new Map<number, number>();
+        for (const panel of o.panels ?? []) {
+          const r = panelsStore.add({
+            drawnAt: isoForOffset(panel.dayOffset),
+            source: "manual",
+            createdAt: now,
+            results: panel.results,
+          });
+          r.onsuccess = () => { panelIdByOffset.set(panel.dayOffset, r.result as number); };
+        }
+
+        tx.oncomplete = () => resolve(panelIdByOffset);
+        tx.onerror    = () => reject(tx.error ?? new Error("base tx failed"));
+      });
+
+    // Phase 2: write projection snapshots, joining each to its source panel's
+    // now-committed id. Skipped when there are no projections to seed.
+    const writeProjections = (db: IDBDatabase, panelIdByOffset: Map<number, number>): Promise<void> =>
+      new Promise((resolve, reject) => {
+        const projs = o.projections ?? [];
+        if (!projs.length) { resolve(); return; }
+        const tx = db.transaction(["projections"], "readwrite");
+        const store = tx.objectStore("projections");
+        for (const proj of projs) {
+          const panelId = panelIdByOffset.get(proj.panelDayOffset);
+          if (panelId == null) continue;
+          store.add({
+            markerKey: proj.markerKey,
+            panelId,
+            low: proj.low,
+            high: proj.high,
+            weeksOut: [8, 12],
+            createdAt: now,
+          });
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror    = () => reject(tx.error ?? new Error("projection tx failed"));
+      });
+
+    return open().then((db) =>
+      writeBase(db)
+        .then((ids) => writeProjections(db, ids))
+        .finally(() => db.close()),
+    );
+  }, opts);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Panel seeding (ticket 0032 movement-receipt; sibling of 0026)              */
+/* -------------------------------------------------------------------------- */
+
+/** One fully-formed panel for `seedPanel`. `drawnAt` is the ISO draw date
+ *  the receipt diffs on; `results` are the marker readings. */
+export interface SeedPanelInput {
+  drawnAt: Day;
+  labName?: string;
+  results: Array<{
+    markerKey: string;
+    value: number;
+    unit: string;
+    labRange?: { low?: number; high?: number };
+    optimalRange?: { low?: number; high?: number };
+    /**
+     * Optional pre-assigned flag (ticket 0036). When present it's written onto
+     * the seeded result exactly as the extractor / manual-entry path would, so a
+     * spec can construct exact report-card class counts without relying on the
+     * `flagFor()` fallback resolving against a marker's DB ranges.
+     */
+    flag?: "low" | "high" | "in-range" | "suboptimal" | "optimal";
+  }>;
+  /** Clear the `panels` store before writing this row. Default false. */
+  clearFirst?: boolean;
+}
+
+/** A `Day` is just a YYYY-MM-DD string in the app's domain types. */
+type Day = string;
+
+/**
+ * Write one fully-formed Panel straight into IndexedDB (ticket 0032). Lets the
+ * movement-receipt spec seed exact value pairs across two panels with
+ * controlled `drawnAt` so it can assert the into-range / toward / away /
+ * unchanged copy without paying the extraction round-trip. Each call appends a
+ * row; pass `clearFirst: true` on the FIRST seed of a scenario so a re-seed
+ * isn't shadowed by a prior panel.
+ *
+ * The row carries each result's `optimalRange` (resolved from the marker DB by
+ * the caller when it needs the receipt's range crossing to be exact) so the
+ * seeded panel is shaped like a real extracted panel. After seeding, navigate
+ * to `#/labs?id=N` and reload so the router reads the fresh rows.
+ *
+ * Returns the auto-assigned panel id so the spec can deep-link to its detail.
+ */
+export async function seedPanel(page: Page, panel: SeedPanelInput): Promise<number> {
+  return page.evaluate((p: SeedPanelInput) => {
+    return new Promise<number>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error ?? new Error("open failed"));
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction("panels", "readwrite");
+        const store = tx.objectStore("panels");
+        if (p.clearFirst) store.clear();
+        let newId = -1;
+        const add = store.add({
+          drawnAt: p.drawnAt,
+          ...(p.labName ? { labName: p.labName } : {}),
+          source: "manual",
+          createdAt: Date.now(),
+          results: p.results.map((r) => ({
+            markerKey: r.markerKey,
+            value: r.value,
+            unit: r.unit,
+            ...(r.labRange ? { labRange: r.labRange } : {}),
+            ...(r.optimalRange ? { optimalRange: r.optimalRange } : {}),
+            ...(r.flag ? { flag: r.flag } : {}),
+          })),
+        });
+        add.onsuccess = () => { newId = add.result as number; };
+        tx.oncomplete = () => { db.close(); resolve(newId); };
+        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+      };
+    });
+  }, panel);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Retest-due surface seeding (ticket 0028)                                   */
+/* -------------------------------------------------------------------------- */
+
+/** One retest cadence on a seeded plan. */
+interface SeedRetest { markerKeys: string[]; whenWeeks: number; reason?: string }
+
+/** One panel for the retest seed, drawn `daysAgo` calendar days back. */
+interface SeedRetestPanel {
+  daysAgo: number;
+  results: Array<{ markerKey: string; value: number; unit: string }>;
+}
+
+export interface SeedRetestPlanOpts {
+  /** How many calendar days ago the plan was generated (the cadence anchor). */
+  generatedDaysAgo: number;
+  /** The retest cadences the generator wrote onto the plan. */
+  retest: SeedRetest[];
+  /** Optional panels — used by the "card clears after a covering draw" path. */
+  panels?: SeedRetestPanel[];
+  /** Optional second (NEWER) plan, for the newest-plan-wins recomposition path. */
+  newerPlan?: { generatedDaysAgo: number; retest: SeedRetest[] };
+}
+
+/**
+ * Seed IndexedDB with a composed plan (and optionally a newer plan + panels)
+ * whose retest cadence places a draw at a controlled offset from the wall
+ * clock. The due date is `generatedAt + whenWeeks * 7 days`, so a spec can
+ * place a draw 9 days out / 1 day out / 8 days past by choosing
+ * `generatedDaysAgo` relative to `whenWeeks`.
+ *
+ * Clears `plans` and `panels` first so a re-seed isn't shadowed by a prior
+ * scenario. Each seeded plan carries a real habit stack so the Today page
+ * renders its usual surfaces around the retest card. Mirrors the
+ * `seedHundredDayState` two-store write pattern; nothing here is persisted that
+ * the app doesn't already persist (no schema change).
+ */
+export async function seedPlanWithRetest(page: Page, opts: SeedRetestPlanOpts): Promise<void> {
+  await page.evaluate((o: SeedRetestPlanOpts) => {
+    const DAY_MS = 86_400_000;
+    const now = Date.now();
+    const isoForDaysAgo = (daysAgo: number): string =>
+      new Date(now - daysAgo * DAY_MS).toISOString().slice(0, 10);
+
+    const planRow = (generatedDaysAgo: number, retest: SeedRetest[]) => ({
+      generatedAt: now - generatedDaysAgo * DAY_MS,
+      basedOnPanelIds: [],
+      snapshot: "A seeded plan for the retest-due surface test.",
+      insights: [],
+      eatList: [], avoidList: [], lifestyle: [], supplements: [],
+      habitStack: {
+        intro: "Small actions.",
+        habits: [{ id: "h1", title: "Walk after dinner", cue: "PM", why: "x" }],
+      },
+      retest: retest.map((r) => ({
+        markerKeys: r.markerKeys,
+        whenWeeks: r.whenWeeks,
+        reason: r.reason ?? "Re-test on the next draw.",
+      })),
+    });
+
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error ?? new Error("open failed"));
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["plans", "panels"], "readwrite");
+        const plans = tx.objectStore("plans");
+        const panels = tx.objectStore("panels");
+        plans.clear();
+        panels.clear();
+
+        plans.add(planRow(o.generatedDaysAgo, o.retest));
+        if (o.newerPlan) plans.add(planRow(o.newerPlan.generatedDaysAgo, o.newerPlan.retest));
+
+        for (const panel of o.panels ?? []) {
+          panels.add({
+            drawnAt: isoForDaysAgo(panel.daysAgo),
+            source: "manual",
+            createdAt: now,
+            results: panel.results,
+          });
+        }
+
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+      };
+    });
+  }, opts);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Pre-draw primer seeding (ticket 0051)                                       */
+/* -------------------------------------------------------------------------- */
+
+export interface SeedDrawInOpts {
+  /**
+   * Signed offset in milliseconds from `Date.now()` to the soonest cadence's
+   * due instant. Positive = future draw; negative = past. The helper places the
+   * draw at EXACTLY this instant so the hour-precise 48h window boundary can be
+   * asserted (use `page.clock.setFixedTime` so `Date.now()` is frozen).
+   */
+  dueInMs: number;
+  /** The retest cadence's marker keys (canonical keys from src/data/markers.ts). */
+  markerKeys: string[];
+}
+
+/**
+ * Seed a single composed plan whose soonest retest cadence places a draw at a
+ * precise ms offset from `Date.now()` (ticket 0051). The 0028/0051 due instant
+ * is `generatedAt + whenWeeks*7days`, so this fixes `whenWeeks` and back-computes
+ * `generatedAt = now - whenWeeks*7days + dueInMs`, landing the draw at exactly
+ * `now + dueInMs`. Hour precision — the 48h primer window is hour-precise, not
+ * calendar-day like the 0028 card. Clears `plans` + `panels` first so a re-seed
+ * isn't shadowed. Nothing new is persisted (no schema change).
+ */
+export async function seedPlanWithDrawIn(page: Page, opts: SeedDrawInOpts): Promise<void> {
+  await page.evaluate((o: SeedDrawInOpts) => {
+    const DAY_MS = 86_400_000;
+    const WHEN_WEEKS = 8;                       // arbitrary; the offset math cancels it out
+    const now = Date.now();
+    const generatedAt = now - WHEN_WEEKS * 7 * DAY_MS + o.dueInMs;
+
+    const planRow = {
+      generatedAt,
+      basedOnPanelIds: [] as number[],
+      snapshot: "A seeded plan for the pre-draw primer test.",
+      insights: [],
+      eatList: [], avoidList: [], lifestyle: [], supplements: [],
+      habitStack: {
+        intro: "Small actions.",
+        habits: [{ id: "h1", title: "Walk after dinner", cue: "PM", why: "x" }],
+      },
+      retest: [{ markerKeys: o.markerKeys, whenWeeks: WHEN_WEEKS, reason: "Re-test on the next draw." }],
+    };
+
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error ?? new Error("open failed"));
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction(["plans", "panels"], "readwrite");
+        tx.objectStore("plans").clear();
+        tx.objectStore("panels").clear();
+        tx.objectStore("plans").add(planRow);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+      };
+    });
+  }, opts);
+}
+
+/**
  * Compose the plan. Mocks must already be installed. Leaves the page on /plan.
  *
  * The previous version of this helper had a `page.reload()` to dodge a
@@ -279,4 +879,119 @@ export async function composePlan(page: Page): Promise<void> {
     await waitForDb(page, "plans", (n) => n >= 1, { timeoutMs: 30_000 });
   }
   await expect(page.locator(".dash-snapshot, .prose").first()).toBeVisible({ timeout: 20_000 });
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Plan-to-plan delta seeding (ticket 0029)                                    */
+/* -------------------------------------------------------------------------- */
+
+/** A partial eat item — only the identity + diffed fields need supplying. */
+interface SeedEat {
+  id?: string;
+  food: string;
+  frequency?: string;
+  portion?: string;
+  why?: string;
+  markerKeys?: string[];
+}
+
+/** A partial avoid item — identity is `food`. */
+interface SeedAvoid { id?: string; food: string; why?: string; swap?: string }
+
+/** A partial habit — identity is `title`. */
+interface SeedHabitDelta { id?: string; title: string; cue?: string; why?: string }
+
+/** A partial insight — identity is `title`. */
+interface SeedInsight {
+  title: string;
+  detail?: string;
+  priority?: "high" | "medium" | "low";
+  markerKey?: string;
+}
+
+/**
+ * One fully-formed Plan for `seedPlan`. `generatedDaysAgo` controls the row's
+ * `generatedAt` (the chronological key the delta diffs on); the section arrays
+ * default to empty so a spec supplies only the fields its scenario diffs.
+ */
+export interface SeedPlanInput {
+  generatedDaysAgo: number;
+  snapshot?: string;
+  eatList?: SeedEat[];
+  avoidList?: SeedAvoid[];
+  habits?: SeedHabitDelta[];
+  insights?: SeedInsight[];
+  /** Clear the `plans` store before writing this row. Default false. */
+  clearFirst?: boolean;
+}
+
+/**
+ * Write one fully-formed Plan straight into IndexedDB with a controlled
+ * `generatedAt` (ticket 0029). Lets the plan-delta spec construct exact
+ * deltas — salmon 2x → 3x, a retired habit, a resolved insight — across two
+ * (or three) plans without depending on generator output. Each call appends a
+ * row; pass `clearFirst: true` on the FIRST seed of a scenario so a re-seed
+ * isn't shadowed by a prior plan. The row is shaped exactly like a composed
+ * Plan so the page's normal render path (and the delta render above it) read it
+ * with no special-casing.
+ *
+ * After seeding the rows a spec wants live, navigate to #/plan and reload so
+ * the router reads the fresh rows — `seedPlan` itself does not navigate.
+ */
+export async function seedPlan(page: Page, plan: SeedPlanInput): Promise<void> {
+  await page.evaluate((p: SeedPlanInput) => {
+    const DAY_MS = 86_400_000;
+    const now = Date.now();
+    const row = {
+      generatedAt: now - p.generatedDaysAgo * DAY_MS,
+      basedOnPanelIds: [] as number[],
+      snapshot: p.snapshot ?? "A seeded plan for the plan-delta test.",
+      insights: (p.insights ?? []).map((i) => ({
+        title: i.title,
+        detail: i.detail ?? "Seeded insight detail.",
+        priority: i.priority ?? "medium",
+        ...(i.markerKey ? { markerKey: i.markerKey } : {}),
+      })),
+      eatList: (p.eatList ?? []).map((e, idx) => ({
+        id: e.id ?? `e${idx + 1}`,
+        food: e.food,
+        frequency: e.frequency ?? "weekly",
+        portion: e.portion ?? "1 serving",
+        why: e.why ?? "Seeded reason.",
+        markerKeys: e.markerKeys ?? [],
+      })),
+      avoidList: (p.avoidList ?? []).map((a, idx) => ({
+        id: a.id ?? `a${idx + 1}`,
+        food: a.food,
+        why: a.why ?? "Seeded reason.",
+        ...(a.swap ? { swap: a.swap } : {}),
+      })),
+      lifestyle: [],
+      supplements: [],
+      habitStack: {
+        intro: "Small actions.",
+        habits: (p.habits ?? []).map((h, idx) => ({
+          id: h.id ?? `h${idx + 1}`,
+          title: h.title,
+          cue: h.cue ?? "AM",
+          why: h.why ?? "Seeded reason.",
+        })),
+      },
+      retest: [],
+    };
+
+    return new Promise<void>((resolve, reject) => {
+      const req = indexedDB.open("almanac");
+      req.onerror = () => reject(req.error ?? new Error("open failed"));
+      req.onsuccess = () => {
+        const db = req.result;
+        const tx = db.transaction("plans", "readwrite");
+        const store = tx.objectStore("plans");
+        if (p.clearFirst) store.clear();
+        store.add(row);
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror    = () => { db.close(); reject(tx.error ?? new Error("tx failed")); };
+      };
+    });
+  }, plan);
 }

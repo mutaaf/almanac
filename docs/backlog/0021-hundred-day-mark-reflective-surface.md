@@ -1,7 +1,7 @@
 ---
 id: 0021
 title: The hundred-day mark — a quarterly reflective surface for the user who actually stayed
-status: groomed
+status: shipped
 priority: P1
 area: progress
 created: 2026-05-19
@@ -91,4 +91,5 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-20 [implementation-dev] Picked up. Branch `feat/0021-hundred-day-mark`. Status → in-progress. Plan: pure `computeHundredDayState()` in `src/progress/hundred-day.ts` (re-uses `evaluateLanded()` from `projection.ts`); page `src/pages/hundred-day.ts` registered at `#/hundred-day` in `main.ts` (tour + shared-view short-circuit, same gate posture as `#/recap`); Today card via `quarterlyCardActive()` above the recap/quiet chain; print via a `mountAndPrintHundredDay(state)` shim + `renderHundredDayTemplate()` re-using the `.print-sheet` tokens; new db reads `firstPlanGeneratedAt()` and `allCheckInsInWindow()`. No schema migration, no egress change, no new deps.
+- 2026-05-21 [implementation-dev] Shipped via PR #51 (squash-merged to `main`). All three gating checks green: Typecheck + build (17s), E2E (chromium) 6m54s, E2E (mobile-webkit) 14m48s. The new `tests/e2e/hundred-day.spec.ts` (21 scenarios) passes on both projects (20 passed / 1 chromium-only PDF test skipped under webkit); privacy sweep extended with a `#/hundred-day` egress check. One test-seed bug surfaced and was fixed: the projection-snapshot seed reassigned an IndexedDB add-request's `onsuccess` after it could already have fired, leaving the `page.evaluate` pending so the next navigation aborted the context — rewrote `seedHundredDayState` as a two-phase write (parents committed on `tx.oncomplete`, dependents joined in a second tx). Status → shipped; README index row flipped to match. The status flip rides a follow-up `feat/0021-ship-status` PR because auto-merge squashed #51 the instant CI went green.

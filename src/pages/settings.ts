@@ -6,6 +6,7 @@ import { getProfile, saveProfile, exportAll, importAll, wipeAll, clearExtractCac
 import type { AlmanacExport, UserMarker } from "../db";
 import type { Sex } from "../types";
 import { listUserMarkers, deleteUserMarker } from "../data/userMarkers";
+import { keyCheckMarkup, wireKeyCheck } from "../onboarding/key-check";
 import { list as listCalls, aggregate as aggregateCalls, clear as clearTelemetry } from "../telemetry";
 import { importAppleHealth } from "../health/importApple";
 import { formatBanner } from "../health/apple";
@@ -78,6 +79,7 @@ export async function renderSettings(): Promise<void> {
           <div class="field">
             <label for="key">Anthropic API key</label>
             <input id="key" name="key" type="password" value="${esc(p.anthropicKey)}" autocomplete="off" />
+            ${keyCheckMarkup()}
           </div>
           <div class="field">
             <label for="model">Model</label>
@@ -157,6 +159,19 @@ export async function renderSettings(): Promise<void> {
   `);
 
   mount(frag);
+
+  // Verify-before-commit (ticket 0024). A returning user who rotated their key,
+  // added credit, or switched models can re-verify here without re-onboarding.
+  // Same shared helper, same copy and behavior as onboarding; advisory only —
+  // it does not gate Save.
+  const setForm = document.getElementById("set");
+  if (setForm) {
+    wireKeyCheck(
+      setForm,
+      () => (document.getElementById("key") as HTMLInputElement | null)?.value ?? "",
+      () => (document.getElementById("model") as HTMLSelectElement | null)?.value ?? "claude-sonnet-4-6",
+    );
+  }
 
   document.getElementById("set")?.addEventListener("submit", async (e) => {
     e.preventDefault();

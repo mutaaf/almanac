@@ -1,7 +1,7 @@
 ---
 id: 0020
 title: Adopt-and-adapt — turn a friend's shared protocol into the seed of your own first plan
-status: groomed
+status: shipped
 priority: P1
 area: growth
 created: 2026-05-19
@@ -89,4 +89,5 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-20 [implementation-dev] Picked up; branched `feat/0020-adopt-and-adapt` off main, flipped status to `in-progress`. Plan: a new `extractAdoptSeed()` in `src/share/shared-state.ts` (pure, literal field reads — ≤5 habit titles, ≤3 eat foods) feeding a new `src/share/adopt-seed.ts` (persist / read / clear over `localStorage["almanac.adoptSeed"]`). Dexie is already at v7 (0018), so the `Profile.adoptSeed?` field rides on a NEW additive `.version(8)` block (read-side optional; a v7 row loads as v8 with `adoptSeed === undefined`). The intake-summary block that the ticket calls `formatIntake()` is, in this codebase, `formatProfile()` — shared by both `generatePlan` (panels-first) and `generatePlanFromIntake` (intake-only). The referral block appends there, gated on the seed; absent seed the prompt is byte-identical to pre-0020. Adding a minimal `lastPromptBody()` accessor to `tests/helpers/mocks.ts` so the spec can assert the block fires/absents correctly. No egress allow-list change.
+- 2026-05-20 [implementation-dev] Shipped on PR #50 with auto-merge (squash). The banner CTA is rendered as a `<button>` (not an anchor) so a single document-level delegated handler in `main.ts` opens the modal and captures the seed from the live shared state BEFORE `exitSharedView()` clears the in-memory payload. The "no real profile" gate for the CTA needed a dedicated `hasRealProfile()` in `db.ts` that bypasses the shared-view shim (`getProfile()` returns the synthetic shared profile in shared-view, so it can't tell a returning user apart) — it reads only the singleton profile row, never the recipient's panels/plans/check-ins. Per LESSONS.md [ship/phase2] the `status: shipped` + index flip rides in the SAME commit that completes the feature so the squash includes it. Two novel lessons logged on-branch: a concurrent launchd groom run reset the shared checkout mid-session and wiped all uncommitted work (→ commit early, before long test runs), and editing a spec mid-`--workers=1` run throws a spurious "Cannot find module".

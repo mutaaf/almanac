@@ -12,13 +12,18 @@ import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
   latestPlan, recentCheckIns, saveProjections,
 } from "../db";
-import { panelsFromFiles, type ExtractedRow } from "../extractor";
+import { panelsFromFiles, panelsFromText, hashStagedFiles, type ExtractedRow } from "../extractor";
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import { listUserMarkers, addUserMarker, getAllMarkers } from "../data/userMarkers";
 import { computeProjection } from "../progress/projection";
+import { computeMovementReceipt, moveSentence } from "../labs/movement-receipt";
+import { computeReportCard, reportCardSentence, reportClassFor, resolveResultFlag } from "../labs/report-card";
 import { route } from "../main";
 import { isSharedView } from "../share/shared-state";
-import type { MarkerCategory, MarkerDef, Panel, ProjectionSnapshot, Result } from "../types";
+import { isTour } from "../sample/state";
+import { getCachedExtraction } from "../db";
+import { ANTHROPIC_HOST } from "../claude";
+import type { MarkerCategory, MarkerDef, MarkerMove, Panel, ProjectionSnapshot, ReportCard, Result } from "../types";
 
 /* The staging set lives outside render so paste handlers can mutate it
    without re-running the whole component. */
@@ -80,9 +85,24 @@ export async function renderLabs(): Promise<void> {
 
         <div id="staged" class="staged"></div>
 
+        <div id="egress-receipt"></div>
+
         <div id="actions" style="margin-top: 1rem; display: none; flex-wrap: wrap; gap: 1rem; align-items: center;">
           <button id="extract" class="btn btn--accent">Extract</button>
           <button id="clear"   class="btn btn--ghost">Clear</button>
+        </div>
+
+        <div class="labs-paste-text">
+          <div class="labs-paste-text__title">Paste your results as text</div>
+          <p class="labs-paste-text__hint">
+            Copy the values from your portal and paste them here — we parse them into a dated panel.
+          </p>
+          <textarea class="labs-paste-text__input"
+                    rows="5"
+                    placeholder="Paste the results block from MyChart, LabCorp, or Quest"></textarea>
+          <div class="labs-paste-text__actions">
+            <button type="button" class="btn btn--accent labs-paste-text__extract">Extract from text</button>
+          </div>
         </div>
 
         <div style="margin-top: 1.4rem;">
@@ -195,6 +215,21 @@ function wireUpload(): void {
     if (accepted.length) {
       e.preventDefault();
       acceptFiles(accepted);
+      return;   // an image/file paste is never also a text paste
+    }
+
+    // Text branch (ticket 0046) — mutually exclusive with the image path: only
+    // when the clipboard carried NO file item. A pasted block of portal text
+    // (text/plain) routes straight to text extraction instead of being ignored.
+    // We never read clipboardData.files here, preserving the single-source rule
+    // the image path documents.
+    if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
+      return;   // let a paste INTO the textarea fill it normally, no auto-extract
+    }
+    const text = e.clipboardData.getData("text/plain");
+    if (text.trim()) {
+      e.preventDefault();
+      void extractText(text);
     }
   };
   w[PASTE_KEY] = handler;
@@ -207,6 +242,13 @@ function wireUpload(): void {
   document.getElementById("clear")?.addEventListener("click", () => {
     staged = [];
     renderStaged();
+  });
+
+  // Text affordance (ticket 0046) — the explicit "Extract from text" button.
+  document.querySelector(".labs-paste-text__extract")?.addEventListener("click", () => {
+    const ta = document.querySelector<HTMLTextAreaElement>(".labs-paste-text__input");
+    const text = ta?.value ?? "";
+    if (text.trim()) void extractText(text);
   });
 }
 
@@ -256,8 +298,11 @@ function renderStaged(): void {
   if (!staged.length) {
     stage.innerHTML = "";
     actions.style.display = "none";
+    renderEgressReceipt(staged);
     return;
   }
+
+  renderEgressReceipt(staged);
 
   actions.style.display = "flex";
   // Single text node — inline spans + letter-spacing render with phantom gaps.
@@ -302,6 +347,105 @@ function formatBytes(n: number): string {
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Egress receipt (ticket 0025)                                              */
+/* -------------------------------------------------------------------------- */
+/*
+ * A render-time, zero-network "what leaves this device" statement painted at
+ * the extraction trigger whenever files are staged. It names where the bytes
+ * go (ANTHROPIC_HOST, the same constant the privacy allow-list enforces), what
+ * travels (the staged pages), and what stays (everything else). The host is
+ * shown verbatim, in body weight — informational, not navigable.
+ *
+ * The receipt is computed entirely from `staged` + a constant: no network call
+ * paints it. The optional cache-replay line reads `getCachedExtraction()` off
+ * the SAME hash the extraction cache uses (`hashStagedFiles`), which is a
+ * local-only IndexedDB lookup — it adds a fact, not an egress. We paint the
+ * base receipt synchronously so it shows instantly on a flaky connection, then
+ * fold in the cache fact when the local lookup resolves.
+ */
+function renderEgressReceipt(files: File[]): void {
+  const slot = document.getElementById("egress-receipt");
+  if (!slot) return;
+
+  if (!files.length) {
+    slot.innerHTML = "";
+    return;
+  }
+
+  const n = files.length;
+  const noun = n === 1 ? "page" : "pages";
+
+  // Tour mode (ticket 0014): the upload screen is live but extraction is
+  // simulated — nothing actually leaves. The receipt says so plainly and
+  // omits the host (the sample sends nowhere).
+  if (isTour()) {
+    slot.innerHTML = `
+      <div class="egress-receipt" role="note">
+        <p class="egress-receipt__summary">In this sample, nothing is sent — extraction is simulated.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const names = files.map((f) => f.name);
+  const summary =
+    `${n} ${noun} will be sent to ${ANTHROPIC_HOST} with your key, for extraction only. ` +
+    `Your profile, your prior panels, and these files stay on this device.`;
+
+  slot.innerHTML = `
+    <div class="egress-receipt" role="note">
+      <p class="egress-receipt__summary"><span class="egress-receipt__summary-text">${esc(summary)}</span><span class="egress-receipt__cache" hidden></span></p>
+      <button type="button" class="egress-receipt__disclosure" role="button" aria-expanded="false">what travels →</button>
+      <div class="egress-receipt__detail" hidden>
+        <div class="egress-receipt__row egress-receipt__row--travels"><span class="egress-receipt__rowlabel">Travels:</span> ${esc(names.join(", "))}</div>
+        <div class="egress-receipt__row egress-receipt__row--destination"><span class="egress-receipt__rowlabel">Destination:</span> ${esc(ANTHROPIC_HOST)}</div>
+        <div class="egress-receipt__row egress-receipt__row--stays"><span class="egress-receipt__rowlabel">Stays:</span> your profile, your prior panels, and the original files.</div>
+      </div>
+    </div>
+  `;
+
+  // The disclosure toggles the inline detail panel. ink eyebrow link; no URL
+  // change, no network — pure DOM.
+  const disclosure = slot.querySelector<HTMLButtonElement>(".egress-receipt__disclosure");
+  const detail = slot.querySelector<HTMLElement>(".egress-receipt__detail");
+  disclosure?.addEventListener("click", () => {
+    if (!detail) return;
+    const open = detail.hasAttribute("hidden");
+    if (open) detail.removeAttribute("hidden");
+    else detail.setAttribute("hidden", "");
+    disclosure.setAttribute("aria-expanded", String(open));
+  });
+
+  // Fold in the cached-replay fact when the local cache lookup resolves. Guard
+  // against a stale async resolution (the user cleared/changed the stage in the
+  // meantime) by re-confirming the slot still holds the same file count.
+  void surfaceCacheFact(files, slot);
+}
+
+/**
+ * If the staged set's hash matches a prior extraction in the local cache, add
+ * the cached-replay line to the receipt's summary. Pure-local: hashes the files
+ * and reads IndexedDB, never the network. No-op in tour mode (no real cache).
+ */
+async function surfaceCacheFact(files: File[], slot: HTMLElement): Promise<void> {
+  if (isTour()) return;
+  let hash: string;
+  try { hash = await hashStagedFiles(files); }
+  catch { return; }
+  const cached = await getCachedExtraction(hash);
+  if (!cached) return;
+
+  // Re-confirm the stage hasn't changed under us before painting.
+  const cacheEl = slot.querySelector<HTMLElement>(".egress-receipt__cache");
+  if (!cacheEl) return;
+  if (files.length !== staged.length) return;
+
+  cacheEl.textContent =
+    " These files were already extracted — re-running replays the cached result at no cost and sends nothing.";
+  cacheEl.hidden = false;
+}
+
 /**
  * Render the "This was not shared with you" empty state for Labs under
  * shared-view (ticket 0017). Lab data was never part of the shared
@@ -331,60 +475,51 @@ async function extractStaged(): Promise<void> {
   const profile = await getProfile();
   if (!profile) return;
 
+  const { setStatus, fail } = statusHandles();
+
+  try {
+    setStatus(`Extracting from ${staged.length} page${staged.length === 1 ? "" : "s"}…`);
+    const files = staged.slice();
+    const { panels, unmatched } = await panelsFromFiles(files, profile);
+    staged = [];
+    await commitPanelsAndNavigate(panels, unmatched, setStatus);
+  } catch (err: any) {
+    fail(err, () => extractStaged());
+  }
+}
+
+/**
+ * Extract from pasted results text (ticket 0046). The text-input sibling of
+ * `extractStaged`: it runs `panelsFromText` then the SAME save + navigate path,
+ * so a paste converges on the identical review screen the file path produces.
+ * An empty / whitespace-only paste is a no-op (the callers guard before calling,
+ * but we re-guard defensively so a direct call never fires an empty extraction).
+ */
+async function extractText(text: string): Promise<void> {
+  if (!text.trim()) return;
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const { setStatus, fail } = statusHandles();
+
+  try {
+    setStatus("Extracting from pasted text…");
+    const { panels, unmatched } = await panelsFromText(text, profile);
+    await commitPanelsAndNavigate(panels, unmatched, setStatus);
+  } catch (err: any) {
+    fail(err, () => extractText(text));
+  }
+}
+
+/** The shared status-line handles for the extraction surfaces. */
+function statusHandles() {
   const status = document.getElementById("status") as HTMLDivElement | null;
   const setStatus = (msg: string) => {
     if (!status) return;
     status.style.display = "block";
     status.innerHTML = `<span class="spinner"></span>&nbsp;&nbsp;${esc(msg)}`;
   };
-
-  try {
-    setStatus(`Extracting from ${staged.length} page${staged.length === 1 ? "" : "s"}…`);
-    const files = staged.slice();
-    const { panels, unmatched } = await panelsFromFiles(files, profile);
-
-    setStatus(panels.length === 1 ? "Saving…" : `Saving ${panels.length} panels…`);
-    const ids: number[] = [];
-    for (const p of panels) {
-      ids.push(await addPanel(p));
-      // Per ticket 0012 — every new panel materializes a projection snapshot
-      // for the markers on the PRIOR latest panel that have a curated
-      // responsiveness entry AND for which adherence cleared the threshold.
-      // Failure here must never block the upload; log and continue so a bug
-      // in projection math doesn't strand the user with no panel persisted.
-      try { await materializeProjectionsForPriorPanel(ids[ids.length - 1]!); }
-      catch { /* projection snapshotting is best-effort */ }
-    }
-    const newestId = ids[ids.length - 1];
-    if (newestId == null) {
-      // Defensive — `panelsFromFiles` already throws when extraction
-      // yielded zero panels, but TS strict can't see that and a future
-      // change shouldn't silently strand the user.
-      throw new Error("Extraction returned no panels.");
-    }
-
-    // Unmatched rows from the WHOLE upload session land on the newest
-    // (last-saved) panel's review screen — the one the user is most
-    // likely to come back to.
-    if (unmatched.length) {
-      sessionStorage.setItem(`unmatched-${newestId}`, JSON.stringify(unmatched));
-    }
-    staged = [];
-
-    // Same WebKit-timing fix as plan.ts compose(): poll past WebKit's IDB
-    // read-after-write delay before re-rendering.
-    await waitForPanelCommit(newestId);
-
-    if (ids.length === 1) {
-      // Single-panel upload — keep the existing "land on detail" behavior.
-      location.hash = `#/labs?id=${newestId}`;
-    } else {
-      // Multi-panel split — land on the labs index so the user sees all
-      // N new panels at the top, dated.
-      location.hash = "#/labs";
-    }
-    await route();
-  } catch (err: any) {
+  const fail = (err: any, retry: () => void) => {
     if (!status) return;
     status.style.display = "block";
     const raw = extractRawFromMessage(err.message);
@@ -394,8 +529,62 @@ async function extractStaged(): Promise<void> {
       ...(raw ? { raw } : {}),
       actions: `<button id="retry-extract" class="btn btn--accent">Try again</button>`,
     });
-    document.getElementById("retry-extract")?.addEventListener("click", () => extractStaged());
+    document.getElementById("retry-extract")?.addEventListener("click", retry);
+  };
+  return { setStatus, fail };
+}
+
+/**
+ * Persist a freshly-extracted set of panels and navigate to the review screen —
+ * the step the file path (`extractStaged`) and the text path (`extractText`)
+ * share so both converge on the identical post-extraction behavior: one panel
+ * lands on its detail; a multi-date split lands on the labs index. Projection
+ * snapshotting (0012) runs per panel and is best-effort.
+ */
+async function commitPanelsAndNavigate(
+  panels: Omit<Panel, "id" | "createdAt">[],
+  unmatched: ExtractedRow[],
+  setStatus: (msg: string) => void,
+): Promise<void> {
+  setStatus(panels.length === 1 ? "Saving…" : `Saving ${panels.length} panels…`);
+  const ids: number[] = [];
+  for (const p of panels) {
+    ids.push(await addPanel(p));
+    // Per ticket 0012 — every new panel materializes a projection snapshot
+    // for the markers on the PRIOR latest panel that have a curated
+    // responsiveness entry AND for which adherence cleared the threshold.
+    // Failure here must never block the save; log and continue so a bug
+    // in projection math doesn't strand the user with no panel persisted.
+    try { await materializeProjectionsForPriorPanel(ids[ids.length - 1]!); }
+    catch { /* projection snapshotting is best-effort */ }
   }
+  const newestId = ids[ids.length - 1];
+  if (newestId == null) {
+    // Defensive — `panelsFrom*` already throws when extraction yielded zero
+    // panels, but TS strict can't see that and a future change shouldn't
+    // silently strand the user.
+    throw new Error("Extraction returned no panels.");
+  }
+
+  // Unmatched rows from the WHOLE extraction land on the newest (last-saved)
+  // panel's review screen — the one the user is most likely to come back to.
+  if (unmatched.length) {
+    sessionStorage.setItem(`unmatched-${newestId}`, JSON.stringify(unmatched));
+  }
+
+  // Same WebKit-timing fix as plan.ts compose(): poll past WebKit's IDB
+  // read-after-write delay before re-rendering.
+  await waitForPanelCommit(newestId);
+
+  if (ids.length === 1) {
+    // Single panel — keep the existing "land on detail" behavior.
+    location.hash = `#/labs?id=${newestId}`;
+  } else {
+    // Multi-panel split — land on the labs index so the user sees all
+    // N new panels at the top, dated.
+    location.hash = "#/labs";
+  }
+  await route();
 }
 
 function extractRawFromMessage(msg: string | undefined): string | undefined {
@@ -442,6 +631,24 @@ async function renderPanelDetail(id: number): Promise<void> {
     ? renderUnmatchedSection(unmatched, profile?.sex, extras, userMarkerKeys)
     : "";
 
+  // Report card (ticket 0036) — "Against the optimum," the at-rest tally of how
+  // this panel's markers stack up against the FUNCTIONAL optimum. Pure,
+  // zero-network: it reduces the panel's already-flagged results (with
+  // `flagFor()` as fallback) over the resolved marker ranges. Renders nothing
+  // when no marker is classifiable (a panel of only range-less rows). It sits
+  // ABOVE the movement receipt — the at-rest picture comes first, then the
+  // movement context.
+  const reportCard = computeReportCard(panel, extras);
+  const reportCardHtml = reportCard.total > 0 ? renderReportCard(reportCard) : "";
+
+  // Movement receipt (ticket 0032) — "Since your last draw," one calm dated
+  // line per marker that also has an earlier draw. Pure, zero-network: it reads
+  // this panel + every prior panel already loaded from IndexedDB. Renders
+  // nothing on a first-ever panel (no marker has a prior to compare against).
+  const priorPanels = (await allPanels()).filter(p => p.id !== id);
+  const moves = computeMovementReceipt(panel, priorPanels, extras);
+  const movementHtml = moves.length ? renderMovementReceipt(moves) : "";
+
   const pageCount = panel.fileNames?.length ?? panel.fileBlobs?.length ?? 0;
   const sourceLabel = panel.source === "manual"
     ? "Manual entry"
@@ -458,7 +665,9 @@ async function renderPanelDetail(id: number): Promise<void> {
           <em>${panel.results.length}</em> markers, drawn ${esc(panel.drawnAt)}.
         </h1>
 
+        ${reportCardHtml}
         ${groupsHtml || `<div class="quiet">No matched results.</div>`}
+        ${movementHtml}
         ${unmatchedHtml}
 
         <div style="margin-top: 3rem; display: flex; gap: 1rem; flex-wrap: wrap;">
@@ -479,6 +688,104 @@ async function renderPanelDetail(id: number): Promise<void> {
   });
 
   wireUnmatchedHandlers(id);
+  wireReportCard();
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Movement receipt (ticket 0032)                                            */
+/* -------------------------------------------------------------------------- */
+/*
+ * Render the "Since your last draw" section: one editorial line per marker that
+ * moved relative to its most recent prior draw. The into-range crossing gets no
+ * special color (ink, not oxblood and not a green) — the satisfaction is in the
+ * copy. Long marker names wrap rather than overflow (the `min-width: 0` fix on
+ * the row grid). The caller only invokes this when `moves` is non-empty, so the
+ * eyebrow is absent on a fresh first panel.
+ */
+function renderMovementReceipt(moves: MarkerMove[]): string {
+  const lines = moves.map(m => `
+    <p class="movement-receipt__row" data-state="${esc(m.state)}">${esc(moveSentence(m))}</p>
+  `).join("");
+
+  return `
+    <section class="movement-receipt" aria-label="Since your last draw">
+      <div class="section-mark movement-receipt__eyebrow">Since your last draw</div>
+      <div class="movement-receipt__lines">${lines}</div>
+    </section>
+  `;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Report card (ticket 0036)                                                  */
+/* -------------------------------------------------------------------------- */
+/*
+ * Render the "Against the optimum" section: one editorial sentence over a small
+ * tally of class chips. The sentence carries only the non-zero clauses; the
+ * chips are ≥44×44 css-px tap targets that scroll + highlight the matching rows.
+ * No celebratory or alarmist color — ink and ink-soft only; the satisfaction and
+ * the seriousness both live in the copy. The caller only invokes this when the
+ * card has at least one classifiable marker (`total > 0`).
+ */
+function renderReportCard(card: ReportCard): string {
+  // Each chip names a class, its count, and a label. Optimal is always shown
+  // (it's the denominator the user came to read); suboptimal + out-of-range
+  // chips appear only when non-zero so a clean panel reads as reassurance.
+  const chips: string[] = [
+    chip("optimal", card.optimal, "optimal"),
+  ];
+  if (card.suboptimal > 0) {
+    chips.push(chip("suboptimal", card.suboptimal, "below optimum"));
+  }
+  if (card.outOfLabRange > 0) {
+    chips.push(chip("outOfLabRange", card.outOfLabRange, "out of lab range"));
+  }
+
+  return `
+    <section class="report-card" aria-label="Against the optimum">
+      <div class="section-mark report-card__eyebrow">Against the optimum</div>
+      <p class="report-card__line">${esc(reportCardSentence(card))}</p>
+      <div class="report-card__counts">${chips.join("")}</div>
+    </section>
+  `;
+}
+
+/** One report-card class chip — a tap target that scrolls to its rows. */
+function chip(cls: "optimal" | "suboptimal" | "outOfLabRange", count: number, label: string): string {
+  return `
+    <button type="button" class="report-card__count" data-class="${esc(cls)}">
+      <span class="report-card__count-num">${count}</span>
+      <span class="report-card__count-label">${esc(label)}</span>
+    </button>
+  `;
+}
+
+/**
+ * Wire the report-card chips: tapping a chip scrolls the first row of that class
+ * into view and adds a transient highlight to every row in the class. Pure DOM —
+ * no URL change, no network. The rows carry `data-report-class` (assigned by
+ * `resultRow` via the same flag resolution the card counted with), so a chip tap
+ * selects exactly the rows it tallied.
+ */
+function wireReportCard(): void {
+  const card = document.querySelector(".report-card");
+  if (!card) return;
+
+  for (const btn of card.querySelectorAll<HTMLButtonElement>(".report-card__count")) {
+    btn.addEventListener("click", () => {
+      const cls = btn.dataset.class;
+      if (!cls) return;
+
+      // Clear any prior highlight so repeated taps don't accumulate.
+      for (const prev of document.querySelectorAll(".result.is-report-highlight")) {
+        prev.classList.remove("is-report-highlight");
+      }
+
+      const rows = document.querySelectorAll<HTMLElement>(`.result[data-report-class="${cls}"]`);
+      if (!rows.length) return;
+      for (const row of rows) row.classList.add("is-report-highlight");
+      rows[0]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }
 }
 
 /* -------------------------------------------------------------------------- */
@@ -875,8 +1182,14 @@ function resultRow(r: Result, extras: MarkerDef[] = []): string {
   const optimal = r.optimalRange ? rangeStr(r.optimalRange, r.unit) : "—";
   const flag = r.flag ?? "";
 
+  // The report card (ticket 0036) scrolls + highlights the rows in a class by
+  // selecting on `data-report-class`. Resolve the flag the same way the card
+  // does — stored flag first, `flagFor()` fallback — so a chip tap finds exactly
+  // the rows the chip counted.
+  const reportClass = reportClassFor(resolveResultFlag(r, extras));
+
   return `
-    <div class="result">
+    <div class="result"${reportClass ? ` data-report-class="${esc(reportClass)}"` : ""} data-marker-key="${esc(r.markerKey)}">
       <div class="result__name">${esc(name)}</div>
       <div class="result__value">
         <span class="result__num">${esc(r.value)}</span>
@@ -918,6 +1231,10 @@ async function renderManualEntry(): Promise<void> {
         <div class="eyebrow">Manual entry</div>
         <h1 class="headline" style="margin-top: 0.4rem;">Type the values <em>by hand</em>.</h1>
         <p class="lede" style="max-width: 60ch; margin-top: 0.8rem;">Fill the markers you have — leave the rest blank.</p>
+
+        <div class="egress-receipt egress-receipt--manual" role="note" style="margin-top: 1.4rem;">
+          <p class="egress-receipt__summary">Manual entry sends nothing — these values are typed straight into this device.</p>
+        </div>
 
         <form id="manual" style="margin-top: 2.2rem;">
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">

@@ -1,7 +1,7 @@
 ---
 id: 0022
 title: User-authored insight rules with citations — extend the engine the same way 0002 extended the markers
-status: proposed
+status: groomed
 priority: P2
 area: plan
 created: 2026-05-19

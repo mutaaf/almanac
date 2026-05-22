@@ -22,7 +22,10 @@
 // editorial type via inline styles that survive the browser's print engine.
 
 import { esc, longDate } from "../ui";
-import type { Plan, Panel, EatItem, AvoidItem, Habit, RetestItem, Insight } from "../types";
+import type {
+  Plan, Panel, EatItem, AvoidItem, Habit, RetestItem, Insight,
+  HundredDayState, ArcHabit, MarkerMovement,
+} from "../types";
 import { findMarker } from "../data/markers";
 import { glossForRule } from "../insights";
 
@@ -88,10 +91,120 @@ export function renderForFriend(opts: FriendRenderOpts): string {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Hundred-day one-pager (ticket 0021)                                       */
+/* -------------------------------------------------------------------------- */
+
+const HD_ORDINALS = ["first", "second", "third", "fourth", "fifth", "sixth"];
+
+function hundredDayEyebrow(quarterIndex: number): string {
+  const ord = HD_ORDINALS[quarterIndex - 1];
+  return ord ? `The ${ord} hundred` : `Quarter ${quarterIndex}`;
+}
+
+/**
+ * The hundred-day print sheet — the same three sections (arc / labs /
+ * editorial) the in-app surface renders, laid onto a `.print-sheet`. The
+ * audience is "user / clinician" (informational, not a clinical hand-off), so
+ * there is no API key, no goals/conditions, no meal plan — none of which are
+ * part of `HundredDayState` to begin with. Re-uses the existing `.print-sheet`
+ * typography tokens; no new colors.
+ */
+export function renderHundredDayTemplate(state: HundredDayState): string {
+  const spanDays =
+    Math.round(
+      (Date.parse(`${state.windowEnd}T00:00:00Z`) - Date.parse(`${state.windowStart}T00:00:00Z`)) / 86_400_000,
+    ) + 1;
+  return wrapSheet("hundred-day", `
+    <header class="print-sheet__head">
+      <div class="print-sheet__eyebrow">Almanac · ${esc(hundredDayEyebrow(state.quarterIndex))}</div>
+      <h1 class="print-sheet__title">What ${spanDays} days actually did.</h1>
+      <div class="print-sheet__meta">${esc(longDate(state.windowStart))} — ${esc(longDate(state.windowEnd))}</div>
+    </header>
+    ${hundredDayArcBlock(state.arc.habits)}
+    ${hundredDayLabsBlock(state.labs)}
+    ${hundredDayEditorialBlock(state.editorial.paragraphs)}
+    ${colophon("Computed on-device from your protocol timeline. Informational; discuss changes with your clinician.")}
+  `);
+}
+
+function hundredDayArcBlock(habits: ArcHabit[]): string {
+  return `
+    <section class="print-sheet__section">
+      <h2 class="print-sheet__heading">The arc</h2>
+      ${habits.length
+        ? `<ul class="print-sheet__list">
+            ${habits.map(h => `
+              <li class="print-sheet__habit">
+                <strong>${esc(h.title)}</strong>
+                <span class="print-sheet__habit-cue"> — ${h.heldDays} of 100 days${hundredDayArcNote(h)}</span>
+              </li>
+            `).join("")}
+          </ul>`
+        : `<p class="print-sheet__para">No habit appeared in a plan during this quarter.</p>`}
+    </section>
+  `;
+}
+
+function hundredDayArcNote(h: ArcHabit): string {
+  if (h.addedOnDay != null && h.addedOnDay > 0) return `, added on day ${h.addedOnDay}`;
+  if (h.slipWeek != null) return `, slipped from week ${h.slipWeek}`;
+  return ", held";
+}
+
+function hundredDayLabsBlock(labs: HundredDayState["labs"]): string {
+  const { panels, markerMovements } = labs;
+  let body: string;
+  if (panels.length === 0) {
+    body = `<p class="print-sheet__para">No draws inside the window. Habit cadence is the only signal we have for this quarter.</p>`;
+  } else if (markerMovements.length === 0) {
+    const drawn = panels[panels.length - 1]!.drawnAt;
+    body = `<p class="print-sheet__para">Two draws within the window are needed for a delta. You drew once — ${esc(longDate(drawn))}.</p>`;
+  } else {
+    body = `<ul class="print-sheet__list">
+      ${markerMovements.map(hundredDayMovementRow).join("")}
+    </ul>`;
+  }
+  return `
+    <section class="print-sheet__section">
+      <h2 class="print-sheet__heading">The labs</h2>
+      ${body}
+    </section>
+  `;
+}
+
+function hundredDayMovementRow(m: MarkerMovement): string {
+  const def = findMarker(m.markerKey);
+  const label = def?.shortName ?? def?.name ?? m.markerKey;
+  const dir = m.lastValue > m.firstValue ? "→" : m.lastValue < m.firstValue ? "↓" : "→";
+  const verdict =
+    m.projectionEvaluation === "within" ? " · within the projected band" :
+    m.projectionEvaluation === "above"  ? " · above the projected band" :
+    m.projectionEvaluation === "below"  ? " · below the projected band" : "";
+  return `
+    <li class="print-sheet__panel-row">
+      <span class="print-sheet__panel-marker">${esc(label)}</span>
+      <span class="print-sheet__panel-value">${esc(m.firstValue)} ${dir} ${esc(m.lastValue)} ${esc(m.unit)}</span>
+      ${verdict ? `<span class="print-sheet__panel-range">${esc(verdict.replace(/^ · /, ""))}</span>` : ""}
+    </li>
+  `;
+}
+
+function hundredDayEditorialBlock(paragraphs: HundredDayState["editorial"]["paragraphs"]): string {
+  return `
+    <section class="print-sheet__section">
+      <h2 class="print-sheet__heading">The editorial</h2>
+      ${paragraphs.length
+        ? paragraphs.map(p => `<p class="print-sheet__para">${esc(p.sentence)}</p>`).join("")
+        : `<p class="print-sheet__para">The data this quarter is too thin for a paragraph.</p>`}
+    </section>
+  `;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Sheet scaffold + heads                                                    */
 /* -------------------------------------------------------------------------- */
 
-function wrapSheet(audience: "doctor" | "friend", inner: string): string {
+function wrapSheet(audience: "doctor" | "friend" | "hundred-day", inner: string): string {
   // Inline the typography variables on the sheet itself so the browser's
   // print engine has everything it needs even if the cascade is hidden by
   // an aggressive `@media print`. The `data-audience` hook is what the spec

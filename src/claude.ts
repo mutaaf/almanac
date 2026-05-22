@@ -10,13 +10,117 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type {
-  Profile, Panel, Plan, CheckIn, Result, MealPlan, Meal, Day, MarkerDef,
+  Profile, Panel, Plan, CheckIn, Result, MealPlan, Meal, Day, MarkerDef, AdoptSeed,
 } from "./types";
 import { findMarker } from "./data/markers";
 import { getAllMarkers } from "./data/userMarkers";
 import { age, addDays } from "./db";
 import { computeInsights, formatInsightsForPrompt } from "./insights";
 import { recordCall } from "./telemetry";
+
+/**
+ * The single source of truth for Almanac's one egress host. Every BYOK call
+ * the SDK makes goes here; the test egress allow-list enforces it; and the
+ * egress receipt (ticket 0025) DISPLAYS it. Importing this constant — rather
+ * than re-typing the literal — guarantees the destination a user sees can
+ * never drift from the destination the privacy contract enforces. This is a
+ * read-only constant: it does NOT widen anything, it names what already is.
+ */
+export const ANTHROPIC_HOST = "api.anthropic.com";
+
+/* ============================================================================
+   KEY VERIFICATION (ticket 0024)
+   ============================================================================
+   verify-before-commit: prove the BYOK key authenticates and the chosen model
+   is reachable BEFORE the user trusts it with a lab PDF. The probe is the
+   cheapest possible authenticated round-trip — max_tokens 1, a single-token
+   user message, no system prompt, no caching, no labs. It runs directly from
+   the browser to api.anthropic.com exactly like every other call (no proxy).
+
+   The result is a discriminated union the UI paints into one deterministic
+   line. The key is NEVER returned in the resolved value, NEVER attached to a
+   thrown error, NEVER logged. On success it records the probe's tokens through
+   the same telemetry path the generators use, so the local AI-calls log
+   accounts for every call we made on the user's behalf — the probe included.
+*/
+
+/** The bounded client-side timeout for the probe. No existing call-timeout
+ *  convention lives in this module, so we use the 15s the ticket names. */
+const KEY_CHECK_TIMEOUT_MS = 15_000;
+
+export type KeyCheckResult =
+  | { ok: true }
+  | { ok: false; reason: "auth" | "model" | "billing" | "network" };
+
+/**
+ * Fire one minimal authenticated probe and classify the outcome. Pure of the
+ * key: the caller passes it in, we build a one-shot client, and nothing about
+ * the key leaks into the resolved value, a thrown error, or the console.
+ *
+ * Classification:
+ *   - 401 / authentication_error            → "auth"   (bad or partial key)
+ *   - 404 / not_found_error (model)          → "model"  (key fine, model isn't)
+ *   - 400 with a "credit balance" message    → "billing" (key fine, no funds)
+ *   - connection error / abort / our timeout → "network"
+ *   - anything else non-2xx                  → "network" (advisory fallback;
+ *                                              a real generation will surface
+ *                                              the precise SDK error later)
+ */
+export async function verifyKey(key: string, model: string): Promise<KeyCheckResult> {
+  const client = new Anthropic({ apiKey: key, dangerouslyAllowBrowser: true });
+
+  // Bound the probe so a hung socket on a cafe connection still resolves into
+  // the "could not reach Anthropic" line rather than spinning forever. The SDK
+  // honors an AbortSignal; we also race a timer so an environment that ignores
+  // the signal can't strand the promise.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), KEY_CHECK_TIMEOUT_MS);
+
+  try {
+    const resp = await client.messages.create(
+      { model, max_tokens: 1, messages: [{ role: "user", content: "hi" }] },
+      { signal: controller.signal },
+    );
+    // Account for the probe's tokens locally, exactly as the generators do.
+    recordCall("verify", model, resp);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: classifyKeyError(err) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Map a caught error to a KeyCheckResult reason WITHOUT touching the key. We
+ * read only the SDK's `status` number and a lowercased copy of the error
+ * `type` / `message` (neither contains the key). Default is "network" — the
+ * advisory line that asks the user to retry; the precise SDK error surfaces at
+ * the real generation if it persists.
+ */
+function classifyKeyError(err: unknown): "auth" | "model" | "billing" | "network" {
+  const e = err as { status?: number; name?: string; error?: unknown; message?: string };
+
+  // Abort (our timeout) and connection failures are "network".
+  if (e?.name === "APIUserAbortError" || e?.name === "AbortError") return "network";
+  if (e?.name === "APIConnectionError" || e?.name === "APIConnectionTimeoutError") return "network";
+
+  // The SDK exposes the JSON body on `.error`; dig for the inner type/message.
+  const body = (e?.error ?? {}) as { error?: { type?: string; message?: string } };
+  const innerType = String(body?.error?.type ?? "").toLowerCase();
+  const innerMsg  = String(body?.error?.message ?? e?.message ?? "").toLowerCase();
+
+  if (e?.status === 401 || innerType === "authentication_error") return "auth";
+
+  // Billing reads from the message — Anthropic returns credit exhaustion as an
+  // invalid_request_error whose message names the credit balance. Check this
+  // BEFORE the generic 404/400 buckets so a billing 400 isn't misread.
+  if (innerMsg.includes("credit balance") || innerType === "billing_error") return "billing";
+
+  if (e?.status === 404 || innerType === "not_found_error" || innerMsg.includes("model")) return "model";
+
+  return "network";
+}
 
 /* ============================================================================
    PLAN GENERATION
@@ -836,7 +940,7 @@ function findMatchingInsight(
 
 function formatProfile(p: Profile): string {
   const a = age(p.birthDate) ?? "?";
-  return [
+  const base = [
     `# Reader`,
     `Name:    ${p.ownerName}`,
     `Age:     ${a}`,
@@ -854,6 +958,35 @@ function formatProfile(p: Profile): string {
     `# Dietary pattern`,
     p.dietPattern || "(none stated — assume omnivore, no constraints)",
   ].filter(Boolean).join("\n");
+
+  // Adopt-and-adapt referral block (ticket 0020). Appended as the LAST thing in
+  // the intake section, separated by a blank line, ONLY when the profile carries
+  // a single-use adopt seed. The block is gated by the seed: absent seed, the
+  // output is byte-identical to the pre-0020 version (no empty line, no trailing
+  // whitespace). The parenthetical "(not constraint)" is load-bearing — it tells
+  // the model to treat the seed as context, not as a literal eat-list to
+  // reproduce.
+  const referral = formatAdoptReferral(p.adoptSeed);
+  return referral ? `${base}\n\n${referral}` : base;
+}
+
+/**
+ * The labeled referral block for the adopt seed (ticket 0020). Returns "" when
+ * there is no seed — the caller appends nothing in that case, so the prompt is
+ * unchanged from pre-0020. Single-use: the Plan page clears `profile.adoptSeed`
+ * after the first compose, so a recompose never carries this.
+ */
+function formatAdoptReferral(seed: AdoptSeed | undefined): string {
+  if (!seed) return "";
+  const habits = seed.habitTitles.join(", ");
+  const foods  = seed.topEatFoods.join(", ");
+  return [
+    `# Referral context (not constraint)`,
+    `Referral context (not constraint): the user arrived after reading a friend's `
+      + `protocol that leaned on: ${habits}. The friend's eat list emphasized: ${foods}. `
+      + `Treat this as context only — build the plan against this user's own intake, `
+      + `but you may acknowledge the pattern in a single line if it lands honestly.`,
+  ].join("\n");
 }
 
 /**

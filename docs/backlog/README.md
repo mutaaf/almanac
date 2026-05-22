@@ -59,11 +59,30 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0019 | What-if marker simulator — drag any value to see which insights would fire | P1 | groomed | plan |
-| 0020 | Adopt-and-adapt — turn a friend's shared protocol into the seed of your own first plan | P1 | groomed | growth |
-| 0021 | The hundred-day mark — a quarterly reflective surface for the user who actually stayed | P1 | groomed | progress |
-| 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | proposed | plan |
-| 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | proposed | plan |
+| 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | shipped | growth |
+| 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | shipped | labs |
+| 0050 | Tell a friend — a native-share button on Plan that pre-composes a personalized recommendation with the top protocol action and the tour link | P1 | shipped | growth |
+| 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
+| 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |
+| 0026 | Same marker, different lab — surface the canonicalization that lets a trend span report formats | P2 | groomed | labs |
+| 0027 | Your almanac, in plain text — a readable Markdown export of the whole timeline | P2 | groomed | settings |
+| 0030 | The grocery list, out of the app — copy or share the week's shopping to the partner who actually shops | P2 | groomed | meals |
+| 0031 | Draw day — when today is the day your blood is being drawn, the app should know it | P2 | groomed | today |
+| 0033 | The protocol on the fridge — a phone-shaped image of today's eat, avoid, and habits that lives on a home screen | P2 | groomed | growth |
+| 0034 | You earned the next tier — show the user the adherence that promoted a habit when the plan recomposes | P2 | groomed | plan |
+| 0035 | Keep the meals that stuck — carry the dishes you actually ate into the next week's re-roll | P2 | groomed | meals |
+| 0037 | What this costs to run — an honest pennies-per-action estimate before the user trusts a key, and a running tally after | P2 | groomed | onboarding |
+| 0038 | The functional-range reference — let a prospect read the marker library, with both ranges, before they trust the app with a key | P2 | groomed | growth |
+| 0039 | What we ruled out — name the patterns the engine checked and did NOT find, so a clean panel reads as reassurance | P2 | groomed | plan |
+| 0041 | The days you kept — a quiet milestone the morning a run of consistent check-ins reaches 7, 30, or 100 | P2 | groomed | today |
+| 0042 | The protocol, over time — browse every plan you have composed and diff any two of them | P2 | groomed | plan |
+| 0043 | Why this isn't a chat box — put the anti-wrapper argument in front of the prospect, before the key | P2 | groomed | growth |
+| 0044 | Same marker, different units — reconcile a draw reported in another unit into the canonical trend, with an honest receipt | P2 | groomed | labs |
+| 0045 | The record — one dated spine of every draw and every plan, paged back through like a journal | P2 | groomed | progress |
+| 0048 | The coach packet — a one-tap longitudinal export a functional-medicine practitioner can actually work from | P2 | groomed | settings |
+| 0049 | Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel | P2 | groomed | onboarding |
+| 0052 | Coverage gaps — a Labs-page view of the high-impact markers you haven't tested, with a "worth asking about" note for each | P2 | proposed | labs |
+| 0053 | Habit history — a full check-in calendar grid on Progress showing every logged day per habit, like a contribution graph | P2 | proposed | progress |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
@@ -78,6 +97,17 @@ owner: gtm-innovation
 | 0015 | Quiet-day card on Today — a reason to open the app on a Wednesday | P1 | shipped | today |
 | 0017 | Shareable protocol link — text a friend your actual protocol without a backend | P1 | shipped | growth |
 | 0018 | Lapse-aware welcome-back surface — the re-engagement page for the user who came back after a long quiet | P1 | shipped | today |
+| 0019 | What-if marker simulator — drag any value to see which insights would fire | P1 | shipped | plan |
+| 0020 | Adopt-and-adapt — turn a friend's shared protocol into the seed of your own first plan | P1 | shipped | growth |
+| 0021 | The hundred-day mark — a quarterly reflective surface for the user who actually stayed | P1 | shipped | progress |
+| 0024 | Verify-before-commit — prove the BYOK key works before the user trusts it with their labs | P1 | shipped | onboarding |
+| 0025 | The egress receipt — show exactly what leaves this device before a lab upload calls Claude | P1 | shipped | privacy |
+| 0028 | The draw is due — surface the retest cadence the plan already wrote, as a quiet countdown that brings you back | P1 | shipped | today |
+| 0029 | What changed since last time — show the delta between this plan and the one it replaced | P1 | shipped | plan |
+| 0032 | The marker moved — a dated receipt when a new draw lands a number where the protocol aimed it | P1 | shipped | progress |
+| 0036 | The "normal" that isn't — a panel report card that counts how many markers sit below the optimum the lab called fine | P1 | shipped | labs |
+| 0047 | The improvement card — a phone-shaped image of your most-improved marker, three months in, that carries the brand to a friend | P1 | shipped | growth |
+| 0051 | The pre-draw primer — Today surfaces a quiet contextual card 48 hours before the retest date, with marker-specific prep advice | P1 | shipped | today |
 | 0004 | Apple Health import (CSV/XML, on-device) | P2 | shipped | infra |
 | 0010 | Printable one-page protocol (on-device, share with doctor or friend) | P2 | shipped | plan |
 | 0013 | Insight engine provenance — show every rule's evidence on the Plan page | P2 | shipped | plan |

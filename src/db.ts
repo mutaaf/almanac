@@ -133,6 +133,26 @@ class AlmanacDB extends Dexie {
       projections:  "++id, &[markerKey+panelId], panelId, markerKey, createdAt",
       sessions:     "++id, at",
     });
+
+    // v8 — adds the optional `Profile.adoptSeed` field (ticket 0020). The seed
+    // is a plain attribute on the singleton profile row, NOT an index, so the
+    // store declarations are byte-identical to v7 — this version block exists
+    // only to declare the schema bump so a v7 → v8 user runs the additive
+    // upgrade explicitly. The field is read-side optional: a v7 profile loads
+    // as v8 with `adoptSeed === undefined` (no data migration, no data loss;
+    // see the migration test in adopt-and-adapt.spec.ts). The seed is treated
+    // as profile data — `wipeAll()` clears it along with the profile.
+    this.version(8).stores({
+      profile:      "id",
+      panels:       "++id, drawnAt, createdAt",
+      plans:        "++id, generatedAt",
+      mealPlans:    "++id, planId, weekStart, generatedAt",
+      checkins:     "++id, &day, createdAt",
+      extractCache: "hash, createdAt",
+      userMarkers:  "&key, createdAt",
+      projections:  "++id, &[markerKey+panelId], panelId, markerKey, createdAt",
+      sessions:     "++id, at",
+    });
   }
 }
 
@@ -220,6 +240,20 @@ export async function getProfile(): Promise<Profile | undefined> {
   return db.profile.get("singleton");
 }
 
+/**
+ * Whether a REAL profile exists in this device's IndexedDB — bypassing the
+ * tour/shared-view shims that `getProfile()` honours. The shared-view banner
+ * (ticket 0020) calls this to decide whether to show the "Adopt as a starting
+ * point" CTA: a first-time recipient (no real profile) sees it; a returning
+ * user with a profile already on the device does not. Reads the singleton
+ * profile row only — never the recipient's panels, plans, or check-ins. Returns
+ * false (not throws) on any read error so the banner degrades to "first-time".
+ */
+export async function hasRealProfile(): Promise<boolean> {
+  try { return (await db.profile.get("singleton")) != null; }
+  catch { return false; }
+}
+
 export async function saveProfile(
   p: Omit<Profile, "id" | "createdAt" | "updatedAt"> & Partial<Pick<Profile, "createdAt">>,
 ): Promise<void> {
@@ -290,6 +324,20 @@ export async function allPlans(): Promise<Plan[]> {
   return db.plans.orderBy("generatedAt").reverse().toArray();
 }
 
+/**
+ * The `generatedAt` of the OLDEST plan, or null when no plan exists. The
+ * hundred-day surface (ticket 0021) uses this as the window anchor — the user's
+ * "real anniversary" is 100 days from their actual first compose, not a calendar
+ * date. Tour and shared-view mode have no real timeline; they return null so the
+ * surface short-circuits upstream.
+ */
+export async function firstPlanGeneratedAt(): Promise<number | null> {
+  if (isSharedView()) return null;
+  if (isTour())      return null;
+  const oldest = await db.plans.orderBy("generatedAt").first();
+  return oldest?.generatedAt ?? null;
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Meal plans                                                                */
 /* -------------------------------------------------------------------------- */
@@ -351,6 +399,19 @@ export async function recentCheckIns(days = 14): Promise<CheckIn[]> {
   if (isSharedView()) return [];
   if (isTour()) return tourCheckIns(days);
   return db.checkins.orderBy("day").reverse().limit(days).toArray();
+}
+
+/**
+ * Every check-in whose `day` falls inside the inclusive [startDay, endDay]
+ * window. The hundred-day surface (ticket 0021) reads the full 100-day window,
+ * not the recap's 14 days. The `day` index is a string YYYY-MM-DD so a Dexie
+ * `between` range query is lexicographically correct. Tour and shared-view mode
+ * have no real timeline; they return an empty list.
+ */
+export async function allCheckInsInWindow(startDay: Day, endDay: Day): Promise<CheckIn[]> {
+  if (isSharedView()) return [];
+  if (isTour())      return [];
+  return db.checkins.where("day").between(startDay, endDay, true, true).toArray();
 }
 
 /* -------------------------------------------------------------------------- */
