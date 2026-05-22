@@ -439,6 +439,64 @@ test.describe("Privacy contract", () => {
     expect(panelCount).toBe(0);
   });
 
+  test("the functional-range reference (ticket 0038) renders static-only with no egress and no user-data read", async ({ page }) => {
+    const stats = await installMocks(page);
+    // A fresh prospect — no consent, no profile. Reach `#/reference` directly
+    // and confirm it is a pure static-data render: zero off-allow-list egress,
+    // zero inference call. The reference reads `MARKERS[]` from the bundle only.
+    const before = stats.outboundUrls.length;
+    await page.goto("/#/reference");
+    await page.locator(".reference").waitFor();
+    await expect(page.locator(".reference__row").first()).toBeVisible();
+
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+
+    // No inference call to api.anthropic.com fired while the reference rendered.
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+
+    // Seed a user-defined marker behind the gate, then revisit. The reference
+    // must NOT read the user's IndexedDB — the user marker never appears, and
+    // the page renders identically to the no-profile pass.
+    await page.evaluate(() => {
+      return new Promise<void>((resolve) => {
+        const req = indexedDB.open("almanac");
+        req.onerror   = () => resolve();
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("markers")) { db.close(); resolve(); return; }
+          const tx = db.transaction("markers", "readwrite");
+          tx.objectStore("markers").put({
+            key: "user_secret",
+            name: "Private user marker",
+            category: "other",
+            unit: "ng/mL",
+            aliases: ["secret"],
+            optimalRange: { high: 1 },
+            description: "Must never leak onto the public reference.",
+            createdAt: Date.now(),
+          });
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror    = () => { db.close(); resolve(); };
+        };
+      });
+    });
+    await page.goto("/#/reference");
+    await page.locator(".reference").waitFor();
+    await expect(page.locator(".reference__row[data-key='user_secret']")).toHaveCount(0);
+    await expect(page.locator(".reference")).not.toContainText("Private user marker");
+  });
+
   test("paste-results-as-text (ticket 0046) makes exactly one Anthropic call and never leaks the key", async ({ page }) => {
     const stats = await installMocks(page);
     await onboard(page, { key: "sk-ant-canary-TEXTPASTE-55555" });
