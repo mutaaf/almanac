@@ -1384,6 +1384,57 @@ body {
   background: rgba(122,31,43,0.06);
 }
 
+/* ---- paste-results-as-text affordance (ticket 0046) --------------------- */
+/* A third, additive input alongside the image dropzone: paste a block of
+   portal text and extract it. Ink + ink-soft only, no oxblood (it is not an
+   error state); controls clear the 44×44 css-px HIG floor. Does not disturb the
+   dropzone layout — it sits below the staged/extract block as its own region. */
+.labs-paste-text {
+  margin-top: 2rem;
+  padding: 1.4rem 1.4rem 1.5rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+}
+.labs-paste-text__title {
+  font-family: var(--display);
+  font-size: 1.3rem;
+  font-style: italic;
+  color: var(--ink);
+}
+.labs-paste-text__hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.labs-paste-text__input {
+  display: block;
+  width: 100%;
+  margin-top: 0.9rem;
+  box-sizing: border-box;
+  min-height: 88px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.labs-paste-text__input:focus {
+  outline: none;
+  border-color: var(--ink-soft);
+}
+.labs-paste-text__input::placeholder { color: var(--ink-faint); }
+.labs-paste-text__actions {
+  margin-top: 0.9rem;
+}
+.labs-paste-text__extract {
+  box-sizing: border-box;
+  min-height: 45px;
+}
+
 /* -------------------------------------------------------------------------- */
 /*  Egress receipt (ticket 0025)                                              */
 /* -------------------------------------------------------------------------- */

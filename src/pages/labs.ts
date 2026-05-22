@@ -12,7 +12,7 @@ import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
   latestPlan, recentCheckIns, saveProjections,
 } from "../db";
-import { panelsFromFiles, hashStagedFiles, type ExtractedRow } from "../extractor";
+import { panelsFromFiles, panelsFromText, hashStagedFiles, type ExtractedRow } from "../extractor";
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
 import { listUserMarkers, addUserMarker, getAllMarkers } from "../data/userMarkers";
 import { computeProjection } from "../progress/projection";
@@ -90,6 +90,19 @@ export async function renderLabs(): Promise<void> {
         <div id="actions" style="margin-top: 1rem; display: none; flex-wrap: wrap; gap: 1rem; align-items: center;">
           <button id="extract" class="btn btn--accent">Extract</button>
           <button id="clear"   class="btn btn--ghost">Clear</button>
+        </div>
+
+        <div class="labs-paste-text">
+          <div class="labs-paste-text__title">Paste your results as text</div>
+          <p class="labs-paste-text__hint">
+            Copy the values from your portal and paste them here — we parse them into a dated panel.
+          </p>
+          <textarea class="labs-paste-text__input"
+                    rows="5"
+                    placeholder="Paste the results block from MyChart, LabCorp, or Quest"></textarea>
+          <div class="labs-paste-text__actions">
+            <button type="button" class="btn btn--accent labs-paste-text__extract">Extract from text</button>
+          </div>
         </div>
 
         <div style="margin-top: 1.4rem;">
@@ -202,6 +215,21 @@ function wireUpload(): void {
     if (accepted.length) {
       e.preventDefault();
       acceptFiles(accepted);
+      return;   // an image/file paste is never also a text paste
+    }
+
+    // Text branch (ticket 0046) — mutually exclusive with the image path: only
+    // when the clipboard carried NO file item. A pasted block of portal text
+    // (text/plain) routes straight to text extraction instead of being ignored.
+    // We never read clipboardData.files here, preserving the single-source rule
+    // the image path documents.
+    if (e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement) {
+      return;   // let a paste INTO the textarea fill it normally, no auto-extract
+    }
+    const text = e.clipboardData.getData("text/plain");
+    if (text.trim()) {
+      e.preventDefault();
+      void extractText(text);
     }
   };
   w[PASTE_KEY] = handler;
@@ -214,6 +242,13 @@ function wireUpload(): void {
   document.getElementById("clear")?.addEventListener("click", () => {
     staged = [];
     renderStaged();
+  });
+
+  // Text affordance (ticket 0046) — the explicit "Extract from text" button.
+  document.querySelector(".labs-paste-text__extract")?.addEventListener("click", () => {
+    const ta = document.querySelector<HTMLTextAreaElement>(".labs-paste-text__input");
+    const text = ta?.value ?? "";
+    if (text.trim()) void extractText(text);
   });
 }
 
@@ -440,60 +475,51 @@ async function extractStaged(): Promise<void> {
   const profile = await getProfile();
   if (!profile) return;
 
+  const { setStatus, fail } = statusHandles();
+
+  try {
+    setStatus(`Extracting from ${staged.length} page${staged.length === 1 ? "" : "s"}…`);
+    const files = staged.slice();
+    const { panels, unmatched } = await panelsFromFiles(files, profile);
+    staged = [];
+    await commitPanelsAndNavigate(panels, unmatched, setStatus);
+  } catch (err: any) {
+    fail(err, () => extractStaged());
+  }
+}
+
+/**
+ * Extract from pasted results text (ticket 0046). The text-input sibling of
+ * `extractStaged`: it runs `panelsFromText` then the SAME save + navigate path,
+ * so a paste converges on the identical review screen the file path produces.
+ * An empty / whitespace-only paste is a no-op (the callers guard before calling,
+ * but we re-guard defensively so a direct call never fires an empty extraction).
+ */
+async function extractText(text: string): Promise<void> {
+  if (!text.trim()) return;
+  const profile = await getProfile();
+  if (!profile) return;
+
+  const { setStatus, fail } = statusHandles();
+
+  try {
+    setStatus("Extracting from pasted text…");
+    const { panels, unmatched } = await panelsFromText(text, profile);
+    await commitPanelsAndNavigate(panels, unmatched, setStatus);
+  } catch (err: any) {
+    fail(err, () => extractText(text));
+  }
+}
+
+/** The shared status-line handles for the extraction surfaces. */
+function statusHandles() {
   const status = document.getElementById("status") as HTMLDivElement | null;
   const setStatus = (msg: string) => {
     if (!status) return;
     status.style.display = "block";
     status.innerHTML = `<span class="spinner"></span>&nbsp;&nbsp;${esc(msg)}`;
   };
-
-  try {
-    setStatus(`Extracting from ${staged.length} page${staged.length === 1 ? "" : "s"}…`);
-    const files = staged.slice();
-    const { panels, unmatched } = await panelsFromFiles(files, profile);
-
-    setStatus(panels.length === 1 ? "Saving…" : `Saving ${panels.length} panels…`);
-    const ids: number[] = [];
-    for (const p of panels) {
-      ids.push(await addPanel(p));
-      // Per ticket 0012 — every new panel materializes a projection snapshot
-      // for the markers on the PRIOR latest panel that have a curated
-      // responsiveness entry AND for which adherence cleared the threshold.
-      // Failure here must never block the upload; log and continue so a bug
-      // in projection math doesn't strand the user with no panel persisted.
-      try { await materializeProjectionsForPriorPanel(ids[ids.length - 1]!); }
-      catch { /* projection snapshotting is best-effort */ }
-    }
-    const newestId = ids[ids.length - 1];
-    if (newestId == null) {
-      // Defensive — `panelsFromFiles` already throws when extraction
-      // yielded zero panels, but TS strict can't see that and a future
-      // change shouldn't silently strand the user.
-      throw new Error("Extraction returned no panels.");
-    }
-
-    // Unmatched rows from the WHOLE upload session land on the newest
-    // (last-saved) panel's review screen — the one the user is most
-    // likely to come back to.
-    if (unmatched.length) {
-      sessionStorage.setItem(`unmatched-${newestId}`, JSON.stringify(unmatched));
-    }
-    staged = [];
-
-    // Same WebKit-timing fix as plan.ts compose(): poll past WebKit's IDB
-    // read-after-write delay before re-rendering.
-    await waitForPanelCommit(newestId);
-
-    if (ids.length === 1) {
-      // Single-panel upload — keep the existing "land on detail" behavior.
-      location.hash = `#/labs?id=${newestId}`;
-    } else {
-      // Multi-panel split — land on the labs index so the user sees all
-      // N new panels at the top, dated.
-      location.hash = "#/labs";
-    }
-    await route();
-  } catch (err: any) {
+  const fail = (err: any, retry: () => void) => {
     if (!status) return;
     status.style.display = "block";
     const raw = extractRawFromMessage(err.message);
@@ -503,8 +529,62 @@ async function extractStaged(): Promise<void> {
       ...(raw ? { raw } : {}),
       actions: `<button id="retry-extract" class="btn btn--accent">Try again</button>`,
     });
-    document.getElementById("retry-extract")?.addEventListener("click", () => extractStaged());
+    document.getElementById("retry-extract")?.addEventListener("click", retry);
+  };
+  return { setStatus, fail };
+}
+
+/**
+ * Persist a freshly-extracted set of panels and navigate to the review screen —
+ * the step the file path (`extractStaged`) and the text path (`extractText`)
+ * share so both converge on the identical post-extraction behavior: one panel
+ * lands on its detail; a multi-date split lands on the labs index. Projection
+ * snapshotting (0012) runs per panel and is best-effort.
+ */
+async function commitPanelsAndNavigate(
+  panels: Omit<Panel, "id" | "createdAt">[],
+  unmatched: ExtractedRow[],
+  setStatus: (msg: string) => void,
+): Promise<void> {
+  setStatus(panels.length === 1 ? "Saving…" : `Saving ${panels.length} panels…`);
+  const ids: number[] = [];
+  for (const p of panels) {
+    ids.push(await addPanel(p));
+    // Per ticket 0012 — every new panel materializes a projection snapshot
+    // for the markers on the PRIOR latest panel that have a curated
+    // responsiveness entry AND for which adherence cleared the threshold.
+    // Failure here must never block the save; log and continue so a bug
+    // in projection math doesn't strand the user with no panel persisted.
+    try { await materializeProjectionsForPriorPanel(ids[ids.length - 1]!); }
+    catch { /* projection snapshotting is best-effort */ }
   }
+  const newestId = ids[ids.length - 1];
+  if (newestId == null) {
+    // Defensive — `panelsFrom*` already throws when extraction yielded zero
+    // panels, but TS strict can't see that and a future change shouldn't
+    // silently strand the user.
+    throw new Error("Extraction returned no panels.");
+  }
+
+  // Unmatched rows from the WHOLE extraction land on the newest (last-saved)
+  // panel's review screen — the one the user is most likely to come back to.
+  if (unmatched.length) {
+    sessionStorage.setItem(`unmatched-${newestId}`, JSON.stringify(unmatched));
+  }
+
+  // Same WebKit-timing fix as plan.ts compose(): poll past WebKit's IDB
+  // read-after-write delay before re-rendering.
+  await waitForPanelCommit(newestId);
+
+  if (ids.length === 1) {
+    // Single panel — keep the existing "land on detail" behavior.
+    location.hash = `#/labs?id=${newestId}`;
+  } else {
+    // Multi-panel split — land on the labs index so the user sees all
+    // N new panels at the top, dated.
+    location.hash = "#/labs";
+  }
+  await route();
 }
 
 function extractRawFromMessage(msg: string | undefined): string | undefined {

@@ -136,9 +136,10 @@ export interface Panel {
   /**
    * A single panel can come from many pages — lab reports often arrive as
    * several photos or screenshots of the same draw. "mixed" when the
-   * staged files were a combination of PDFs and images.
+   * staged files were a combination of PDFs and images. "paste" when the
+   * panel came from results text pasted from a patient portal (ticket 0046).
    */
-  source: "pdf" | "image" | "manual" | "mixed";
+  source: "pdf" | "image" | "manual" | "mixed" | "paste";
   fileNames?: string[];   // parallel to fileBlobs
   fileBlobs?: Blob[];     // originals, kept on-device
   results: Result[];

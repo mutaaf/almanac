@@ -1,11 +1,15 @@
 // Lab extractor.
 //
 // Accepts one or more files (PDFs and/or images) representing pages of a
-// SINGLE lab draw. Sends all of them in one Claude Vision call so the model
-// can deduplicate across pages and reconcile a single set of results.
+// SINGLE lab draw, OR a blob of pasted results text (ticket 0046). Files go in
+// one Claude Vision call; text goes in one text-only call. Either way the model
+// deduplicates across pages/draws and returns the SAME structured
+// ExtractionResult, and the post-parse panel-build step is shared so both input
+// types produce structurally identical Panels.
 //
-// Files stay on-device; only the base64 payload is transmitted, and only to
-// api.anthropic.com via BYOK.
+// Files and pasted text stay on-device; only the base64 payload (files) or the
+// text content block (paste) is transmitted, and only to api.anthropic.com via
+// BYOK.
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { Profile, Result, Panel, MarkerDef } from "./types";
@@ -204,10 +208,95 @@ export async function extractFromFiles(files: File[], profile: Profile): Promise
 
   recordCall("extract", model, resp);
 
+  const result = parseExtractionResponse(resp, "upload");
+  // Persist the extraction so re-pastes don't re-bill.
+  await cacheExtraction(hash, result);
+  return result;
+}
+
+/**
+ * SHA-256 hash of the pasted results text — the text-input analogue of
+ * `hashStagedFiles`. Re-pasting the same portal text replays the prior
+ * extraction at zero cost, exactly as re-uploading the same files does
+ * (ticket 0046). Mixing in a `text|` prefix keeps the keyspace disjoint from
+ * the file hashes so a text blob can never collide with a file set.
+ */
+export async function hashStagedText(text: string): Promise<string> {
+  const enc = new TextEncoder();
+  const digest = await crypto.subtle.digest("SHA-256", enc.encode(`text|${text}`));
+  return Array.from(new Uint8Array(digest))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * Run the extraction over a blob of pasted results text (ticket 0046).
+ * The sibling of `extractFromFiles`: same EXTRACTION_PROMPT, same
+ * `cache_control: ephemeral` system block, same response parsing into the
+ * identical `ExtractionResult`. The only difference is the user-message content
+ * — a single `{ type: "text", text }` block instead of base64 image/document
+ * blocks. Cheaper than vision (text tokens, no image) and cached the same way:
+ * if the user re-pastes the same text we replay the prior extraction.
+ */
+export async function extractFromText(text: string, profile: Profile): Promise<ExtractionResult> {
+  const trimmed = text.trim();
+  if (!trimmed) throw new Error("No text to extract from.");
+
+  const hash = await hashStagedText(trimmed);
+  const cached = await getCachedExtraction<ExtractionResult>(hash);
+  if (cached) return cached;
+
+  const client = new Anthropic({
+    apiKey: profile.anthropicKey,
+    dangerouslyAllowBrowser: true,
+  });
+
+  const model = profile.model || "claude-sonnet-4-6";
+  const resp = await client.messages.create({
+    model,
+    max_tokens: 8000,
+    system: [
+      { type: "text", text: EXTRACTION_PROMPT, cache_control: { type: "ephemeral" } },
+    ],
+    messages: [{
+      role: "user",
+      content: [{
+        type: "text",
+        text:
+          `The text below was pasted from a patient portal or results page. ` +
+          `Extract every biomarker per the schema. Group rows by draw date — ` +
+          `if the text spans multiple distinct draws, return one panel per date. ` +
+          `Deduplicate any marker that repeats within the same panel. Return JSON only.\n\n` +
+          `--- pasted results ---\n${trimmed}`,
+      }],
+    }],
+  });
+
+  recordCall("extract", model, resp);
+
+  const result = parseExtractionResponse(resp, "paste");
+  // Persist so an identical re-paste replays at zero cost.
+  await cacheExtraction(hash, result);
+  return result;
+}
+
+/**
+ * Shared post-call parse step (ticket 0046): truncation guard → JSON parse →
+ * ExtractedPanel[] → empty guard. Factored out of `extractFromFiles` so the
+ * file path and the text path produce the identical `ExtractionResult` and fail
+ * identically on a truncated or empty response. `source` only tunes the error
+ * copy ("upload" vs "paste").
+ */
+function parseExtractionResponse(
+  resp: Anthropic.Message,
+  source: "upload" | "paste",
+): ExtractionResult {
   if (resp.stop_reason === "max_tokens") {
     throw new Error(
-      `Extraction was cut off before finishing — the report has more rows than fit in one response. ` +
-      `Try splitting the upload into fewer pages and run extraction twice.`,
+      `Extraction was cut off before finishing — there were more rows than fit in one response. ` +
+      (source === "paste"
+        ? `Try pasting fewer reports at once and run extraction twice.`
+        : `Try splitting the upload into fewer pages and run extraction twice.`),
     );
   }
 
@@ -230,15 +319,15 @@ export async function extractFromFiles(files: File[], profile: Profile): Promise
   // than silently writing zero panels.
   if (!panels.length) {
     throw new Error(
-      `Extraction returned no panels — the model couldn't read any biomarkers ` +
-      `from the upload. Try a clearer photo, or use Manual entry.`,
+      source === "paste"
+        ? `Extraction returned no panels — the model couldn't read any biomarkers from the ` +
+          `pasted text. Try a clearer source, or use Manual entry.`
+        : `Extraction returned no panels — the model couldn't read any biomarkers ` +
+          `from the upload. Try a clearer photo, or use Manual entry.`,
     );
   }
 
-  const result: ExtractionResult = { panels };
-  // Persist the extraction so re-pastes don't re-bill.
-  await cacheExtraction(hash, result);
-  return result;
+  return { panels };
 }
 
 /**
@@ -311,6 +400,45 @@ export async function panelsFromFiles(files: File[], profile: Profile): Promise<
   const source: Panel["source"] =
     kinds.size === 1 ? (kinds.has("pdf") ? "pdf" : "image") : "mixed";
 
+  // Best-effort attribution: the latest (newest-drawnAt) split panel carries
+  // the file names list; older split panels list none. (Per ticket engineering
+  // notes: if we can't attribute pages to dates, attach all pages to the latest
+  // panel.) fileBlobs are intentionally NOT persisted — Mobile WebKit's
+  // IndexedDB refuses to clone File/Blob entries reliably, and the originals are
+  // never read back for display.
+  return buildPanels(ext, profile, source, files.map(f => f.name));
+}
+
+/**
+ * Build one or more Panels from a blob of pasted results text (ticket 0046).
+ * The sibling of `panelsFromFiles`: it runs `extractFromText` then the SAME
+ * shared `buildPanels` post-parse step, so a paste and an upload of the same
+ * results produce structurally identical Panels — same date-splitting (0001),
+ * canonicalization, and flagging. The panels are tagged `source: "paste"`; no
+ * file names attach (there are none).
+ */
+export async function panelsFromText(text: string, profile: Profile): Promise<{
+  panels: Omit<Panel, "id" | "createdAt">[];
+  unmatched: ExtractedRow[];
+}> {
+  const ext = await extractFromText(text, profile);
+  return buildPanels(ext, profile, "paste", []);
+}
+
+/**
+ * Shared panel-build step (ticket 0046): sort the extracted panels by draw date,
+ * reconcile each against the marker DB (folding in user-defined markers), and
+ * shape each into a persistable Panel. Factored out of `panelsFromFiles` so the
+ * file path and the text path converge on the IDENTICAL review screen,
+ * canonicalization, flagging, and date-splitting — the only per-source
+ * difference is `source` and the optional `fileNames` attribution.
+ */
+async function buildPanels(
+  ext: ExtractionResult,
+  profile: Profile,
+  source: Panel["source"],
+  fileNames: string[],
+): Promise<{ panels: Omit<Panel, "id" | "createdAt">[]; unmatched: ExtractedRow[] }> {
   // Sort panels by drawnAt ascending so "latest" is the last one.
   const sorted = ext.panels.slice().sort((a, b) => {
     const da = a.drawnAt ?? "";
@@ -327,18 +455,12 @@ export async function panelsFromFiles(files: File[], profile: Profile): Promise<
   const panels: Omit<Panel, "id" | "createdAt">[] = sorted.map((ep, i) => {
     const { results, unmatched } = reconcile(ep.rows, profile, extras);
     allUnmatched.push(...unmatched);
-    // Best-effort attribution: the latest panel gets the file names list;
-    // older split panels list none. (Per ticket engineering notes: if we
-    // can't attribute pages to dates, attach all pages to the latest panel.)
-    // fileBlobs intentionally NOT persisted — Mobile WebKit's IndexedDB
-    // refuses to clone File/Blob entries reliably, and the originals are
-    // never read back for display.
-    const fileNames = i === latestIdx ? files.map(f => f.name) : [];
+    const names = i === latestIdx ? fileNames : [];
     return {
       drawnAt: ep.drawnAt && /^\d{4}-\d{2}-\d{2}$/.test(ep.drawnAt) ? ep.drawnAt : todayIso(),
       ...(ep.labName ? { labName: ep.labName } : {}),
       source,
-      fileNames,
+      fileNames: names,
       results,
     };
   });
