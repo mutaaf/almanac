@@ -2637,6 +2637,63 @@ body {
 }
 
 /* =============================================================================
+   Tell a friend (ticket 0050)
+   The "Share with a friend" action sits below the Plan page's plan-actions row.
+   Same chip rhythm as the 0017 share-link action and the 0047 save action — no
+   new colors (ink-soft + rule, oxblood reserved for the hover). The transient
+   "Copied." confirmation reuses the editorial register. box-sizing + a 1px
+   cushion above 44 so WebKit's fractional iPhone-15 DPR rounding can't drop the
+   tap target below the 44px HIG floor (the sub-pixel lesson in docs/LESSONS.md).
+   ============================================================================= */
+.tell-friend {
+  margin-top: 1.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+.tell-friend__btn {
+  box-sizing: border-box;
+  min-height: 45px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--body);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 1px solid var(--rule);
+  padding: 0.7rem 1.2rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 180ms var(--ease), color 180ms var(--ease), border-color 180ms var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.tell-friend__btn:hover,
+.tell-friend__btn:focus-visible {
+  color: var(--paper);
+  background: var(--oxblood);
+  border-color: var(--oxblood);
+}
+.tell-friend__confirm {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  min-height: 1.2em;
+}
+.tell-friend__note {
+  flex-basis: 100%;
+  margin: 0;
+  font-family: var(--body);
+  font-size: 0.82rem;
+  color: var(--ink-faint);
+  max-width: 60ch;
+}
+
+/* =============================================================================
    FOOD — eat list, avoid list, meals, grocery
    ============================================================================= */
 

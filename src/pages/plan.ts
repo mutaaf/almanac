@@ -31,6 +31,8 @@ import { thermometer, sparkline, ring } from "../viz";
 import { mountAndPrint, removeMountedSheet, type Audience } from "../print/protocol";
 import { encodeProtocolPayload } from "../share/protocol-link";
 import { isSharedView } from "../share/shared-state";
+import { selectMostImproved } from "../progress/most-improved";
+import { composeShareMessage } from "../plan/share-message";
 
 type ViewMode = "read" | "dashboard";
 const VIEW_KEY = "almanac.plan.view";
@@ -440,6 +442,7 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
           <a href="#/meals" class="btn btn--ghost">${haveMeals ? "Open the meals" : "Generate the meals"}</a>
           <button id="recompose" class="btn btn--ghost">Re-compose plan</button>
         </div>
+        ${renderTellFriend()}
         <div id="status" class="quiet" style="display: none; margin-top: 1.4rem;"></div>
       </article>
       ${foot("iii")}
@@ -461,6 +464,9 @@ async function paint(plan: Plan, profile: Profile, mode: ViewMode): Promise<void
 
   // Print or share — the audience-toggle panel + the generate handler.
   wireShareControl(plan, profile, panels);
+
+  // Share with a friend (ticket 0050) — the text-recommendation channel.
+  wireTellFriend(plan, profile, panels);
 
   // Provenance chips render in both modes (ticket 0013) — wire here so the
   // handler is attached regardless of which view paints.
@@ -722,6 +728,71 @@ async function openProtocolShareModal(plan: Plan): Promise<void> {
       // manually. Vanishingly rare; never reached in CI.
       const confirm = wrap.querySelector<HTMLElement>(".share-modal__confirm");
       if (confirm) confirm.textContent = "Could not access the clipboard. Long-press the link to copy.";
+    }
+  });
+}
+
+/* ============================================================================
+   Share with a friend — the text-recommendation channel (ticket 0050)
+   ============================================================================
+   A single action below the plan-actions row that pre-composes a pure-ASCII
+   recommendation from data already on the device (the top eat item, the
+   most-improved marker if one exists, the wordmark, the canonical `#/try`
+   tour path) and hands it to the OS share sheet — or, where `navigator.share`
+   is absent or rejects (desktop / blocked), falls back to the clipboard with a
+   transient "Copied." It renders whenever `paint()` runs, which is only when a
+   composed plan exists AND we are not in shared-view (that path returns early
+   in paintShared); tour mode reaches `paint()` so the action is offered against
+   the sample plan. Zero network, zero Anthropic, zero key — a pure transform.
+
+   The compose + share/clipboard handoff mirrors the share-link (0017) idiom and
+   the improvement-card (0047) save flow; there is no second share mechanism.
+*/
+
+function renderTellFriend(): string {
+  return `
+    <section class="tell-friend" aria-label="Share a recommendation with a friend">
+      <button type="button" class="tell-friend__btn"
+              aria-label="Share with a friend — a pre-written recommendation built from your plan">
+        Share with a friend
+      </button>
+      <span class="tell-friend__confirm" role="status" aria-live="polite"></span>
+      <p class="tell-friend__note">
+        A short, honest message built from your plan on this device — your top action and a marker that moved. Nothing about your biology travels.
+      </p>
+    </section>
+  `;
+}
+
+function wireTellFriend(plan: Plan, profile: Profile, panels: Panel[]): void {
+  const btn = document.querySelector<HTMLButtonElement>(".tell-friend__btn");
+  if (!btn) return;
+  const confirmEl = document.querySelector<HTMLElement>(".tell-friend__confirm");
+
+  btn.addEventListener("click", async () => {
+    // Compose entirely on-device: the most-improved selection (0047, verbatim)
+    // plus the plan's top eat item. `_simCtx.catalog` carries user-defined
+    // markers (0002) for name resolution; fall back to an empty extras list.
+    const improved = selectMostImproved(panels, profile, _simCtx?.catalog ?? []);
+    const text = composeShareMessage(plan, profile, improved);
+
+    // Native share sheet when available. A rejection (user cancel / blocked)
+    // OR a throw both fall through to the clipboard — never an error surface.
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch {
+        // Fall through to the clipboard path.
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(text);
+      if (confirmEl) confirmEl.textContent = "Copied.";
+    } catch {
+      // Clipboard unavailable (rare; never in CI) — stay quiet rather than
+      // surfacing an error for an optional growth affordance.
     }
   });
 }
