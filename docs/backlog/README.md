@@ -81,11 +81,11 @@ owner: gtm-innovation
 | 0045 | The record — one dated spine of every draw and every plan, paged back through like a journal | P2 | groomed | progress |
 | 0048 | The coach packet — a one-tap longitudinal export a functional-medicine practitioner can actually work from | P2 | groomed | settings |
 | 0049 | Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel | P2 | groomed | onboarding |
+| 0052 | Coverage gaps — a Labs-page view of the high-impact markers you haven't tested, with a "worth asking about" note for each | P2 | groomed | labs |
+| 0053 | Habit history — a full check-in calendar grid on Progress showing every logged day per habit, like a contribution graph | P2 | groomed | progress |
 | 0054 | Put the draw on your calendar — a one-tap .ics export of the retest date the plan already wrote | P1 | proposed | today |
 | 0055 | Paste your labs into the sandbox — score a snippet of raw report text against the functional optimum, no key, nothing saved | P1 | proposed | growth |
 | 0056 | What you kept and changed — a side-by-side diff of your friend's protocol against the one you composed, to share back | P1 | proposed | growth |
-| 0052 | Coverage gaps — a Labs-page view of the high-impact markers you haven't tested, with a "worth asking about" note for each | P2 | groomed | labs |
-| 0053 | Habit history — a full check-in calendar grid on Progress showing every logged day per habit, like a contribution graph | P2 | groomed | progress |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
