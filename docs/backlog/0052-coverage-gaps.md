@@ -1,7 +1,7 @@
 ---
 id: 0052
 title: Coverage gaps — a Labs-page view of the high-impact markers you haven't tested, with a "worth asking about" note for each
-status: proposed
+status: groomed
 priority: P2
 area: labs
 created: 2026-05-22
