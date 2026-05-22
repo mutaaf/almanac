@@ -84,16 +84,36 @@ test.describe("Retest-due surface", () => {
   });
 
   test("due-soon copy: singular day agrees", async ({ page }) => {
-    // 12 weeks = 84 days; generated 83 days ago → due in 1 day.
+    // A draw inside the due-soon window but OUTSIDE the 48h pre-draw window
+    // (ticket 0051) so the 0028 countdown — not the primer — owns this surface.
+    // 12 weeks = 84 days; generated 81 days ago → due in 3 days, so the day word
+    // and count agree (plural). The singular "1 day" boundary now lives inside
+    // the 48h primer window and is asserted on the primer's lead in the next
+    // test, per the documented 0051 coexistence rule.
+    await seedPlanWithRetest(page, {
+      generatedDaysAgo: 81,
+      retest: [{ markerKeys: ["apo_b"], whenWeeks: 12 }],
+    });
+    await openToday(page);
+    await expect(page.locator(".retest-card")).toContainText(
+      "due for a recheck in 3 days —",
+    );
+  });
+
+  test("a draw inside 48h yields the pre-draw primer, not the countdown (ticket 0051 precedence)", async ({ page }) => {
+    // 12 weeks = 84 days; generated 83 days ago → due in 1 day → inside the 48h
+    // pre-draw window. The documented coexistence: the primer renders and the
+    // 0028 countdown folds away, so the two never present duplicated copy. The
+    // singular-day agreement now lives on the primer's lead.
     await seedPlanWithRetest(page, {
       generatedDaysAgo: 83,
       retest: [{ markerKeys: ["apo_b"], whenWeeks: 12 }],
     });
     await openToday(page);
-    await expect(page.locator(".retest-card")).toContainText(
-      "due for a recheck in 1 day —",
-    );
-    await expect(page.locator(".retest-card")).not.toContainText("in 1 days");
+    await expect(page.locator(".retest-card")).toHaveCount(0);
+    await expect(page.locator(".pre-draw-card")).toBeVisible();
+    await expect(page.locator(".pre-draw-card__lead")).toContainText("Your draw is in 1 day —");
+    await expect(page.locator(".pre-draw-card__lead")).not.toContainText("in 1 days");
   });
 
   test("overdue copy: calm, no oxblood, relative phrasing", async ({ page }) => {

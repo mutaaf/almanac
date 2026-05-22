@@ -418,6 +418,36 @@ export interface RetestStatus {
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Pre-draw primer (ticket 0051)                                             */
+/* -------------------------------------------------------------------------- */
+/*
+ * Computed by `prepForDraw()` (in `src/today/pre-draw.ts`) from the latest
+ * plan's soonest retest cadence (the same next-draw date the 0028 card reads)
+ * and the static `DRAW_PREP` lookup. Render-time only — nothing here is
+ * persisted (no schema change). Returns null outside the 48-hour pre-draw
+ * window, when the draw date is past, or when there is no draw date. A populated
+ * value otherwise drives the calm "Pre-draw prep" card on Today.
+ *
+ *   hoursOut:  whole hours from `now` to the draw instant (>= 0; the window is
+ *              hour-precise, not calendar-day like 0028's daysUntil).
+ *   markers:   one row per retest marker key, resolved to its human name via
+ *              findMarker(), with the prep note from DRAW_PREP (or the neutral
+ *              "No special prep needed." note when the marker is uncovered).
+ */
+export interface PreDrawPrep {
+  hoursOut: number;
+  markers: PreDrawMarker[];
+}
+
+export interface PreDrawMarker {
+  key: string;
+  /** Human display name — shortName preferred, then name, then the key. */
+  name: string;
+  /** The pre-analytical note from DRAW_PREP, or the neutral uncovered note. */
+  note: string;
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Weekly meal plan (separate generation, separate table)                    */
 /* -------------------------------------------------------------------------- */
 
