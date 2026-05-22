@@ -83,4 +83,28 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-22 [implementation-dev] Shipped on `feat/0046-paste-results-text`.
+  - `src/extractor.ts`: added `extractFromText(text, profile)` mirroring
+    `extractFromFiles` — same `EXTRACTION_PROMPT`, same `cache_control: ephemeral`
+    system block, a single `{ type: "text", text }` user content block, identical
+    `ExtractionResult`. Factored the post-call parse step into
+    `parseExtractionResponse(resp, source)` and the panel-build step into a shared
+    `buildPanels(ext, profile, source, fileNames)` so text and files produce
+    structurally identical Panels (date-splitting 0001, canonicalization,
+    flagging). Added `hashStagedText` + `panelsFromText`. The extraction cache is
+    keyed on a `text|`-prefixed SHA-256 so identical re-pastes replay at zero cost,
+    disjoint from the file-hash keyspace.
+  - `src/pages/labs.ts`: added the `.labs-paste-text` textarea affordance below
+    the dropzone/staged block, and a text branch in the single window paste
+    listener (`__almanacPasteListener__`) — text only when `clipboardData` has
+    NO file item (the image path still reads only `clipboardData.items`,
+    respecting the paste-dedupe lesson). Factored the post-extraction
+    save+navigate into `commitPanelsAndNavigate` shared by file and text paths.
+  - `src/types.ts`: widened `Panel["source"]` with `"paste"` (no new persistent
+    type; same store via `addPanel`).
+  - `src/styles.css`: `.labs-paste-text` styled with ink/ink-soft, ≥45px controls;
+    the dropzone layout is undisturbed.
+  - Tests: new `tests/e2e/labs-paste-text.spec.ts` (14 scenarios, 1:1 with the
+    acceptance criteria) + a `paste-results-as-text` egress/key case in
+    `tests/e2e/privacy.spec.ts`; `addPanelFromText` flow helper.
+  - No new deps, no egress allow-list change, no schema migration, no backend.
