@@ -59,7 +59,7 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | in-progress | growth |
+| 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | shipped | growth |
 | 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | groomed | labs |
 | 0047 | The improvement card — a phone-shaped image of your most-improved marker, three months in, that carries the brand to a friend | P1 | groomed | growth |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
