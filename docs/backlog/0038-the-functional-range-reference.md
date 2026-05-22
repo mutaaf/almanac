@@ -1,7 +1,7 @@
 ---
 id: 0038
 title: The functional-range reference — let a prospect read the marker library, with both ranges, before they trust the app with a key
-status: groomed
+status: in-progress
 priority: P1
 area: growth
 created: 2026-05-21
@@ -82,4 +82,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-22 [implementation-dev] Picked up. Branch `feat/0038-the-functional-range-reference` off `origin/main`. Modeled the gate-bypass on the `#/try` sandbox (0040) — a pre-consent static page that reads `MARKERS[]` only, no Dexie, no key, no network. New `src/pages/reference.ts` (`renderReference()`) groups the built-in seed by category in a fixed editorial order, one section per category, one row per marker (name/shortName, unit, lab range, functional range, description). A local pure `formatRange(r: Range)` helper renders "low–high" / "≥ N" / "≤ N" / "—" (mirroring `try.ts` / labs `rangeStr`, no import of any gated module). Registered `#/reference` in `src/main.ts` next to the `#/try` branch; added a "Read the marker reference" link to `src/pages/welcome.ts` beside the tour + try entry points; a single "Start your own" link routes back to `#/welcome`. No upload/key/compose control on the page.
