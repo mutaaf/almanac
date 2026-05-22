@@ -537,6 +537,57 @@ test.describe("Privacy contract", () => {
     expect(html).not.toContain("sk-ant-canary-IMPROVEMENT-77777");
   });
 
+  test("the protocol card (ticket 0033) saves with no off-allow-list egress and no inference call", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", "programmatic download interception lives on chromium");
+    const stats = await installMocks(page);
+    await onboard(page, { name: "Dana Reed", sex: "male", key: "sk-ant-canary-PROTOCOLCARD-33333" });
+    // Seed a composed plan with eat / avoid / habits directly into IndexedDB so
+    // the "Save the card" affordance renders. Seeding avoids the slow, flake-
+    // prone compose round-trip and keeps this a pure local-render assertion.
+    await seedPlan(page, {
+      generatedDaysAgo: 0, clearFirst: true,
+      snapshot: "A seeded plan for the protocol-card privacy test.",
+      eatList: [{ id: "fatty-fish", food: "Fatty fish", frequency: "3x per week", markerKeys: ["triglycerides"] }],
+      avoidList: [{ id: "seed-oils", food: "Industrial seed oils", swap: "olive oil" }],
+      habits: [{ id: "h1", title: "10-min walk after dinner" }],
+    });
+    await page.goto("/#/plan");
+    await page.reload();
+    await page.locator(".dash-snapshot, .prose").first().waitFor();
+    // Force the download branch so the click is deterministic.
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "canShare", { configurable: true, writable: true, value: () => false });
+      Object.defineProperty(navigator, "share",    { configurable: true, writable: true, value: async () => undefined });
+    });
+
+    const before = stats.outboundUrls.length;
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.locator(".protocol-card-save").click(),
+    ]);
+    await download.path();
+
+    // The card is a pure local render — nothing leaves the device while it draws.
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+
+    // The key never appears in the rendered surface.
+    const html = await page.content();
+    expect(html).not.toContain("sk-ant-canary-PROTOCOLCARD-33333");
+  });
+
   test("tell-a-friend (ticket 0050) shares with zero off-allow-list egress and never leaks the key", async ({ page, browserName }) => {
     const stats = await installMocks(page);
     await onboard(page, { sex: "male", key: TELL_FRIEND_SENTINEL });
