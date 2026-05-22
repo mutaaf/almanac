@@ -1,7 +1,7 @@
 ---
 id: 0036
 title: The "normal" that isn't — a panel report card that counts how many markers sit below the optimum the lab called fine
-status: in-progress
+status: shipped
 priority: P1
 area: labs
 created: 2026-05-21
@@ -97,3 +97,13 @@ Interpretation notes (proceeding without blocking — no privacy/public-API chan
   No new detail surface.
 - The index-card `README.md` row flips to `shipped` in the SAME commit as the
   ticket frontmatter flip on green CI, so the squash-on-green can't orphan it.
+
+### 2026-05-21 — shipped
+
+PR #66 squash-merged to `main` as `c255182` after all three gating checks went
+green: Typecheck + build (14s), E2E (chromium) (8m28s), E2E (mobile-webkit)
+(17m30s). The two chromium retries observed (`progress.spec.ts:19`,
+`welcome.spec.ts:46`) are pre-existing environmental flakes unrelated to this
+change; both passed on retry. Because the auto-merge squash landed before the
+status flip, this `shipped` flip (ticket frontmatter + the README index row, in
+one commit) ships as a follow-up `chore/0036-mark-shipped` PR.
