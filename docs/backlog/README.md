@@ -60,7 +60,7 @@ owner: gtm-innovation
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | shipped | growth |
-| 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | in-progress | labs |
+| 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | shipped | labs |
 | 0047 | The improvement card — a phone-shaped image of your most-improved marker, three months in, that carries the brand to a friend | P1 | groomed | growth |
 | 0050 | Tell a friend — a native-share button on Plan that pre-composes a personalized recommendation with the top protocol action and the tour link | P1 | groomed | growth |
 | 0051 | The pre-draw primer — Today surfaces a quiet contextual card 48 hours before the retest date, with marker-specific prep advice | P1 | groomed | today |
