@@ -1,7 +1,7 @@
 ---
 id: 0040
 title: Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum
-status: groomed
+status: in-progress
 priority: P1
 area: growth
 created: 2026-05-21
