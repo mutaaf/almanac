@@ -1768,6 +1768,143 @@ body {
   .try__remove { grid-area: remove; justify-self: end; }
 }
 
+/* ---- the marker reference (ticket 0038) -------------------------------- */
+/* A pre-consent, read-only render of the static MARKERS[] seed: every marker
+   grouped by category with its unit, lab range, functional optimum, and the
+   curated one-line description. Reuses the editorial table idioms (cream + ink,
+   Cormorant headings + Inter Tight body). Grid children get min-width: 0 so
+   long marker names and descriptions wrap/truncate cleanly (the documented
+   overflow fix). */
+.reference {
+  padding: 2.6rem var(--gutter) 1.2rem;
+  max-width: 920px;
+  min-width: 0;
+}
+.reference__sub { max-width: 60ch; margin-top: 0.8rem; }
+
+.reference__list {
+  margin-top: 2.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2.6rem;
+  min-width: 0;
+}
+.reference__section { min-width: 0; }
+.reference__heading { margin-bottom: 1rem; }
+
+/* The column header strip — desktop only; the row grid mirrors it. */
+.reference__cols {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(70px, 0.7fr) minmax(110px, 1fr) minmax(110px, 1fr);
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--rule);
+  min-width: 0;
+}
+.reference__col {
+  font-family: var(--body);
+  font-size: 0.62rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.reference__row {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(70px, 0.7fr) minmax(110px, 1fr) minmax(110px, 1fr);
+  gap: 0.4rem 1rem;
+  align-items: baseline;
+  padding: 0.85rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--body);
+  min-width: 0;
+}
+.reference__name {
+  font-family: var(--display);
+  font-size: 1.12rem;
+  color: var(--ink);
+  min-width: 0;
+}
+.reference__short {
+  font-family: var(--body);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  color: var(--ink-faint);
+  margin-left: 0.5rem;
+}
+.reference__unit {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-faint);
+  min-width: 0;
+}
+.reference__range {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.reference__range > span:last-child { font-family: var(--mono); color: var(--ink); }
+.reference__rangelabel {
+  font-size: 0.6rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.reference__desc {
+  grid-column: 1 / -1;
+  margin: 0.15rem 0 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  min-width: 0;
+}
+
+.reference__start {
+  margin-top: 2.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem 1rem;
+  min-width: 0;
+}
+.reference__start-link {
+  font-family: var(--body);
+  font-size: 0.82rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--oxblood);
+  text-decoration: none;
+  border-bottom: 1px solid var(--oxblood);
+  padding-bottom: 2px;
+}
+.reference__start-link:hover { color: var(--ink); border-color: var(--ink); }
+.reference__start-note { font-size: 0.82rem; color: var(--ink-faint); max-width: 44ch; }
+
+@media (max-width: 720px) {
+  .reference { padding: 2rem var(--gutter) 1rem; }
+  /* The column header strip is desktop scaffolding — the mobile rows carry
+     their own inline range labels, so hide the strip to avoid a misaligned
+     four-column header above a reflowed two-column body. */
+  .reference__cols { display: none; }
+  .reference__row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "name unit"
+      "lab functional"
+      "desc desc";
+    row-gap: 0.45rem;
+  }
+  .reference__name       { grid-area: name; }
+  .reference__unit       { grid-area: unit; justify-self: end; }
+  .reference__lab        { grid-area: lab; }
+  .reference__functional { grid-area: functional; justify-self: end; }
+  .reference__desc       { grid-area: desc; }
+}
+
 /* ---- unrecognized-rows matcher ----------------------------------------- */
 .unmatched-list {
   display: grid;

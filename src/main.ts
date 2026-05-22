@@ -32,6 +32,7 @@ import { renderProgress }   from "./pages/progress";
 import { renderRecap }      from "./pages/recap";
 import { renderHundredDay } from "./pages/hundred-day";
 import { renderTry }        from "./pages/try";
+import { renderReference }  from "./pages/reference";
 import { renderSettings }   from "./pages/settings";
 import {
   renderWelcomeBack, computeWelcomeBackState, setPendingWelcomeBackState,
@@ -128,6 +129,16 @@ export async function route(): Promise<void> {
   // `#/welcome` (its only off-page affordance) reinstates the gate.
   if (path === "#/try") {
     return renderTry();
+  }
+
+  // The functional-range reference (ticket 0038). Like the tour, shared-view,
+  // and try-your-numbers branches, this sits ABOVE the consent + profile gates
+  // so a first-time visitor reaches it without acknowledging consent or having a
+  // profile. It is a stateless render of the static `MARKERS[]` seed — it enters
+  // no session/tour/shared-view flag, reads no IndexedDB, and routing TO
+  // `#/welcome` (its only off-page affordance) reinstates the gate.
+  if (path === "#/reference") {
+    return renderReference();
   }
 
   if (isTour() || isSharedView()) {
