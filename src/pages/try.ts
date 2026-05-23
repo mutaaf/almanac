@@ -281,7 +281,11 @@ function wire(): void {
     // number against a real marker.
     if (!key || input.value.trim() === "" || !Number.isFinite(value)) return;
 
-    mergeRow(key, value);
+    // The typed path APPENDS — 0040's contract lets a prospect add the same
+    // marker more than once (e.g. to compare four values across flag classes),
+    // so each typed entry is its own row. Duplicate reconciliation is the PASTE
+    // path's job (see `wirePaste`), not the picker's.
+    rows.push({ key, value });
     syncSession();
     input.value = "";
     paintRows();
@@ -322,11 +326,12 @@ function wirePaste(): void {
 }
 
 /**
- * Merge one `{ key, value }` into the live rows, reconciling duplicates to a
- * single row (ticket 0055): if the key is already present, the LAST value wins
- * and the existing row is updated IN PLACE (its position is preserved); a new
- * key appends. Shared by the typed path and the paste path so both honor the
- * same one-row-per-marker rule.
+ * Merge one pasted `{ key, value }` into the live rows, reconciling duplicates
+ * to a single row (ticket 0055): if the key is already present (whether typed or
+ * from an earlier line of the same paste), the LAST value wins and the existing
+ * row is updated IN PLACE (its position is preserved); a new key appends. This
+ * is the PASTE path's rule only — the picker (`wire()`) deliberately appends, so
+ * 0040's "same marker, four typed values" behavior is unchanged.
  */
 function mergeRow(key: string, value: number): void {
   const existing = rows.find(r => r.key === key);
