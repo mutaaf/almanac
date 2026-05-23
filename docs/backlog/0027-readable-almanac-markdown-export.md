@@ -1,7 +1,7 @@
 ---
 id: 0027
 title: Your almanac, in plain text — a readable Markdown export of the whole timeline
-status: in-progress
+status: shipped
 priority: P1
 area: settings
 created: 2026-05-20
@@ -98,3 +98,15 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
   egress-list change, no schema migration. Display names resolved via `findMarker()` folding in
   `getAllMarkers()` user definitions; trend appendix mirrors the Progress page's oldest→newest
   per-markerKey series logic (markers with ≥2 draws only).
+- **2026-05-23 (implementation-dev):** Shipped. PR #83 merged to `main` (squash, mergedAt
+  2026-05-23T02:54:09Z) with all three gating checks green — `Typecheck + build`, `E2E (chromium)`,
+  `E2E (mobile-webkit)` all success. Delivered `src/export/markdown.ts`
+  (`renderAlmanacMarkdown(data, markers): string`, pure), the "Download as readable text" action in
+  `src/pages/settings.ts` (reuses the JSON-export anchor + object-URL with a `text/markdown` blob and
+  `markdownFilename()`), `tests/e2e/markdown-export.spec.ts` (15 tests, one per acceptance box), and a
+  local-only export invocation in `tests/e2e/privacy.spec.ts`. No deps, no backend, no egress-list
+  change, no schema migration; the BYOK key never enters the artifact (sentinel test). The `.btn`
+  class already carries `min-height: 44px`, so no new CSS was needed for the touch target. This
+  shipped-status flip rides a follow-up `feat/0027-ship-status` branch — auto-merge fired on PR #83
+  the instant mobile-webkit went green, before the flip could be folded into the feature commit
+  (the documented orphaned-flip race).
