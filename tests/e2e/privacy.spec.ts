@@ -6,6 +6,7 @@
 // host appearing in network logs is a regression — period.
 
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { installMocks } from "../helpers/mocks";
 import {
   onboard, addManualPanel, composePlan, enterTour, enterSharedViewWithAdopt,
@@ -743,6 +744,63 @@ test.describe("Privacy contract", () => {
     const html = await page.content();
     expect(html).not.toContain(TELL_FRIEND_SENTINEL);
     void browserName;
+  });
+
+  test("the readable Markdown export (ticket 0027) is local-only and never leaks the key", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", "programmatic download interception lives on chromium");
+    const stats = await installMocks(page);
+    const KEY = "sk-ant-canary-MDEXPORT-27000";
+    await onboard(page, { name: "Mira Chen", sex: "female", key: KEY });
+    // Seed a small timeline so the export has panels + a plan to render — the
+    // transform must read it all from IndexedDB and emit a file without a single
+    // off-device call.
+    await seedPanel(page, {
+      drawnAt: "2026-03-10", labName: "Quest", clearFirst: true,
+      results: [{ markerKey: "ferritin_f", value: 32, unit: "ng/mL" }],
+    });
+    await seedPanel(page, {
+      drawnAt: "2026-05-10", labName: "LabCorp",
+      results: [{ markerKey: "ferritin_f", value: 58, unit: "ng/mL" }],
+    });
+    await seedPlan(page, {
+      generatedDaysAgo: 1, clearFirst: true,
+      snapshot: "A seeded plan for the markdown-export privacy test.",
+      eatList: [{ id: "e1", food: "Fatty fish", frequency: "3x per week" }],
+      habits: [{ id: "h1", title: "Magnesium glycinate" }],
+    });
+    await page.goto("/#/settings");
+    await page.locator("#export-md").waitFor();
+
+    const before = stats.outboundUrls.length;
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.locator("#export-md").click(),
+    ]);
+    const path = await download.path();
+    const md = readFileSync(path, "utf8");
+
+    // No off-allow-list request, and specifically no inference call, fired while
+    // the pure local transform ran and the file downloaded.
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+
+    // The BYOK key never appears in the exported file — not the value, not a
+    // masked form, not a "key present" note. (Settings' own #key field is a
+    // type=password input that holds the key on-device by design; the contract
+    // this export must honour is that the key never travels INTO the artifact.)
+    expect(md).not.toContain(KEY);
+    expect(md).not.toMatch(/sk-ant/i);
   });
 
   test("import of a malformed export does not crash the app", async ({ page }) => {

@@ -5,7 +5,8 @@ import { masthead, foot } from "../chrome";
 import { getProfile, saveProfile, exportAll, importAll, wipeAll, clearExtractCache } from "../db";
 import type { AlmanacExport, UserMarker } from "../db";
 import type { Sex } from "../types";
-import { listUserMarkers, deleteUserMarker } from "../data/userMarkers";
+import { listUserMarkers, deleteUserMarker, getAllMarkers } from "../data/userMarkers";
+import { renderAlmanacMarkdown, markdownFilename } from "../export/markdown";
 import { keyCheckMarkup, wireKeyCheck } from "../onboarding/key-check";
 import { list as listCalls, aggregate as aggregateCalls, clear as clearTelemetry } from "../telemetry";
 import { importAppleHealth } from "../health/importApple";
@@ -100,6 +101,7 @@ export async function renderSettings(): Promise<void> {
           <div class="section-mark">Backup &amp; restore</div>
           <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: center;">
             <button id="export" class="btn">Export the almanac</button>
+            <button id="export-md" class="btn">Download as readable text</button>
             <label class="btn btn--ghost" style="cursor: pointer;">
               Import a backup
               <input id="import-file" type="file" accept="application/json,.json" style="display: none;" />
@@ -107,7 +109,9 @@ export async function renderSettings(): Promise<void> {
             <span id="io-status" class="quiet" style="padding: 0; font-size: 0.95rem;"></span>
           </div>
           <p class="hint" style="margin-top: 1rem; max-width: 56ch;">
-            Export writes a single <code>.almanac.json</code> to your Downloads folder. Lab PDFs/images are not included by default; the JSON has every panel, plan, and check-in.
+            Export writes a single <code>.almanac.json</code> to your Downloads folder — the importable backup. Lab PDFs/images are not included by default; the JSON has every panel, plan, and check-in.
+            <br/>
+            <strong>Download as readable text</strong> writes a single <code>.almanac.md</code> — your whole timeline as a document you can read in any editor, hand to a friend, or keep. Built on this device; nothing is transmitted.
           </p>
         </div>
 
@@ -199,6 +203,22 @@ export async function renderSettings(): Promise<void> {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `${new Date().toISOString().slice(0,10)}.almanac.json`; a.click();
+    URL.revokeObjectURL(url);
+    const st = document.getElementById("io-status"); if (st) st.textContent = "Exported.";
+  });
+
+  // "Download as readable text" (ticket 0027). Same data gather as the JSON
+  // export, run through the pure Markdown renderer — a deterministic, zero-
+  // network transform of local data. Re-uses the JSON export's anchor + object-
+  // URL download mechanism; only the blob type and filename differ.
+  document.getElementById("export-md")?.addEventListener("click", async () => {
+    const data = await exportAll();
+    const markers = await getAllMarkers();
+    const text = renderAlmanacMarkdown(data, markers);
+    const blob = new Blob([text], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = markdownFilename(data.profile?.ownerName); a.click();
     URL.revokeObjectURL(url);
     const st = document.getElementById("io-status"); if (st) st.textContent = "Exported.";
   });
