@@ -10,7 +10,7 @@ import { mount, h, esc, errorCard } from "../ui";
 import { masthead, foot } from "../chrome";
 import {
   getProfile, allPanels, addPanel, getPanel, deletePanel, updatePanel,
-  latestPlan, recentCheckIns, saveProjections,
+  latestPlan, recentCheckIns, saveProjections, today,
 } from "../db";
 import { panelsFromFiles, panelsFromText, hashStagedFiles, type ExtractedRow } from "../extractor";
 import { MARKERS, findMarker, flagFor, findBestMatches } from "../data/markers";
@@ -18,6 +18,7 @@ import { listUserMarkers, addUserMarker, getAllMarkers } from "../data/userMarke
 import { computeProjection } from "../progress/projection";
 import { computeMovementReceipt, moveSentence } from "../labs/movement-receipt";
 import { computeReportCard, reportCardSentence, reportClassFor, resolveResultFlag } from "../labs/report-card";
+import { consumeManualPrefill } from "./sandbox-handoff";
 import { route } from "../main";
 import { isSharedView } from "../share/shared-state";
 import { isTour } from "../sample/state";
@@ -1222,6 +1223,20 @@ async function renderManualEntry(): Promise<void> {
 
   const visibleMarkers = MARKERS.filter(m => !m.sex || m.sex === profile.sex);
 
+  // Bring your sandbox numbers in (ticket 0049). When the prospect accepted the
+  // onboarding handoff, the resolved sandbox values are staged here for a single
+  // read. Pre-populate the matching inputs and default the draw date to today so
+  // the review is one edit away from a real first panel — fully editable, never
+  // silently committed. Empty for every other manual-entry visit.
+  const prefill = consumeManualPrefill();
+  const prefillByKey = new Map(prefill.map(r => [r.key, r.value]));
+  const drawnDefault = prefill.length ? `value="${esc(today())}"` : "";
+  const prefillNote = prefill.length
+    ? `<p class="lede" style="max-width: 60ch; margin-top: 0.4rem;">${esc(
+        "Carried from the sandbox — edit, add, or remove before you save.",
+      )}</p>`
+    : "";
+
   const frag = h(`
     <div class="reveal">
       ${masth}
@@ -1231,6 +1246,7 @@ async function renderManualEntry(): Promise<void> {
         <div class="eyebrow">Manual entry</div>
         <h1 class="headline" style="margin-top: 0.4rem;">Type the values <em>by hand</em>.</h1>
         <p class="lede" style="max-width: 60ch; margin-top: 0.8rem;">Fill the markers you have — leave the rest blank.</p>
+        ${prefillNote}
 
         <div class="egress-receipt egress-receipt--manual" role="note" style="margin-top: 1.4rem;">
           <p class="egress-receipt__summary">Manual entry sends nothing — these values are typed straight into this device.</p>
@@ -1240,7 +1256,7 @@ async function renderManualEntry(): Promise<void> {
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
             <div class="field">
               <label for="drawnAt">Date drawn</label>
-              <input id="drawnAt" name="drawnAt" type="date" required />
+              <input id="drawnAt" name="drawnAt" type="date" required ${drawnDefault} />
             </div>
             <div class="field">
               <label for="labName">Lab (optional)</label>
@@ -1249,15 +1265,19 @@ async function renderManualEntry(): Promise<void> {
           </div>
 
           <div class="manual-grid" style="margin-top: 1.2rem;">
-            ${visibleMarkers.map(m => `
+            ${visibleMarkers.map(m => {
+              const pre = prefillByKey.get(m.key);
+              const valAttr = pre != null ? `value="${esc(pre)}"` : "";
+              return `
               <div class="manual-row" data-key="${esc(m.key)}">
                 <div class="manual-row__name">
                   <strong>${esc(m.shortName ?? m.name)}</strong>
                   <span class="manual-row__hint">${esc(m.unit)} · functional ${esc(rangeStr(m.optimalRange, m.unit))}</span>
                 </div>
-                <input class="manual-row__input" type="number" step="any" placeholder="value" data-key="${esc(m.key)}" />
+                <input class="manual-row__input" type="number" step="any" placeholder="value" data-key="${esc(m.key)}" ${valAttr} />
               </div>
-            `).join("")}
+            `;
+            }).join("")}
           </div>
 
           <div style="display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap;">

@@ -1,7 +1,7 @@
 ---
 id: 0049
 title: Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel
-status: groomed
+status: in-progress
 priority: P1
 area: onboarding
 created: 2026-05-22
@@ -90,4 +90,19 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-22 [implementation-dev] Picked up; status → in-progress on branch
+  `feat/0049-sandbox-numbers-into-first-panel`. Interpretation of the reconciliation
+  requirement (acceptance bullet 1 ↔ 0040's "empty on reload"): `renderTry()` clears
+  `sessionStorage["almanac.sandbox.rows"]` on each fresh navigation to `#/try`, then
+  re-writes it on every add/remove. So a hard reload of `#/try` reads empty (clear-on-render,
+  satisfying 0040), while navigating AWAY to `#/welcome` → consent → onboarding preserves the
+  last-written session value for the onboarding side to consume once.
+- 2026-05-22 [implementation-dev] Handoff path: the affordance lives in `renderOnboarding()`,
+  rendered once when `sessionStorage["almanac.sandbox.rows"]` is non-empty. Accept stages the
+  resolved `{key,value}` pairs into `sessionStorage["almanac.manualPrefill"]`, clears the
+  sandbox key (single-consume), and — after the existing profile save on submit — routes to
+  `#/labs?manual=1`, where `renderManualEntry()` reads the prefill and pre-populates the
+  existing manual-row inputs (the same editable review the labs manual path already shows).
+  Decline clears the sandbox key and proceeds with onboarding unchanged. Reuses `addManualPanel`
+  (the existing manual `addPanel` submit) and `findMarker` — no duplication, no new write path,
+  no IndexedDB write before consent.
