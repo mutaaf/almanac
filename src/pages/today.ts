@@ -18,6 +18,7 @@ import { isTour } from "../sample/state";
 import { isSharedView } from "../share/shared-state";
 import { pickQuietDayNote } from "../today/quiet-card";
 import { computeRetestStatus, soonestCadenceDue } from "../today/retest";
+import { buildRetestIcs } from "../today/retest-ics";
 import { prepForDraw } from "../today/pre-draw";
 import { getAllMarkers } from "../data/userMarkers";
 import type {
@@ -259,33 +260,48 @@ function renderRetestCard(status: RetestStatus): string {
 
   const eyebrow = status.state === "overdue" ? "A draw, overdue" : "A draw, coming due";
 
-  // The whole card is the tap target — an anchor to the upload surface.
+  // The card itself stays exactly the 0028 anchor to the upload surface — tap it
+  // to go where the new draw goes. The calendar action (ticket 0054) is a purely
+  // additive sibling beneath it, so the existing tap-to-labs behavior is
+  // unchanged. Wrapping the two keeps the card's place between meals and habits.
   return `
-    <a href="#/labs" class="retest-card" data-state="${esc(status.state)}" role="note">
-      <span class="retest-card__eyebrow">${eyebrow}</span>
-      <span class="retest-card__body">${body}</span>
-    </a>
+    <div class="retest-block">
+      <a href="#/labs" class="retest-card" data-state="${esc(status.state)}" role="note">
+        <span class="retest-card__eyebrow">${eyebrow}</span>
+        <span class="retest-card__body">${body}</span>
+      </a>
+      <button type="button" class="retest-card__cal" data-action="retest-ics">
+        Add to calendar
+      </button>
+    </div>
   `;
 }
 
 /**
- * Resolve the retest card HTML for the real-user Today render, or "" when no
- * card should surface. Reads the latest plan + panels (already loaded) and the
- * merged marker catalog. Returns "" for `upcoming`, no cadence, or a covering
- * draw that already landed.
+ * Resolve the retest card for the real-user Today render. Returns the card HTML
+ * and the `RetestStatus` it was built from when a card should surface, or an
+ * empty HTML + null status otherwise. Reads the latest plan + panels (already
+ * loaded) and the merged marker catalog. Suppresses for `upcoming`, no cadence,
+ * or a covering draw that already landed.
+ *
+ * The status is handed back so the calendar export (ticket 0054) can build the
+ * `.ics` from the SAME computed value the card renders — the event and the
+ * in-app countdown agree to the day by construction.
  */
-async function retestCardHtml(plan: Plan, panels: Panel[]): Promise<string> {
+async function retestCardHtml(
+  plan: Plan, panels: Panel[],
+): Promise<{ html: string; status: RetestStatus | null }> {
   const catalog = await getAllMarkers();
   const status = computeRetestStatus(plan, new Date(), catalog);
-  if (!status) return "";
-  if (status.state === "upcoming") return "";
+  if (!status) return { html: "", status: null };
+  if (status.state === "upcoming") return { html: "", status: null };
 
   // The draw already happened — a panel covering the cadence's markers landed
   // on or after the plan date. Suppress the card; the loop closed.
   const keys = soonestCadenceKeys(plan);
-  if (coveringDrawExists(panels, plan, keys)) return "";
+  if (coveringDrawExists(panels, plan, keys)) return { html: "", status: null };
 
-  return renderRetestCard(status);
+  return { html: renderRetestCard(status), status };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -407,7 +423,9 @@ export async function renderToday(): Promise<void> {
   // adaptive-card precedence above — those lead the page; this one is anchored
   // to the meals/habits boundary because it is about the labs loop, not the day.
   // Inside the 48h pre-draw window the primer subsumes it.
-  const retestHtml = prep ? "" : await retestCardHtml(plan, panels);
+  const retest = prep ? { html: "", status: null } : await retestCardHtml(plan, panels);
+  const retestHtml = retest.html;
+  const retestStatus = retest.status;
   const preDrawHtml = prep ? renderPreDrawCard(prep) : "";
 
   // The quiet-day card (ticket 0015) only renders Mon–Sat AND only when neither
@@ -531,6 +549,22 @@ export async function renderToday(): Promise<void> {
     document.querySelector("[data-scroll='habits']")
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
+
+  // Calendar export (ticket 0054): build the .ics from the SAME RetestStatus the
+  // card rendered and download it on-device as retest.ics. Reuses the object-URL
+  // blob download the export surfaces use (settings JSON/Markdown, share cards).
+  // Pure and local — no network, no Anthropic. The action exists iff the card
+  // does, so `retestStatus` is non-null here whenever the button is in the DOM.
+  if (retestStatus) {
+    document.querySelector("[data-action='retest-ics']")?.addEventListener("click", () => {
+      const ics = buildRetestIcs(retestStatus);
+      const blob = new Blob([ics], { type: "text/calendar" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "retest.ics"; a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
 
   for (const card of document.querySelectorAll(".habit-check"))
     card.addEventListener("click", () => card.classList.toggle("is-done"));

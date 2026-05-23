@@ -3842,6 +3842,46 @@ body {
   max-width: 60ch;
 }
 
+/*
+ * Calendar export (ticket 0054). The "Add to calendar" action is a purely
+ * additive sibling beneath the 0028 card — it does not change the card's own
+ * tap-to-labs behavior. The wrapping .retest-block keeps the meals→habits
+ * spacing the card carried before; the card's own top margin moves here so the
+ * pair reads as one unit. The action is a quiet ink-soft link-button, NOT the
+ * oxblood accent (the retest surface is calm, not an alert). box-sizing +
+ * min-height ≥45px clears the 44px HIG tap floor on every device-pixel-ratio
+ * (docs/LESSONS.md 2026-05-21).
+ */
+.retest-block {
+  margin: 1.6rem 0 0.2rem;
+}
+.retest-block .retest-card {
+  margin: 0;
+}
+.retest-card__cal {
+  box-sizing: border-box;
+  min-height: 45px;
+  display: inline-flex;
+  align-items: center;
+  margin-top: 0.55rem;
+  padding: 0.45rem 0.2rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: var(--body);
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-soft);
+  border-bottom: 1px solid transparent;
+  transition: color 180ms var(--ease), border-color 180ms var(--ease);
+}
+.retest-card__cal:hover {
+  color: var(--ink);
+  border-bottom-color: var(--ink-faint);
+}
+
 /* -----------------------------------------------------------------------------
    PRE-DRAW PRIMER — ticket 0051
    The day-before half of the retest loop. Sits at the same meals/habits
