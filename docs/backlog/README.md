@@ -59,7 +59,7 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
-| 0049 | Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel | P1 | in-progress | onboarding |
+| 0049 | Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel | P1 | shipped | onboarding |
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | shipped | growth |
 | 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | shipped | labs |
 | 0050 | Tell a friend — a native-share button on Plan that pre-composes a personalized recommendation with the top protocol action and the tour link | P1 | shipped | growth |

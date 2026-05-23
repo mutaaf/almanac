@@ -1,7 +1,7 @@
 ---
 id: 0049
 title: Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel
-status: in-progress
+status: shipped
 priority: P1
 area: onboarding
 created: 2026-05-22
@@ -106,3 +106,6 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
   Decline clears the sandbox key and proceeds with onboarding unchanged. Reuses `addManualPanel`
   (the existing manual `addPanel` submit) and `findMarker` — no duplication, no new write path,
   no IndexedDB write before consent.
+- 2026-05-23 [implementation-dev] Shipped in PR #85 (squash-merged to `main`, all three
+  gating checks green: Typecheck + build, E2E chromium, E2E mobile-webkit). New spec
+  `tests/e2e/sandbox-handoff.spec.ts` (17 tests × 2 projects) green on both. Status → shipped.
