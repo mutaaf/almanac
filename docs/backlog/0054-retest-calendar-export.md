@@ -1,7 +1,7 @@
 ---
 id: 0054
 title: Put the draw on your calendar — a one-tap .ics export of the retest date the plan already wrote
-status: proposed
+status: groomed
 priority: P1
 area: today
 created: 2026-05-22

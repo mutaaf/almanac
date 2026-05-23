@@ -2,7 +2,7 @@
 id: 0049
 title: Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel
 status: groomed
-priority: P2
+priority: P1
 area: onboarding
 created: 2026-05-22
 owner: gtm-innovation
@@ -83,6 +83,10 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 - Egress allow-list change: **no**.
 - Schema migration: **no**.
 - Voice spec: the affordance reads "You scored <N> markers in the sandbox — add them as your first panel?" with accept "Add them" and decline "Start fresh." Declarative, no exclamation. Banned: "amazing," "exciting," "journey," "great." Ink and ink-soft only.
+
+## Grooming log
+
+- 2026-05-23 — Elevated P2 → P1. This is the conversion close for the entire pre-key acquisition stack, and that stack just got heavier: the sandbox (0040, shipped) is now fed by a full paste-your-report path (0055, P1 groomed) on top of the typed-marker path. Both create conviction on the prospect's own numbers and then, today, throw those numbers away at the door — a re-type tax imposed at the exact moment of peak motivation. With three P1 acquisition tickets (0040 shipped, 0055, and the share/tour on-ramps) all driving prospects into the sandbox, the funnel only compounds if the close exists. Removing the highest-motivation drop-off in the funnel is a P1 lever on activation, not a someday-maybe.
 
 ## Implementation log
 
