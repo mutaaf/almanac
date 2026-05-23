@@ -19,6 +19,19 @@ import {
 
 const SESSION_KEY = "almanac.sandbox.rows";
 
+/**
+ * Acknowledge consent from the welcome page WITHOUT an extra page.goto (which
+ * would reload the document). Assumes the page is already on the welcome gate
+ * (the unconsented landing) — used by the single-consume tests that seed the
+ * session payload on the live page and must not re-navigate before consenting.
+ */
+async function ackConsentInline(page: Page): Promise<void> {
+  await expect(page).toHaveURL(/#\/welcome$/);
+  await page.locator("#consent").check();
+  await page.getByRole("button", { name: /continue to onboarding/i }).click();
+  await expect(page).toHaveURL(/#\/onboarding$/);
+}
+
 /** Count panels in the `almanac` IndexedDB (0 if the store/db doesn't exist). */
 async function panelCount(page: Page): Promise<number> {
   return page.evaluate(() => {
@@ -164,8 +177,12 @@ test.describe("Sandbox-to-first-panel handoff (ticket 0049)", () => {
   // ---- AC5: single-consume — no re-prompt after accept -------------------- //
   test("the values are consumed once — no re-prompt after accept", async ({ page }) => {
     await installMocks(page);
-    await seedSandboxSession(page, [{ key: "apo_b", value: 110 }], { via: "init" });
-    await acknowledgeConsent(page);
+    // Seed via the LIVE page (not an init script) so the revisit reload below
+    // tests true single-consume: sessionStorage persists across reloads, so the
+    // affordance would re-offer if the value were not actually cleared on accept.
+    await page.goto("/");
+    await seedSandboxSession(page, [{ key: "apo_b", value: 110 }]);
+    await ackConsentInline(page);
 
     // A genuine accept saves the profile (the same path the Begin button takes),
     // so fill the required fields before tapping "Add them".
@@ -188,13 +205,17 @@ test.describe("Sandbox-to-first-panel handoff (ticket 0049)", () => {
 
   test("the values are consumed once — no re-prompt after decline", async ({ page }) => {
     await installMocks(page);
-    await seedSandboxSession(page, [{ key: "apo_b", value: 110 }], { via: "init" });
-    await acknowledgeConsent(page);
+    await page.goto("/");
+    await seedSandboxSession(page, [{ key: "apo_b", value: 110 }]);
+    await ackConsentInline(page);
 
     await page.locator(".sandbox-handoff__decline").click();
+    // sessionStorage survives a reload — so this verifies the decline actually
+    // cleared the value (otherwise the affordance would re-offer on reload).
     await page.goto("/#/onboarding");
     await expect(page.locator("#onb")).toBeVisible();
     await expect(page.locator(".sandbox-handoff")).toHaveCount(0);
+    expect(await readSandboxSession(page)).toBeNull();
   });
 
   // ---- AC6: no IndexedDB write before consent ----------------------------- //
