@@ -46,11 +46,13 @@ export function computeRetestStatus(
 
   // The soonest-due cadence drives the card. "Soonest" = smallest due-date ms;
   // an overdue cadence (due in the past) sorts ahead of an upcoming one.
-  let soonest: { due: number; markerKeys: string[] } | null = null;
+  let soonest: { due: number; markerKeys: string[]; reason: string } | null = null;
   for (const c of cadences) {
     if (!c.markerKeys?.length) continue;
     const due = generatedAt + c.whenWeeks * WEEK_MS;
-    if (!soonest || due < soonest.due) soonest = { due, markerKeys: c.markerKeys };
+    if (!soonest || due < soonest.due) {
+      soonest = { due, markerKeys: c.markerKeys, reason: c.reason ?? "" };
+    }
   }
   if (!soonest) return null;
 
@@ -66,6 +68,7 @@ export function computeRetestStatus(
     daysUntil,
     state,
     setOn: new Date(generatedAt),
+    reason: soonest.reason,
   };
 }
 

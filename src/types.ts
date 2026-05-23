@@ -408,6 +408,9 @@ export interface RetestItem {
  *   daysUntil:  whole calendar days from `now` to `dueDate` (negative = past).
  *   state:      "overdue" (daysUntil < 0) | "due-soon" (0..14) | "upcoming".
  *   setOn:      the plan's generation date — the date the cadence was set.
+ *   reason:     the plan's retest reason for the soonest cadence — carried so the
+ *               calendar export (ticket 0054) can write it into the .ics
+ *               DESCRIPTION. Render-time only; nothing here is persisted.
  */
 export interface RetestStatus {
   markers: string[];
@@ -415,6 +418,7 @@ export interface RetestStatus {
   daysUntil: number;
   state: "upcoming" | "due-soon" | "overdue";
   setOn: Date;
+  reason: string;
 }
 
 /* -------------------------------------------------------------------------- */
