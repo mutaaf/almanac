@@ -440,6 +440,67 @@ test.describe("Privacy contract", () => {
     expect(panelCount).toBe(0);
   });
 
+  test("the paste-into-sandbox path (ticket 0055) parses static-data only — no egress, no inference, no IndexedDB", async ({ page }) => {
+    const stats = await installMocks(page);
+    // A fresh prospect — no consent, no profile. Reach `#/try` directly, paste a
+    // raw portal blob (carrying a sentinel key in the prose), tap "Score it",
+    // and confirm the paste is a pure static-data parse: zero off-allow-list
+    // egress, zero inference call, zero IndexedDB write, and no key leak.
+    const SENTINEL = "sk-ant-canary-PASTESANDBOX-55555";
+    await page.goto("/#/try");
+    await page.locator(".try").waitFor();
+    const before = stats.outboundUrls.length;
+
+    await page.locator(".try__paste-input").fill([
+      `MyChart — account on file ${SENTINEL}`,
+      "Apolipoprotein B 110 mg/dL",
+      "Fasting Insulin 8 uIU/mL",
+      "hs-CRP 0.8 mg/L",
+    ].join("\n"));
+    await page.locator(".try__paste-score").click();
+    await expect(page.locator(".try__row")).toHaveCount(3);
+    await expect(page.locator(".report-card__line")).toBeVisible();
+
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+
+    // No inference call to api.anthropic.com fired — the parse is deterministic.
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+
+    // The sentinel never appears in the rendered surface or the carry payload.
+    const html = await page.content();
+    expect(html).not.toContain(SENTINEL);
+    const session = await page.evaluate(() => sessionStorage.getItem("almanac.sandbox.rows"));
+    expect(session ?? "").not.toContain(SENTINEL);
+
+    // The `almanac` IndexedDB carries no panels — the paste persists nothing.
+    const panelCount = await page.evaluate(() => {
+      return new Promise<number>((resolve) => {
+        const req = indexedDB.open("almanac");
+        req.onerror   = () => resolve(0);
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("panels")) { db.close(); resolve(0); return; }
+          const tx = db.transaction("panels", "readonly");
+          const all = tx.objectStore("panels").getAll();
+          all.onerror   = () => { db.close(); resolve(0); };
+          all.onsuccess = () => { db.close(); resolve((all.result as unknown[]).length); };
+        };
+      });
+    });
+    expect(panelCount).toBe(0);
+  });
+
   test("the functional-range reference (ticket 0038) renders static-only with no egress and no user-data read", async ({ page }) => {
     const stats = await installMocks(page);
     // Onboard so the `userMarkers` store exists, then seed a private user marker
