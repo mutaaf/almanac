@@ -1,7 +1,7 @@
 ---
 id: 0027
 title: Your almanac, in plain text — a readable Markdown export of the whole timeline
-status: groomed
+status: in-progress
 priority: P1
 area: settings
 created: 2026-05-20
@@ -86,3 +86,15 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 ## Implementation log
 
 (Appended by the implementation-dev agent during execution.)
+
+- **2026-05-23 (implementation-dev):** Picked up. Cut `feat/0027-readable-markdown-export`
+  from `origin/main`, flipped frontmatter + index row to `in-progress`. Plan: a new pure
+  module `src/export/markdown.ts` exporting `renderAlmanacMarkdown(data: AlmanacExport, markers): string`
+  (string templating, no DOM/Dexie/network); wire a second download action ("Download as
+  readable text") into `src/pages/settings.ts` beside the existing JSON Export, reusing the
+  same anchor + object-URL mechanism with `text/markdown` and filename `<slug(ownerName)>.almanac.md`.
+  New spec `tests/e2e/markdown-export.spec.ts` mapping each acceptance box to a test; extend
+  `tests/e2e/privacy.spec.ts` with a zero-egress export invocation. No deps, no backend, no
+  egress-list change, no schema migration. Display names resolved via `findMarker()` folding in
+  `getAllMarkers()` user definitions; trend appendix mirrors the Progress page's oldest→newest
+  per-markerKey series logic (markers with ≥2 draws only).
