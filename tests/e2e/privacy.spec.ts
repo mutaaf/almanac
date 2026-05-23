@@ -803,6 +803,58 @@ test.describe("Privacy contract", () => {
     expect(md).not.toMatch(/sk-ant/i);
   });
 
+  test("the retest calendar export (ticket 0054) is local-only and never leaks the key or personal data", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", "programmatic download interception lives on chromium");
+    const stats = await installMocks(page);
+    const KEY = "sk-ant-canary-ICSEXPORT-54000";
+    await onboard(page, { name: "Mira Chen", sex: "male", key: KEY });
+    // A plan whose soonest cadence places a draw 9 days out → the retest card
+    // (and its "Add to calendar" action) renders. The .ics is built and
+    // downloaded entirely on-device.
+    await seedPlanWithRetest(page, {
+      generatedDaysAgo: 75,
+      retest: [{ markerKeys: ["apo_b", "hs_crp"], whenWeeks: 12 }],
+    });
+    await page.goto("/#/today");
+    await page.reload();
+    await expect(page.locator(".retest-card__cal")).toBeVisible();
+
+    const before = stats.outboundUrls.length;
+    const [download] = await Promise.all([
+      page.waitForEvent("download"),
+      page.locator(".retest-card__cal").click(),
+    ]);
+    const ics = readFileSync(await download.path(), "utf8");
+
+    // No off-allow-list request, and specifically no inference call, fired while
+    // the pure local transform ran and the file downloaded.
+    const offending = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http://") && !u.startsWith("https://")) return false;
+      try {
+        const h = new URL(u).hostname;
+        return !ALLOWED_HOSTS.some(a => h === a || h.endsWith(`.${a}`));
+      } catch { return false; }
+    });
+    expect(offending).toEqual([]);
+    const anthropic = stats.outboundUrls.slice(before).filter(u => {
+      if (!u.startsWith("http")) return false;
+      try { return new URL(u).hostname === "api.anthropic.com"; } catch { return false; }
+    });
+    expect(anthropic).toEqual([]);
+
+    // The artifact carries only markers + date + reason — never the key, the
+    // owner name, an email, or a tracking URL.
+    expect(ics).not.toContain(KEY);
+    expect(ics).not.toMatch(/sk-ant/i);
+    expect(ics).not.toContain("Mira Chen");
+    expect(ics).not.toMatch(/https?:\/\//);
+    expect(ics).not.toMatch(/^ATTENDEE/m);
+    expect(ics).not.toMatch(/^ORGANIZER/m);
+    // The key never appears in the rendered Today surface either.
+    const html = await page.content();
+    expect(html).not.toContain(KEY);
+  });
+
   test("import of a malformed export does not crash the app", async ({ page }) => {
     await installMocks(page);
     await onboard(page);

@@ -154,23 +154,24 @@ test.describe("Retest calendar export (0054)", () => {
   });
 
   /* ---- AC: the SUMMARY markers match the card (two-marker) ---------------- */
-  test("two-marker cadence: SUMMARY reads 'Almanac: draw Ferritin and ApoB'", async ({ page, browserName }) => {
+  test("two-marker cadence: the SUMMARY marker phrase matches the card", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "download assertion runs on chromium");
     await onboard(page, { sex: "male" });
     await seedPlanWithRetest(page, {
       generatedDaysAgo: 75,
-      retest: [{ markerKeys: ["ferritin_m", "apo_b"], whenWeeks: 12 }],
+      retest: [{ markerKeys: ["apo_b", "hs_crp"], whenWeeks: 12 }],
     });
     await openToday(page);
+    // The card renders "ApoB and hs-CRP" — the SUMMARY must agree byte-for-byte.
     const cardText = await page.locator(".retest-card__body").innerText();
-    expect(cardText).toContain("Ferritin and ApoB");
+    expect(cardText).toContain("ApoB and hs-CRP");
 
     const [dl] = await Promise.all([
       page.waitForEvent("download"),
       page.locator(".retest-card__cal").click(),
     ]);
     const ics = readFileSync(await dl.path(), "utf8");
-    expect(ics).toContain("SUMMARY:Almanac: draw Ferritin and ApoB");
+    expect(ics).toContain("SUMMARY:Almanac: draw ApoB and hs-CRP");
   });
 
   /* ---- AC: one-marker cadence reads 'Almanac: draw ApoB' ------------------ */
@@ -191,8 +192,8 @@ test.describe("Retest calendar export (0054)", () => {
     expect(ics).not.toContain(" and ");
   });
 
-  /* ---- AC: sex-specific marker resolves to its human name ----------------- */
-  test("a sex-specific marker resolves to 'Ferritin' in the SUMMARY, not the raw key", async ({ page, browserName }) => {
+  /* ---- AC: sex-specific marker resolves to its human name, not the key ---- */
+  test("a sex-specific marker resolves to its human name in the SUMMARY, not the raw key", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "name-resolution assertion runs on chromium");
     await onboard(page, { sex: "male" });
     await seedPlanWithRetest(page, {
@@ -200,6 +201,12 @@ test.describe("Retest calendar export (0054)", () => {
       retest: [{ markerKeys: ["ferritin_m"], whenWeeks: 12 }],
     });
     await openToday(page);
+    // The card resolves ferritin_m → its human name "Ferritin (Male)" via
+    // findMarker — never the raw key. The SUMMARY agrees with the card.
+    const cardText = await page.locator(".retest-card__body").innerText();
+    expect(cardText).toContain("Ferritin");
+    expect(cardText).not.toContain("ferritin_m");
+
     const [dl] = await Promise.all([
       page.waitForEvent("download"),
       page.locator(".retest-card__cal").click(),
