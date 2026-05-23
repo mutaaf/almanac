@@ -1,7 +1,7 @@
 ---
 id: 0054
 title: Put the draw on your calendar — a one-tap .ics export of the retest date the plan already wrote
-status: groomed
+status: in-progress
 priority: P1
 area: today
 created: 2026-05-22
@@ -82,4 +82,4 @@ Files / patterns the dev should touch. Be specific enough that the dev doesn't h
 
 ## Implementation log
 
-(Appended by the implementation-dev agent during execution.)
+- 2026-05-23 [implementation-dev] Picked up. Branch `feat/0054-retest-calendar-export`. Plan: new pure `src/today/retest-ics.ts` `buildRetestIcs(status)` building an RFC 5545 CRLF iCalendar string by hand (no dep); additive "Add to calendar" action inside the existing 0028 retest card in `src/pages/today.ts`, wired to the existing object-URL blob download mechanism (`text/calendar`, filename `retest.ics`); styling on `.retest-card__cal` in `src/styles.css` (min-height ≥45px per 0017 lesson); new spec `tests/e2e/retest-calendar-export.spec.ts`. The action reuses `status.markers` so the SUMMARY matches the card byte-for-byte. The 0028 card behavior is unchanged — the action is purely additive, gated on the same render condition.
