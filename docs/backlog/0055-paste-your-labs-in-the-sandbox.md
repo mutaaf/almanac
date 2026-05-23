@@ -1,7 +1,7 @@
 ---
 id: 0055
 title: Paste your labs into the sandbox — score a snippet of raw report text against the functional optimum, no key, nothing saved
-status: proposed
+status: groomed
 priority: P1
 area: growth
 created: 2026-05-22

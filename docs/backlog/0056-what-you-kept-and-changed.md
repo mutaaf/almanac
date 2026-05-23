@@ -1,7 +1,7 @@
 ---
 id: 0056
 title: What you kept and changed — a side-by-side diff of your friend's protocol against the one you composed, to share back
-status: proposed
+status: groomed
 priority: P1
 area: growth
 created: 2026-05-22

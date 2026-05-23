@@ -2,11 +2,13 @@
 id: 0027
 title: Your almanac, in plain text — a readable Markdown export of the whole timeline
 status: groomed
-priority: P2
+priority: P1
 area: settings
 created: 2026-05-20
 owner: gtm-innovation
 ---
+
+> **Groom note (2026-05-23):** elevated P2 → P1. The readable plain-text export is the most concrete proof of the local-first / data-portability promise the product trades on, and it is a precondition the privacy-and-trust narrative leans on at the top of the funnel. It is also the natural home for new intake (ticket 0057's supplement snapshot lands in this export) and the lowest-risk way to let a user feel "my data is mine, in a form I can read without this app." Promoting it ahead of the other P2 portability work.
 
 ## User story
 
