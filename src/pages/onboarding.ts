@@ -4,10 +4,34 @@ import { mount, h, esc } from "../ui";
 import { saveProfile, getProfile } from "../db";
 import { readAdoptSeed, clearAdoptSeed } from "../share/adopt-seed";
 import { keyCheckMarkup, wireKeyCheck } from "../onboarding/key-check";
+import {
+  readResolvableSandboxRows, clearSandboxRows, stageManualPrefill,
+} from "./sandbox-handoff";
 import type { Sex } from "../types";
 
 export async function renderOnboarding(): Promise<void> {
   const existing = await getProfile();
+
+  // Bring your sandbox numbers in (ticket 0049). When the prospect came from the
+  // pre-key sandbox (#/try) and typed marker values that still resolve, offer —
+  // ONCE — to seed those as a first manual panel. The affordance renders only
+  // here, inside the gated onboarding (so a pre-consent visitor never sees it),
+  // and the session payload is consumed exactly once on accept or decline. With
+  // no resolvable session values the block is empty and onboarding is unchanged.
+  const sandboxRows = readResolvableSandboxRows();
+  const handoffBlock = sandboxRows.length
+    ? `
+      <div class="sandbox-handoff" role="note">
+        <p class="sandbox-handoff__copy">${esc(
+          `You scored ${sandboxRows.length} marker${sandboxRows.length === 1 ? "" : "s"} `
+          + `in the sandbox — add them as your first panel?`,
+        )}</p>
+        <div class="sandbox-handoff__actions">
+          <button type="button" class="btn btn--accent sandbox-handoff__accept">Add them</button>
+          <button type="button" class="btn btn--ghost sandbox-handoff__decline">Start fresh</button>
+        </div>
+      </div>`
+    : "";
 
   // Adopt-and-adapt prefix (ticket 0020). When the recipient adopted a friend's
   // protocol, surface the carried-over pattern as a small italicized prefix
@@ -42,6 +66,8 @@ export async function renderOnboarding(): Promise<void> {
           Tell it the basics. Upload your last lab report. Get a snapshot,
           a small daily habit stack, and a clear protocol — all on this device.
         </p>
+
+        ${handoffBlock}
 
         <form id="onb" style="max-width: 60ch; margin-top: 2.6rem;">
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
@@ -149,35 +175,68 @@ export async function renderOnboarding(): Promise<void> {
 
   document.getElementById("onb")?.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const f = e.target as HTMLFormElement;
-    const fd = new FormData(f);
-    // Move the adopt seed (ticket 0020) from localStorage onto the persisted
-    // Profile, then clear the localStorage entry — the seed now lives in the
-    // persistent timeline (Dexie), single source of truth. Read fresh at submit
-    // time (not the render-time `adoptSeed`) so a refresh between render and
-    // submit can't desync.
-    const seedToCarry = readAdoptSeed();
-    await saveProfile({
-      ownerName:    String(fd.get("name") ?? "").trim(),
-      birthDate:    String(fd.get("birthDate") ?? "") || undefined,
-      sex:          (String(fd.get("sex") ?? "unspecified") as Sex),
-      heightIn:     numOrUndef(fd.get("heightIn")),
-      weightLb:     numOrUndef(fd.get("weightLb")),
-      goals:        String(fd.get("goals") ?? "").trim(),
-      conditions:   String(fd.get("conditions") ?? "").trim(),
-      dietPattern:  String(fd.get("dietPattern") ?? "").trim(),
-      householdSize: numOrUndef(fd.get("householdSize")) ?? 1,
-      anthropicKey: String(fd.get("key") ?? "").trim(),
-      model:        String(fd.get("model") ?? "claude-sonnet-4-6"),
-      ...(seedToCarry ? { adoptSeed: seedToCarry } : {}),
-    });
-    if (seedToCarry) clearAdoptSeed();
+    await persistProfile(e.target as HTMLFormElement);
     // Ticket 0007 — hand the user off to the plan page, which renders the
     // first-compose state ("Compose from intake" primary, "I have labs —
     // upload first" secondary). The intake answers above are enough to
     // write a real first protocol; labs become an upgrade, not a prereq.
     location.hash = "#/plan";
   });
+
+  // Bring your sandbox numbers in (ticket 0049). Accept saves the profile (the
+  // same path the Begin button takes), stages the resolved sandbox values for
+  // the existing manual-entry review, clears the session payload (single-
+  // consume), and routes to `#/labs?manual=1` where the review pre-populates.
+  // It reuses the form's own validity so a half-filled profile can't slip a
+  // panel in ahead of a real profile.
+  document.querySelector(".sandbox-handoff__accept")?.addEventListener("click", async () => {
+    const f = document.getElementById("onb") as HTMLFormElement | null;
+    if (!f) return;
+    if (!f.reportValidity()) return;       // surfaces the same required-field UI
+    // Re-read the resolvable rows at click time (not the render-time snapshot)
+    // so a refresh between render and click can't desync.
+    const rows = readResolvableSandboxRows();
+    clearSandboxRows();                    // consumed exactly once, on accept
+    if (rows.length) stageManualPrefill(rows);
+    await persistProfile(f);
+    location.hash = rows.length ? "#/labs?manual=1" : "#/plan";
+  });
+
+  // Decline: clear the session payload (single-consume) and remove the
+  // affordance so it does not re-offer; onboarding is otherwise unchanged.
+  document.querySelector(".sandbox-handoff__decline")?.addEventListener("click", () => {
+    clearSandboxRows();
+    document.querySelector(".sandbox-handoff")?.remove();
+  });
+}
+
+/**
+ * Persist the onboarding profile from the form (ticket 0007 / 0020 logic,
+ * factored so both the Begin submit and the sandbox-handoff accept share one
+ * write path — ticket 0049). Reads the adopt seed fresh at call time and clears
+ * it once it has moved onto the persisted Profile.
+ */
+async function persistProfile(f: HTMLFormElement): Promise<void> {
+  const fd = new FormData(f);
+  // Move the adopt seed (ticket 0020) from localStorage onto the persisted
+  // Profile, then clear the localStorage entry — the seed now lives in the
+  // persistent timeline (Dexie), single source of truth.
+  const seedToCarry = readAdoptSeed();
+  await saveProfile({
+    ownerName:    String(fd.get("name") ?? "").trim(),
+    birthDate:    String(fd.get("birthDate") ?? "") || undefined,
+    sex:          (String(fd.get("sex") ?? "unspecified") as Sex),
+    heightIn:     numOrUndef(fd.get("heightIn")),
+    weightLb:     numOrUndef(fd.get("weightLb")),
+    goals:        String(fd.get("goals") ?? "").trim(),
+    conditions:   String(fd.get("conditions") ?? "").trim(),
+    dietPattern:  String(fd.get("dietPattern") ?? "").trim(),
+    householdSize: numOrUndef(fd.get("householdSize")) ?? 1,
+    anthropicKey: String(fd.get("key") ?? "").trim(),
+    model:        String(fd.get("model") ?? "claude-sonnet-4-6"),
+    ...(seedToCarry ? { adoptSeed: seedToCarry } : {}),
+  });
+  if (seedToCarry) clearAdoptSeed();
 }
 
 function numOrUndef(v: FormDataEntryValue | null): number | undefined {

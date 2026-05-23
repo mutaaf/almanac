@@ -457,6 +457,46 @@ export async function seedAdoptInLocalStorage(page: Page, seed: AdoptSeedInput):
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Sandbox-to-first-panel handoff seeding (ticket 0049)                        */
+/* -------------------------------------------------------------------------- */
+
+/** One typed sandbox row, mirroring `src/pages/try.ts`'s `TryRow`. */
+export interface SandboxRow { key: string; value: number }
+
+/**
+ * Seed the in-tab sandbox session payload (ticket 0049) — the carry mechanism
+ * the pre-key sandbox writes on each typed row. Sets
+ * `sessionStorage["almanac.sandbox.rows"]` to the JSON `{ key, value }[]` the
+ * onboarding affordance reads after consent. Lets the handoff spec exercise the
+ * post-consent side directly without re-driving the `#/try` form.
+ *
+ * Use `via: "init"` to install it as an init script (survives the next
+ * navigation / reload from "/"); the default sets it on the live page, which is
+ * what a test that is already past the welcome gate wants.
+ */
+export async function seedSandboxSession(
+  page: Page,
+  rows: SandboxRow[],
+  opts: { via?: "page" | "init" } = {},
+): Promise<void> {
+  const json = JSON.stringify(rows);
+  if (opts.via === "init") {
+    await page.addInitScript((payload: string) => {
+      sessionStorage.setItem("almanac.sandbox.rows", payload);
+    }, json);
+    return;
+  }
+  await page.evaluate((payload: string) => {
+    sessionStorage.setItem("almanac.sandbox.rows", payload);
+  }, json);
+}
+
+/** Read back the raw sandbox session payload (ticket 0049), or null. */
+export async function readSandboxSession(page: Page): Promise<string | null> {
+  return page.evaluate(() => sessionStorage.getItem("almanac.sandbox.rows"));
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Hundred-day mark seeding (ticket 0021)                                     */
 /* -------------------------------------------------------------------------- */
 

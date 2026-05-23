@@ -5196,6 +5196,41 @@ button.tour-banner__cta {
   line-height: 1.5;
 }
 
+/* Bring your sandbox numbers in (ticket 0049). The post-consent onboarding
+   affordance that offers the pre-key sandbox's typed values as a first manual
+   panel. Same paper + ink idiom as .adopt-notice; sits above the form. Ink and
+   ink-soft only — oxblood stays reserved (it lives on the .btn--accent border).
+   The accept/decline controls reuse the .btn base; the 45px cushion clears the
+   44px HIG floor on every device-pixel-ratio (see LESSONS 2026-05-21). */
+.sandbox-handoff {
+  font-family: var(--body);
+  background: var(--paper-deep);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink);
+  color: var(--ink);
+  padding: 1rem 1.2rem;
+  margin: 1.6rem 0 0;
+  max-width: 60ch;
+}
+
+.sandbox-handoff__copy {
+  margin: 0 0 0.9rem;
+  font-size: 0.96rem;
+  line-height: 1.5;
+}
+
+.sandbox-handoff__actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.sandbox-handoff__accept,
+.sandbox-handoff__decline {
+  box-sizing: border-box;
+  min-height: 45px;
+}
+
 /* The onboarding goals prefix — a quiet italic note ABOVE the editable
    textarea, never inside it. Wraps cleanly at the mobile-webkit viewport. */
 .adopt-prefix {

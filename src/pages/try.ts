@@ -24,10 +24,39 @@ import { MARKERS, findMarker, flagFor } from "../data/markers";
 import { computeReportCard, reportCardSentence } from "../labs/report-card";
 import type { MarkerDef, Panel, Result } from "../types";
 
-/** One typed sandbox entry. In-memory only — never persisted. */
+/** One typed sandbox entry. In-memory only — never persisted to IndexedDB. */
 interface TryRow {
   key: string;
   value: number;
+}
+
+/**
+ * The per-tab session key the sandbox writes its typed rows to (ticket 0049),
+ * so the post-consent onboarding affordance can offer them as a first manual
+ * panel. This is sessionStorage — per-tab, cleared on tab close — NOT IndexedDB
+ * and NOT localStorage; it carries nothing to disk before the consent gate.
+ *
+ * Reconciliation with 0040's "empty on reload of #/try" rule: `renderTry()`
+ * clears this key on every fresh navigation to #/try, then re-writes it on each
+ * add/remove. So a hard reload of #/try reads empty (the sandbox page itself
+ * carries nothing across loads), while navigating AWAY to #/welcome → consent →
+ * onboarding preserves the last-written value for the onboarding side to consume
+ * exactly once.
+ */
+const SANDBOX_SESSION_KEY = "almanac.sandbox.rows";
+
+/** Mirror the live `rows` into the per-tab session payload (ticket 0049). */
+function syncSession(): void {
+  try {
+    if (rows.length === 0) {
+      sessionStorage.removeItem(SANDBOX_SESSION_KEY);
+      return;
+    }
+    sessionStorage.setItem(SANDBOX_SESSION_KEY, JSON.stringify(rows));
+  } catch {
+    // Private mode / storage disabled: the sandbox still works in-memory, the
+    // handoff just won't be offered. Never throw out of a render path.
+  }
 }
 
 /**
@@ -43,6 +72,11 @@ export async function renderTry(): Promise<void> {
   // reload (no IndexedDB, no localStorage). Re-renders inside a session reuse
   // the live `rows` array and skip this reset (see `paint()`).
   rows = [];
+  // Clear the session carry payload too (ticket 0049): a fresh navigation to
+  // #/try reads empty, so the sandbox page itself never resurrects prior rows.
+  // The handoff value is the LAST one written before the prospect navigated
+  // away to #/welcome — it survives precisely because we are not on #/try then.
+  syncSession();
   paint();
 }
 
@@ -129,6 +163,7 @@ function paintRows(): void {
       const idx = Number(btn.dataset.index);
       if (!Number.isInteger(idx)) return;
       rows.splice(idx, 1);
+      syncSession();
       paintRows();
       paintTally();
     });
@@ -232,6 +267,7 @@ function wire(): void {
     if (!key || input.value.trim() === "" || !Number.isFinite(value)) return;
 
     rows.push({ key, value });
+    syncSession();
     input.value = "";
     paintRows();
     paintTally();
