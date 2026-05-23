@@ -59,6 +59,7 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
+| 0055 | Paste your labs into the sandbox — score a snippet of raw report text against the functional optimum, no key, nothing saved | P1 | in-progress | growth |
 | 0049 | Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel | P1 | shipped | onboarding |
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | shipped | growth |
 | 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | shipped | labs |
@@ -67,7 +68,6 @@ owner: gtm-innovation
 | 0038 | The functional-range reference — let a prospect read the marker library, with both ranges, before they trust the app with a key | P1 | shipped | growth |
 | 0027 | Your almanac, in plain text — a readable Markdown export of the whole timeline | P1 | shipped | settings |
 | 0054 | Put the draw on your calendar — a one-tap .ics export of the retest date the plan already wrote | P1 | shipped | today |
-| 0055 | Paste your labs into the sandbox — score a snippet of raw report text against the functional optimum, no key, nothing saved | P1 | groomed | growth |
 | 0056 | What you kept and changed — a side-by-side diff of your friend's protocol against the one you composed, to share back | P1 | groomed | growth |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
 | 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |
