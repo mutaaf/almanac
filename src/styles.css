@@ -1660,6 +1660,64 @@ body {
   min-width: 45px;
 }
 
+/* Or paste your report (ticket 0055) — the paste-and-score affordance beside
+   the picker. Reuses the labs paste-text idioms; ink + ink-soft only, oxblood
+   reserved for the "Score it" accent (the .btn--accent already carries it).
+   The action clears the 44×44 css-px HIG floor (min-height 45 cushion per the
+   0017/2026-05-21 sub-pixel lesson). Grid/flex children get min-width: 0 so a
+   long pasted marker name never forces horizontal overflow. */
+.try__paste {
+  margin: 0.6rem 0 0.4rem;
+  padding: 1.4rem 1.4rem 1.5rem;
+  border: 1px solid var(--rule);
+  background: var(--paper-deep);
+  min-width: 0;
+}
+.try__paste-title {
+  font-family: var(--display);
+  font-size: 1.3rem;
+  font-style: italic;
+  color: var(--ink);
+}
+.try__paste-hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.try__paste-input {
+  display: block;
+  width: 100%;
+  margin-top: 0.9rem;
+  box-sizing: border-box;
+  min-height: 96px;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  resize: vertical;
+}
+.try__paste-input:focus {
+  outline: none;
+  border-color: var(--ink-soft);
+}
+.try__paste-input::placeholder { color: var(--ink-faint); }
+.try__paste-actions { margin-top: 0.9rem; }
+.try__paste-score {
+  box-sizing: border-box;
+  min-height: 45px;
+  min-width: 45px;
+}
+.try__paste-note {
+  margin-top: 0.9rem;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
 .try__rows { display: flex; flex-direction: column; min-width: 0; }
 .try__row {
   display: grid;

@@ -22,6 +22,7 @@
 import { mount, h, esc } from "../ui";
 import { MARKERS, findMarker, flagFor } from "../data/markers";
 import { computeReportCard, reportCardSentence } from "../labs/report-card";
+import { parsePastedLabText } from "../sandbox/parse-pasted";
 import type { MarkerDef, Panel, Result } from "../types";
 
 /** One typed sandbox entry. In-memory only — never persisted to IndexedDB. */
@@ -118,6 +119,20 @@ function paint(): void {
           </label>
           <button id="try-add" class="btn btn--accent" type="submit">Score it</button>
         </form>
+
+        <div class="try__paste">
+          <div class="try__paste-title">Or paste your report</div>
+          <p class="try__paste-hint">
+            Paste the text from your lab portal — we score what we recognize,
+            nothing is saved.
+          </p>
+          <textarea class="try__paste-input" rows="5"
+                    placeholder="e.g. ApoB 110 mg/dL · Fasting insulin 8 uIU/mL · Ferritin 32 ng/mL"></textarea>
+          <div class="try__paste-actions">
+            <button type="button" class="btn btn--accent try__paste-score">Score it</button>
+          </div>
+          <div class="try__paste-note" hidden></div>
+        </div>
 
         <div id="try-tally"></div>
         <div id="try-rows" class="try__rows"></div>
@@ -266,13 +281,71 @@ function wire(): void {
     // number against a real marker.
     if (!key || input.value.trim() === "" || !Number.isFinite(value)) return;
 
-    rows.push({ key, value });
+    mergeRow(key, value);
     syncSession();
     input.value = "";
     paintRows();
     paintTally();
     input.focus();
   });
+
+  wirePaste();
+}
+
+/**
+ * Wire the "Or paste your report" affordance (ticket 0055). On "Score it" the
+ * pure, deterministic recognizer (`parsePastedLabText`) pulls the recognized
+ * markers out of the pasted blob and merges them into the live `rows` — exactly
+ * the same in-memory state the typed path writes, so they render identically and
+ * carry into the 0049 handoff through the same `syncSession()`. No key, no
+ * upload, no Anthropic call: this is a static-data parse over `MARKERS[]`.
+ */
+function wirePaste(): void {
+  const ta = document.querySelector<HTMLTextAreaElement>(".try__paste-input");
+  const btn = document.querySelector<HTMLButtonElement>(".try__paste-score");
+  if (!ta || !btn) return;
+
+  btn.addEventListener("click", () => {
+    const parsed = parsePastedLabText(ta.value);
+    if (parsed.length === 0) {
+      // Nothing we can score — a calm, declarative note, no rows added.
+      showPasteNote("No markers we recognize yet — try the picker above, or add a value by hand.");
+      return;
+    }
+    for (const { key, value } of parsed) mergeRow(key, value);
+    syncSession();
+    ta.value = "";              // clear after a successful parse
+    hidePasteNote();
+    paintRows();
+    paintTally();
+  });
+}
+
+/**
+ * Merge one `{ key, value }` into the live rows, reconciling duplicates to a
+ * single row (ticket 0055): if the key is already present, the LAST value wins
+ * and the existing row is updated IN PLACE (its position is preserved); a new
+ * key appends. Shared by the typed path and the paste path so both honor the
+ * same one-row-per-marker rule.
+ */
+function mergeRow(key: string, value: number): void {
+  const existing = rows.find(r => r.key === key);
+  if (existing) { existing.value = value; return; }
+  rows.push({ key, value });
+}
+
+function showPasteNote(message: string): void {
+  const note = document.querySelector<HTMLDivElement>(".try__paste-note");
+  if (!note) return;
+  note.textContent = message;
+  note.hidden = false;
+}
+
+function hidePasteNote(): void {
+  const note = document.querySelector<HTMLDivElement>(".try__paste-note");
+  if (!note) return;
+  note.textContent = "";
+  note.hidden = true;
 }
 
 /* -------------------------------------------------------------------------- */
