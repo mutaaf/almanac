@@ -59,13 +59,13 @@ owner: gtm-innovation
 
 | id | title | priority | status | area |
 |----|-------|----------|--------|------|
+| 0049 | Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel | P1 | in-progress | onboarding |
 | 0040 | Try it with your numbers — a pre-key sandbox that scores a handful of typed markers against the functional optimum | P1 | shipped | growth |
 | 0046 | Paste your results as text — the lowest-friction first panel, straight from the patient portal | P1 | shipped | labs |
 | 0050 | Tell a friend — a native-share button on Plan that pre-composes a personalized recommendation with the top protocol action and the tour link | P1 | shipped | growth |
 | 0033 | The protocol on the fridge — a phone-shaped image of today's eat, avoid, and habits that lives on a home screen | P1 | shipped | growth |
 | 0038 | The functional-range reference — let a prospect read the marker library, with both ranges, before they trust the app with a key | P1 | shipped | growth |
 | 0027 | Your almanac, in plain text — a readable Markdown export of the whole timeline | P1 | shipped | settings |
-| 0049 | Bring your sandbox numbers in — let the prospect who just scored their own markers carry them into a real first panel | P1 | groomed | onboarding |
 | 0054 | Put the draw on your calendar — a one-tap .ics export of the retest date the plan already wrote | P1 | groomed | today |
 | 0055 | Paste your labs into the sandbox — score a snippet of raw report text against the functional optimum, no key, nothing saved | P1 | groomed | growth |
 | 0056 | What you kept and changed — a side-by-side diff of your friend's protocol against the one you composed, to share back | P1 | groomed | growth |
