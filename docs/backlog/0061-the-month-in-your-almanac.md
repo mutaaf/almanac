@@ -1,0 +1,89 @@
+---
+id: 0061
+title: The month in your almanac — a one-screen recap of the month just past, on the first visit of a new month
+status: proposed
+priority: P1
+area: today
+created: 2026-05-26
+owner: gtm-innovation
+---
+
+## User story
+
+As a user who has been on the protocol for a few months and opens the app on the first morning of a new calendar month, I want a single, calmly-typeset page that recaps the month just ended — panels drawn, plans composed, the habits I held most days, the marker that moved most, the meal that recurred most — so that the editorial-almanac promise the product makes is literalized once a month on my own data, and so I have a quiet, predictable reason to open the app every thirty-ish days that does NOT rely on a push notification I cannot send.
+
+## Why now (four lenses)
+
+### Product Owner
+
+The retention surfaces shipped so far serve the daily (Today), the weekly (0008 recap on Sundays), and the protocol-cadence (0021 hundred-day, 0028 retest-due, 0051 pre-draw, 0054 ics-export) rhythms. The missing rhythm is the monthly one — the calendar cadence the persona naturally thinks in ("how am I doing this month?"), and the one that most closely matches the *editorial almanac* the product's voice and visual language already promise. The smallest meaningful unit of value is a "The month in your almanac" entry: a single-page recap rendered on a route `#/almanac/YYYY-MM` and surfaced as a card on Today on the first visit of a new calendar month — exactly once per month, dismissible. It composes existing primitives only: `panels.where('drawnAt' in month)`, `plans.where('createdAt' in month)`, `checkins.where('day' in month)` aggregated into per-habit tallies, the most-recurring meal-id from the month's `mealsAte`, and the marker with the largest favorable in-month delta computed via the same shape as 0032's movement receipt. No LLM call. No new persisted state beyond a single `lastAlmanacMonthDismissed` field so the card does not re-appear later in the month after dismissal. The page is the editorial almanac, finally delivered as the artifact the brand named.
+
+### Stakeholder
+
+This is the cleanest retention primitive available *inside* the no-backend constraint: a no-push, no-email, no-notification reason to open the app every thirty-ish days that arrives on the visit the user already makes. It deepens the **structured-artifact + persistent-timeline** moat at the cadence the persona keeps mental accounts in — month-over-month — and it does so by composing four moat assets (panels, plans, check-ins, the meal plan) into one offline render that no chat box can produce (no chat has the month's data, no chat indexes by calendar month, no chat has the meal-plan tie to `mealsAte`). It is also a strong defense against the failure mode that has historically killed precision-health apps for the persona: the slow drift from "I use this every day" to "I have not opened it in three weeks." The monthly entry is the slowest reliable heartbeat the product can build inside its privacy contract, and it deepens the artifact moat — every month becomes its own dated, browsable page, which compounds into the long timeline 0045 (the chronological spine) is building. Crucially the page is also the most genuinely *shareable* retention artifact: a screenshot of "May in my almanac" is the show-me moment the persona forwards, because it is the brand promise literalized — not because we engineered a viral hook.
+
+### User (at 7am on the phone)
+
+June 1st, coffee not yet made. I open the app. A small card on Today: "May in your almanac." I tap it. A single page, set in the same serif as everything else, reads like a page from a printed almanac: "May 2026 — one panel drawn, one plan composed. You held the magnesium habit 24 of 31 nights and the afternoon walk 19 of 31. Salmon-and-greens recurred 7 times — your most-eaten dinner. The marker that moved most: ferritin, up from 32 to 48 ng/mL — now inside the functional range." A small footer: "Browse other months." I tap "dismiss"; the card on Today goes away for the month. Tomorrow I get the daily check-in surface I expect, without the May card insisting on attention again. It worked offline, instantly, because every byte of it was already on my phone, and it felt like a page from the product I bought into, not a "monthly digest email" the product cannot send.
+
+### Growth
+
+This is a pure retention-and-moat ticket — the day-30, day-60, day-90 surface the product needs and does not yet have. (Hypothesis: a monthly recap rendered on the first visit of a new calendar month lifts month-over-month retention among users with at least one month of history, versus a Today screen that has no monthly cadence, because the persona who already checks in daily gains a recurring "step back" surface on the same cadence they think about their biology in, and the persona who has slipped to weekly or less gains a calmly-anchored reason to open the app on a date — the first — they did not have to be reminded of; back-of-envelope from how monthly-summary surfaces retain users in finance and habit apps without push, especially when the summary is rendered on first visit rather than scheduled; treat as untested without remote analytics, which we will never add.) The "show me" frame is the page itself: an editorial-almanac page of *the user's own month*, screenshot-friendly, brand-faithful, and most importantly — *not* a feature tour or a sample artifact, but the real month the user just lived through. It is the calendar-cadence sibling of 0008 (weekly recap) and 0021 (hundred-day): 0008 covers the planning week, 0021 marks the quarter, this fills the gap in between and the persona's primary mental cadence.
+
+## Acceptance criteria
+
+Each box maps 1:1 to a Playwright test scenario.
+
+- [ ] `src/almanac/month-entry.ts` (new) exports `buildMonthEntry(month: { year: number; month: number }, panels: Panel[], plans: Plan[], checkIns: CheckIn[], mealPlans: MealPlan[]): MonthEntry` assembling, with NO network and NO LLM: a count of panels with `drawnAt` in the month, a count of plans with `createdAt` in the month, per-habit tallies of `habitsCompleted` across in-month check-ins (habit titles drawn from the habit stack active at month's end), the single most-recurring `mealId` across the month's `mealsAte` resolved to its name via the month's meal plans, and the marker with the largest favorable in-month delta (same shape as 0032's `MarkerMove` for the largest `toward` or `into-range` move; null when no marker has prior + new draws in the month). Pure: no DOM, no Dexie, no network. Asserted by passing known seed data for a month and confirming each field.
+- [ ] A new route `#/almanac/YYYY-MM` (registered in `src/main.ts`) renders a one-screen page for the named month. Visiting an explicit month renders the entry for THAT month regardless of whether it is the current month. Visiting `#/almanac` (no month) redirects to the most recent completed month. Asserted by visiting `#/almanac/2026-05` with seeded data and confirming the page renders, and by visiting `#/almanac` and confirming it lands on the most recent completed month.
+- [ ] On the first visit to Today in a new calendar month — operationalized as: the local date's `YYYY-MM` is different from `Profile.lastAlmanacMonthDismissed` AND at least one panel/plan/check-in exists in the prior month — the Today page renders a "Last month in your almanac" card linking to `#/almanac/YYYY-MM` (prior month). Asserted by seeding a profile with last-dismissed `2026-04`, a panel in `2026-05`, advancing the clock to `2026-06-01` (via the existing time-fixture in tests), and confirming the card renders on Today.
+- [ ] The card is dismissible from Today: tapping "dismiss" writes the prior month's `YYYY-MM` into `Profile.lastAlmanacMonthDismissed` and the card does not re-appear for the remainder of the month. Asserted by dismissing the card, reloading Today, and confirming the card is absent; advancing to the following month re-surfaces it for THAT month.
+- [ ] The card is ABSENT for a user whose `lastAlmanacMonthDismissed` already equals the prior month (already dismissed). Asserted by seeding `lastAlmanacMonthDismissed = '2026-05'` on June 5, visiting Today, and confirming the card is absent.
+- [ ] The card is ABSENT for a fresh user with no panels/plans/check-ins in the prior month (no month to recap). Asserted on a clean profile with no in-month history and confirming the card is absent.
+- [ ] The almanac page renders ALL of: panels drawn (count + the panels' drawnAt list as small dated lines), plans composed (count + composed-at dated lines), the top 3 habits by in-month adherence (e.g. "Magnesium before bed — 24 of 31"), the most-recurring meal (name + count) if at least one meal was eaten in the month, and the largest-favorable-delta marker line in the 0032 voice ("Ferritin came up from 32 to 48 ng/mL — now inside the functional range") if such a marker exists. Each section omits gracefully when its data is empty (e.g. "No new panel in May" rather than an empty section, per the documented copy). Asserted across a populated month and a sparse month.
+- [ ] A small footer link "Browse other months" leads to a stack of the past 12 months (one row per month with the headline numbers), each tappable to that month's almanac entry. Asserted by seeding 3 months of history and confirming the browse list shows the 3 months and each entry is reachable.
+- [ ] The almanac page makes **zero Anthropic calls** and **zero network calls** — it is a pure render over panels, plans, check-ins, and meal plans already on the device. Asserted by rendering several months and confirming the mock recorded zero requests.
+- [ ] The Anthropic key NEVER appears on the page, in the card, in the URL, or in any intermediate string. Asserted by seeding a sentinel key and confirming it appears nowhere.
+- [ ] Renders on both **chromium and mobile-webkit**. The page fits the 390 px viewport, the card's dismiss action is ≥44×44 css px (min-height ≥45 px per the 0017 sub-pixel lesson), long marker/habit/meal names respect `min-width: 0`. Asserted on both projects.
+- [ ] Tour mode (0014) renders the almanac for the tour fixture's seeded month (read-only) so a prospect can see the artifact for a sample month. Shared-view mode (0017) does NOT render the card or the route (a shared protocol has no month-aggregated history). Asserted in both modes.
+- [ ] The existing Today, Plan, Progress, Meals, Labs, and Settings flows — the weekly-recap card (0008), the quiet-day card (0015), the retest-due (0028), the lapse-aware welcome (0018), the streak strip, the meal cards, the habit rows, the hundred-day surface (0021), the calendar export (0054) — are byte-for-byte unchanged in behavior; the almanac card and route are purely additive. Asserted by exercising the existing flows and confirming they are unchanged.
+- [ ] Privacy E2E (`tests/e2e/privacy.spec.ts`) still passes — the page is a pure local render; no new hostnames.
+- [ ] Schema migration: **yes** — Dexie bumps to the next version to add an optional `Profile.lastAlmanacMonthDismissed?: string` (YYYY-MM). Additive; an existing profile loads with the field undefined and the card surfaces on the user's first visit of any new month. Migration test asserts a prior-version export imports cleanly.
+- [ ] New `tests/e2e/almanac-month-entry.spec.ts` covers: `buildMonthEntry` assembles each field, the route renders for an explicit month and redirects from `#/almanac`, the card surfaces on first-visit-of-month and dismisses, the card is absent when already dismissed or when no prior-month data exists, each section renders + each section's empty-state copy, the browse-other-months list, zero Anthropic + zero network, the key never appears (sentinel), tour vs shared-view behavior, the existing surfaces unchanged, mobile rendering.
+
+## Out of scope
+
+Explicit anti-goals. The dev agent will not do these even if they seem related.
+
+- An LLM-composed editorial sentence ("May was a steady month for you…"). Every line on the page is deterministic, assembled from the user's own data via plain TypeScript. No inference at render time. No new Anthropic call.
+- A push notification, web-push, badge, or service-worker reminder on the first of the month. AGENTS.md forbids the server side and there is no way to schedule a notification without one. The card appears on the first *visit* of a new month, never on the first *date*. The cadence is opening the app, not the calendar reaching over.
+- A streak-style "you've kept the almanac N months in a row" mechanic. The almanac is a quiet recap, not a retention game. No consecutive-month counter, no loss framing.
+- An email digest, an export-to-PDF of the month, or a print stylesheet for the almanac entry (those are plausible future tickets — sibling to the doctor PDF 0010 / coach packet 0048 — but out of scope here). The artifact is the in-app page, shareable via screenshot.
+- A configurable month boundary (fiscal months, four-week cycles, etc.). The cadence is the calendar month in the user's local time. Configurable cadences are out of scope.
+- Surfacing the almanac entry on Plan, Meals, Progress, or Labs. The card lives on Today; the route is reachable from Today, the browse list, and direct URL. No cross-page card sprawl.
+- A "compare this month to last month" diff on the page. The almanac entry is single-month. Side-by-side month comparison is a plausible future ticket (sibling to 0009 panel comparison).
+- Carrying the almanac entry into the share link (0017), the doctor PDF (0010), the Markdown export (0027 — though 0027 should naturally include the panels/plans/check-ins it already covers; we do not author a new "almanac" section into 0027 here), or the coach packet (0048). It is an in-app artifact for the user, not an export.
+
+## Engineering notes
+
+Files / patterns the dev should touch. Be specific enough that the dev doesn't have to re-discover the architecture.
+
+- `src/almanac/month-entry.ts` (new) — `buildMonthEntry({ year, month }, panels, plans, checkIns, mealPlans)`. Filter each collection by the local-time month boundary (`YYYY-MM-01` 00:00 to next-month `YYYY-MM-01` 00:00, using the same `Day` formatting the rest of the app uses). For the most-recurring meal, tally `checkIn.mealsAte` and resolve the top `mealId` to a meal name via the month's `mealPlans` (the in-month meal plan, falling back to the most recent prior). For the marker move, reuse the `computeMovementReceipt` shape from 0032 (same `MarkerMove` semantics) and pick the move with the largest favorable signed delta (favoring `into-range` over `toward` when tied). Pure; no Dexie import.
+- `src/types.ts` — add `MonthEntry` (the assembled shape) as an exported interface; add optional `Profile.lastAlmanacMonthDismissed?: string` (`YYYY-MM`). Additive.
+- `src/db.ts` — bump Dexie to the next version with a NEW additive `.version(N).stores({...})` block for the `lastAlmanacMonthDismissed` field (per the AGENTS.md schema rule). Read-side optional; no data migration.
+- `src/pages/almanac.ts` (new) — render the month page. Read panels, plans, check-ins, and meal plans for the month, call `buildMonthEntry(...)`, and render the sections. Implement the "Browse other months" footer as a list of the past 12 months with headline numbers, each linking to its month page.
+- `src/main.ts` — register `#/almanac` and `#/almanac/:month` routes. Both sit behind the consent gate (the page reads IndexedDB; pre-consent the user has no data).
+- `src/pages/today.ts` — at render, compute the prior month's `YYYY-MM`, compare to `profile.lastAlmanacMonthDismissed`, and surface the "Last month in your almanac" card when the comparison fires and at least one panel/plan/check-in exists in the prior month. Wire the dismiss handler to write `profile.lastAlmanacMonthDismissed = priorMonth` via the existing profile save path. Place the card at the documented slot (between the welcome-back / retest-due cards and the daily meal cards).
+- `src/styles.css` — `.almanac-month` (the page), `.almanac-month__section` (each labeled section), `.today__almanac-card` (the Today card). Reuse the existing serif/sans hierarchy; no new colors. The card's dismiss is ≥44×44 css px (`box-sizing: border-box; min-height: 45px`). Grid children `min-width: 0`.
+- `src/sample/state.ts` — extend the tour fixture with a seeded month so the tour can render an almanac entry without exposing real user data. `src/share/shared-state.ts` — gate the route and card with `!isSharedView()`.
+- `tests/helpers/flows.ts` — add `freezeNow(page, isoDate)` (or reuse the existing time-fixture helper if present) so the spec can advance the clock to the first of a new month. Add `seedMonthOfHistory(page, month, opts)` that seeds panels/plans/check-ins/mealPlans for a known month.
+- `tests/e2e/almanac-month-entry.spec.ts` (new) — every acceptance bullet maps to a `test()`. The first-visit test freezes the clock to `2026-06-01`, seeds May history, asserts the card on Today, dismisses, reloads, asserts the card is absent, advances to July and asserts a new card.
+- `tests/e2e/privacy.spec.ts` — extend with rendering several almanac months and visiting Today across a month boundary, confirming zero off-allow-list egress.
+- New deps: **no**.
+- Egress allow-list change: **no**.
+- Schema migration: **yes** — Dexie next version, additive `Profile.lastAlmanacMonthDismissed?`.
+- Voice spec: page eyebrow reads "May 2026 in your almanac" (or the relevant month); section labels are "Panels", "Plans", "Habits", "Meals", "What moved most". The card eyebrow reads "Last month in your almanac." Declarative, dated, plain. Banned: "amazing," "exciting," "journey," "great." Ink and ink-soft; oxblood reserved for the marker-moved line.
+
+## Implementation log
+
+(Appended by the implementation-dev agent during execution.)
