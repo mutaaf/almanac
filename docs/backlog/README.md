@@ -92,6 +92,7 @@ owner: gtm-innovation
 | 0060 | Send a friend a number — a pre-filled sandbox link that opens with the one marker your friend mentioned, already scored | P1 | proposed | growth |
 | 0061 | The month in your almanac — a one-screen recap of the month just past, on the first visit of a new month | P1 | proposed | today |
 | 0062 | What worked — a per-action audit on recompose tying the previous plan's protocol items to the new draw's measured outcomes | P2 | proposed | plan |
+| 0063 | The lineage of a moved marker — the insight, the plan action, the adherence, and the result, in one read | P2 | proposed | progress |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
