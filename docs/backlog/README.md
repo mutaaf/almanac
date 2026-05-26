@@ -86,9 +86,12 @@ owner: gtm-innovation
 | 0048 | The coach packet — a one-tap longitudinal export a functional-medicine practitioner can actually work from | P2 | groomed | settings |
 | 0052 | Coverage gaps — a Labs-page view of the high-impact markers you haven't tested, with a "worth asking about" note for each | P2 | groomed | labs |
 | 0053 | Habit history — a full check-in calendar grid on Progress showing every logged day per habit, like a contribution graph | P2 | groomed | progress |
-| 0057 | The supplement snapshot — capture what you're already taking so the plan can name synergies and flag timing conflicts | P1 | proposed | onboarding |
-| 0058 | The habit catch-up card — retroactively log the past week from a compact grid on Today | P1 | proposed | today |
-| 0059 | The marker deep-dive — tap any marker for its one-screen reference, your trend, and the plan actions targeting it | P2 | proposed | progress |
+| 0057 | The supplement snapshot — capture what you're already taking so the plan can name synergies and flag timing conflicts | P1 | groomed | onboarding |
+| 0058 | The habit catch-up card — retroactively log the past week from a compact grid on Today | P1 | groomed | today |
+| 0059 | The marker deep-dive — tap any marker for its one-screen reference, your trend, and the plan actions targeting it | P2 | groomed | progress |
+| 0060 | The plan recompose nudge — a quiet Today card when your protocol has gone stale, before the lapse becomes a churn | P1 | proposed | today |
+| 0061 | The functional score before the key — turn the sandbox verdicts into a single "N of M markers below optimum" with a one-tap path to the real protocol | P1 | proposed | growth |
+| 0062 | The insight library — a browsable reference of every cross-marker rule the engine checks, with the rules that fired for you highlighted | P2 | proposed | plan |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
