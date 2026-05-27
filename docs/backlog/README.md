@@ -69,6 +69,11 @@ owner: gtm-innovation
 | 0027 | Your almanac, in plain text — a readable Markdown export of the whole timeline | P1 | shipped | settings |
 | 0054 | Put the draw on your calendar — a one-tap .ics export of the retest date the plan already wrote | P1 | shipped | today |
 | 0056 | What you kept and changed — a side-by-side diff of your friend's protocol against the one you composed, to share back | P1 | groomed | growth |
+| 0057 | The supplement snapshot — capture what you're already taking so the plan can name synergies and flag timing conflicts | P1 | groomed | onboarding |
+| 0058 | The habit catch-up card — retroactively log the past week from a compact grid on Today | P1 | groomed | today |
+| 0060 | The marker learn page — a static, search-anchored landing per marker that becomes the front door for the prospect who Googled their lab value | P1 | groomed | growth |
+| 0061 | The lab said "normal," we see something else — capture the lab's verbatim verdict per result and render the disagreement, row by row | P1 | groomed | labs |
+| 0062 | The threshold watch — a quiet Today card naming the exact next number that would change your protocol | P1 | groomed | today |
 | 0022 | User-authored insight rules with citations — extend the engine the same way 0002 extended the markers | P2 | groomed | plan |
 | 0023 | Insight stance — pin, snooze, or dismiss insights into the persistent timeline | P2 | groomed | plan |
 | 0026 | Same marker, different lab — surface the canonicalization that lets a trend span report formats | P2 | groomed | labs |
@@ -86,9 +91,7 @@ owner: gtm-innovation
 | 0048 | The coach packet — a one-tap longitudinal export a functional-medicine practitioner can actually work from | P2 | groomed | settings |
 | 0052 | Coverage gaps — a Labs-page view of the high-impact markers you haven't tested, with a "worth asking about" note for each | P2 | groomed | labs |
 | 0053 | Habit history — a full check-in calendar grid on Progress showing every logged day per habit, like a contribution graph | P2 | groomed | progress |
-| 0057 | The supplement snapshot — capture what you're already taking so the plan can name synergies and flag timing conflicts | P1 | proposed | onboarding |
-| 0058 | The habit catch-up card — retroactively log the past week from a compact grid on Today | P1 | proposed | today |
-| 0059 | The marker deep-dive — tap any marker for its one-screen reference, your trend, and the plan actions targeting it | P2 | proposed | progress |
+| 0059 | The marker deep-dive — tap any marker for its one-screen reference, your trend, and the plan actions targeting it | P2 | groomed | progress |
 | 0005 | Mobile-WebKit timing hardening — promote to gating CI check | P0 | shipped | infra |
 | 0007 | First plan from intake alone (no labs required) | P0 | shipped | onboarding |
 | 0001 | Auto-split panels by drawn date | P1 | shipped | labs |
