@@ -2,7 +2,7 @@
 id: 0048
 title: The coach packet — a one-tap longitudinal export a functional-medicine practitioner can actually work from
 status: groomed
-priority: P2
+priority: P1
 area: settings
 created: 2026-05-22
 owner: gtm-innovation

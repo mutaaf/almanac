@@ -2,7 +2,7 @@
 id: 0043
 title: Why this isn't a chat box — put the anti-wrapper argument in front of the prospect, before the key
 status: groomed
-priority: P2
+priority: P1
 area: growth
 created: 2026-05-21
 owner: gtm-innovation
