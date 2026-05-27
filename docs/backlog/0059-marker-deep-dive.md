@@ -1,7 +1,7 @@
 ---
 id: 0059
 title: The marker deep-dive — tap any marker for its one-screen reference, your trend, and the plan actions targeting it
-status: proposed
+status: groomed
 priority: P2
 area: progress
 created: 2026-05-23
