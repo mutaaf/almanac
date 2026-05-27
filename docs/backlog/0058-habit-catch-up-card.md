@@ -1,7 +1,7 @@
 ---
 id: 0058
 title: The habit catch-up card — retroactively log the past week from a compact grid on Today
-status: proposed
+status: groomed
 priority: P1
 area: today
 created: 2026-05-23
