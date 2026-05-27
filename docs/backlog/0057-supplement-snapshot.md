@@ -1,7 +1,7 @@
 ---
 id: 0057
 title: The supplement snapshot — capture what you're already taking so the plan can name synergies and flag timing conflicts
-status: proposed
+status: groomed
 priority: P1
 area: onboarding
 created: 2026-05-23
